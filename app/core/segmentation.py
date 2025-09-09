@@ -25,8 +25,8 @@ def segment(gray: np.ndarray, method: str="otsu", invert: bool=True,
     else:
         feat = outline_focused(gray, invert=invert)
         if method == "otsu":
-            _, th = cv2.threshold(feat, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-            bw = (feat >= _).astype(np.uint8)
+            _, th = cv2.threshold(feat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            bw = (th > 0).astype(np.uint8)
         elif method == "adaptive":
             blk = max(3, adaptive_block|1)
             th = cv2.adaptiveThreshold(feat, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, blk, adaptive_C)
