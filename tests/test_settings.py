@@ -28,6 +28,9 @@ def test_settings_persist(tmp_path):
     win.use_masked.setChecked(False)
     win.orb_features.setValue(123)
     win.match_ratio.setValue(0.55)
+    win.min_keypoints.setValue(5)
+    win.min_matches.setValue(6)
+    win.use_ecc_fallback.setChecked(False)
     win.seg_method.setCurrentText("manual")
     win.dir_combo.setCurrentText("first-to-last")
     win.overlay_ref_cb.setChecked(False)
@@ -54,6 +57,9 @@ def test_settings_persist(tmp_path):
     assert not win2.use_masked.isChecked()
     assert win2.orb_features.value() == 123
     assert win2.match_ratio.value() == 0.55
+    assert win2.min_keypoints.value() == 5
+    assert win2.min_matches.value() == 6
+    assert not win2.use_ecc_fallback.isChecked()
     assert win2.seg_method.currentText() == "manual"
     assert win2.dir_combo.currentText() == "first-to-last"
     assert not win2.overlay_ref_cb.isChecked()

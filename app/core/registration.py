@@ -71,24 +71,40 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
 
 def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
                  orb_features: int = 4000, match_ratio: float = 0.75,
-                 fallback_model: str = "affine") -> tuple[bool, np.ndarray, np.ndarray, np.ndarray, bool]:
+                 fallback_model: str = "affine", *,
+                 min_keypoints: int = 8, min_matches: int = 8,
+                 use_ecc_fallback: bool = True) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray, bool]:
     if mov.size == 0 or ref.size == 0:
         logging.warning("Skipping registration: empty frame")
         return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8), False
     orb = cv2.ORB_create(int(orb_features))
     k1, d1 = orb.detectAndCompute(ref, None)
     k2, d2 = orb.detectAndCompute(mov, None)
-    if d1 is None or d2 is None or len(k1) < 8 or len(k2) < 8:
-        logging.warning("Insufficient ORB features; falling back to ECC registration")
-        success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
-        return success, W, warped, valid_mask, True
+    if d1 is None or d2 is None or len(k1) < min_keypoints or len(k2) < min_keypoints:
+        logging.warning(
+            "Insufficient ORB features" + (
+                "; falling back to ECC registration" if use_ecc_fallback else ""
+            )
+        )
+        if use_ecc_fallback:
+            success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
+            return success, W, warped, valid_mask, True
+        identity = np.eye(3, dtype=np.float32) if model == "homography" else np.eye(2, 3, dtype=np.float32)
+        return False, identity, mov, np.zeros_like(mov, dtype=np.uint8), False
     matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
     matches = matcher.knnMatch(d1, d2, k=2)
-    good = [m for m,n in matches if m.distance < match_ratio * n.distance]
-    if len(good) < 8:
-        logging.warning("Too few good ORB matches; falling back to ECC registration")
-        success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
-        return success, W, warped, valid_mask, True
+    good = [m for m, n in matches if m.distance < match_ratio * n.distance]
+    if len(good) < min_matches:
+        logging.warning(
+            "Too few good ORB matches" + (
+                "; falling back to ECC registration" if use_ecc_fallback else ""
+            )
+        )
+        if use_ecc_fallback:
+            success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
+            return success, W, warped, valid_mask, True
+        identity = np.eye(3, dtype=np.float32) if model == "homography" else np.eye(2, 3, dtype=np.float32)
+        return False, identity, mov, np.zeros_like(mov, dtype=np.uint8), False
     src = np.float32([k1[m.queryIdx].pt for m in good]).reshape(-1,1,2)
     dst = np.float32([k2[m.trainIdx].pt for m in good]).reshape(-1,1,2)
     h, w = ref.shape
@@ -129,7 +145,9 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
 def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
                      max_iters: int = 1000, eps: float = 1e-6,
                      orb_features: int = 4000, match_ratio: float = 0.75,
-                     fallback_model: str = "affine",
+                     fallback_model: str = "affine", *,
+                     min_keypoints: int = 8, min_matches: int = 8,
+                     use_ecc_fallback: bool = True,
                      mask: Optional[np.ndarray] = None) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray]:
     """Register using ORB for initialization followed by ECC refinement."""
     if mov.size == 0 or ref.size == 0:
@@ -139,7 +157,9 @@ def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
     # Initial alignment via ORB keypoints
     success, W_orb, warped, valid_mask, fb = register_orb(
         ref, mov, model=model, orb_features=orb_features,
-        match_ratio=match_ratio, fallback_model=fallback_model
+        match_ratio=match_ratio, fallback_model=fallback_model,
+        min_keypoints=min_keypoints, min_matches=min_matches,
+        use_ecc_fallback=use_ecc_fallback,
     )
     if fb or not success:
         # Either ORB failed or already fell back to ECC; return its result
