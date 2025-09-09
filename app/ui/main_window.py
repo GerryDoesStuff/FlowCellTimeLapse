@@ -96,9 +96,12 @@ class MainWindow(QMainWindow):
         else:
             self.scale_min.setValue(0)
             self.scale_max.setValue(0)
+        self.rescale_cb = QCheckBox("Rescale background subtraction")
+        self.rescale_cb.setChecked(self.app.rescale_background)
         intensity_form.addRow(self.norm_cb)
         intensity_form.addRow("Min", self.scale_min)
         intensity_form.addRow("Max", self.scale_max)
+        intensity_form.addRow(self.rescale_cb)
         controls.addWidget(intensity_group)
         self.scale_min.setEnabled(self.norm_cb.isChecked())
         self.scale_max.setEnabled(self.norm_cb.isChecked())
@@ -106,9 +109,11 @@ class MainWindow(QMainWindow):
         self.norm_cb.toggled.connect(self._persist_settings)
         self.scale_min.valueChanged.connect(self._persist_settings)
         self.scale_max.valueChanged.connect(self._persist_settings)
+        self.rescale_cb.toggled.connect(self._persist_settings)
         self.norm_cb.toggled.connect(self._on_params_changed)
         self.scale_min.valueChanged.connect(self._on_params_changed)
         self.scale_max.valueChanged.connect(self._on_params_changed)
+        self.rescale_cb.toggled.connect(self._on_params_changed)
 
         # Registration params
         reg_group = QGroupBox("Registration")
@@ -404,6 +409,7 @@ class MainWindow(QMainWindow):
                         minutes_between_frames=self.dt_min.value(),
                         use_file_timestamps=self.use_ts.isChecked(),
                         normalize=self.norm_cb.isChecked(),
+                        rescale_background=self.rescale_cb.isChecked(),
                         scale_minmax=scale_minmax,
                         show_ref_overlay=self.overlay_ref_cb.isChecked(),
                         show_mov_overlay=self.overlay_mov_cb.isChecked(),
@@ -679,7 +685,9 @@ class MainWindow(QMainWindow):
                        remove_objects_smaller_px=seg.remove_objects_smaller_px, remove_holes_smaller_px=seg.remove_holes_smaller_px)
         app_cfg = dict(direction=app.direction,
                        use_difference_for_seg=False, save_intermediates=True,
-                       normalize=app.normalize, scale_minmax=app.scale_minmax)
+                       normalize=app.normalize,
+                       rescale_background=app.rescale_background,
+                       scale_minmax=app.scale_minmax)
 
         # timestamps if requested
         if app.use_file_timestamps:

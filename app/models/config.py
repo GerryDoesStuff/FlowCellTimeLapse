@@ -49,6 +49,7 @@ class AppParams:
     use_difference_for_seg: bool = False
     use_file_timestamps: bool = True
     normalize: bool = True
+    rescale_background: bool = True
     scale_minmax: Optional[tuple[int, int]] = None
     presets_path: Optional[str] = None
     last_folder: str | None = None
