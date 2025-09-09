@@ -19,6 +19,8 @@ class RegParams:
     initial_radius: int = 20
     growth_factor: float = 1.0
     use_masked_ecc: bool = True
+    orb_features: int = 4000
+    match_ratio: float = 0.75
 
 @dataclass
 class SegParams:
