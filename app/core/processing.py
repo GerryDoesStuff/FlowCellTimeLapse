@@ -5,7 +5,7 @@ import cv2
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 from .io_utils import imread_gray, imread_color, ensure_dir
-from .registration import register_ecc, register_orb, crop_to_overlap
+from .registration import register_ecc, register_orb, crop_to_overlap, preprocess
 from .segmentation import segment
 from .background import normalize_background, estimate_temporal_background
 
@@ -25,6 +25,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     # Background normalization using early frames
     bg = estimate_temporal_background(imgs_gray, n_early=5)
     imgs_norm = [normalize_background(g, bg) for g in imgs_gray]
+    gauss_sigma = float(reg_cfg.get("gauss_blur_sigma", 1.0))
+    clahe_clip = float(reg_cfg.get("clahe_clip", 2.0))
+    clahe_grid = int(reg_cfg.get("clahe_grid", 8))
+    imgs_norm = [preprocess(g, gauss_sigma, clahe_clip, clahe_grid) for g in imgs_norm]
 
     # Prepare outputs
     ensure_dir(out_dir)
