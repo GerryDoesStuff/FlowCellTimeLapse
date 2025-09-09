@@ -95,11 +95,14 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
     orb = cv2.ORB_create(int(orb_features))
     k1, d1 = orb.detectAndCompute(ref, None)
     k2, d2 = orb.detectAndCompute(mov, None)
-    if d1 is None or d2 is None or len(k1) < min_keypoints or len(k2) < min_keypoints:
+    n1, n2 = len(k1), len(k2)
+    if d1 is None or d2 is None or n1 < min_keypoints or n2 < min_keypoints:
         logging.warning(
-            "Insufficient ORB features" + (
+            "Insufficient ORB features (ref=%d, mov=%d)" + (
                 "; falling back to ECC registration" if use_ecc_fallback else ""
-            )
+            ),
+            n1,
+            n2,
         )
         if use_ecc_fallback:
             success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
