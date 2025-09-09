@@ -23,6 +23,9 @@ def test_settings_persist(tmp_path):
     win.init_radius.setValue(12)
     win.growth_factor.setValue(1.8)
     win.reg_method.setCurrentText("ORB")
+    win.reg_model.setCurrentText("translation")
+    win.eps.setValue(5e-5)
+    win.use_masked.setChecked(False)
     win.orb_features.setValue(123)
     win.match_ratio.setValue(0.55)
     win.seg_method.setCurrentText("manual")
@@ -46,6 +49,9 @@ def test_settings_persist(tmp_path):
     assert win2.init_radius.value() == 12
     assert win2.growth_factor.value() == 1.8
     assert win2.reg_method.currentText() == "ORB"
+    assert win2.reg_model.currentText() == "translation"
+    assert win2.eps.value() == 5e-05
+    assert not win2.use_masked.isChecked()
     assert win2.orb_features.value() == 123
     assert win2.match_ratio.value() == 0.55
     assert win2.seg_method.currentText() == "manual"
