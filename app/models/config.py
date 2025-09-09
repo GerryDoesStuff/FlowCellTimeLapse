@@ -59,6 +59,7 @@ def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
     s.setValue("reg", json.dumps(asdict(reg)))
     s.setValue("seg", json.dumps(asdict(seg)))
     s.setValue("app", json.dumps(asdict(app)))
+    s.sync()
 
 def load_settings() -> tuple[RegParams, SegParams, AppParams]:
     s = QSettings("YeastLab", "FlowcellPyQt")

@@ -216,7 +216,6 @@ class MainWindow(QMainWindow):
                         custom_ref_index=self.ref_idx.value(),
                         minutes_between_frames=self.dt_min.value(),
                         use_file_timestamps=self.use_ts.isChecked())
-        save_settings(reg, seg, app)
         return reg, seg, app
 
     def _save_preset(self):
@@ -404,3 +403,9 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "Error", err)
         self.status_label.setText("Failed.")
         self.thread.quit(); self.thread.wait()
+
+    def closeEvent(self, event):
+        """Persist current settings when the window is closed."""
+        reg, seg, app = self._collect_params()
+        save_settings(reg, seg, app)
+        super().closeEvent(event)
