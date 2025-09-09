@@ -146,6 +146,9 @@ class MainWindow(QMainWindow):
         preview_btn.clicked.connect(self._preview_registration)
         run_box.addWidget(run_btn)
         run_box.addWidget(preview_btn)
+        run_box.addWidget(QLabel("Moving frame"))
+        self.mov_idx_spin = QSpinBox(); self.mov_idx_spin.setMinimum(0); self.mov_idx_spin.setMaximum(0)
+        run_box.addWidget(self.mov_idx_spin)
         controls.addLayout(run_box)
 
         controls.addStretch(1)
@@ -193,6 +196,7 @@ class MainWindow(QMainWindow):
             p = Path(self.app.last_folder)
             self.paths = discover_images(p)
             if self.paths:
+                self.mov_idx_spin.setMaximum(len(self.paths) - 1)
                 idx = self._show_reference_frame()
                 if idx is not None:
                     self.status_label.setText(
@@ -226,6 +230,7 @@ class MainWindow(QMainWindow):
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
                 return
+            self.mov_idx_spin.setMaximum(len(self.paths) - 1)
             idx = self._show_reference_frame()
             if idx is not None:
                 self.status_label.setText(
@@ -362,7 +367,10 @@ class MainWindow(QMainWindow):
             else:
                 ref_idx = app.custom_ref_index
             ref_img = imread_gray(self.paths[ref_idx])
-            mov_idx = 0 if ref_idx != 0 else 1
+            mov_idx = self.mov_idx_spin.value()
+            if mov_idx < 0 or mov_idx >= len(self.paths):
+                QMessageBox.warning(self, "Invalid index", "Select a valid moving frame index.")
+                return
             mov_img = imread_gray(self.paths[mov_idx])
             if reg.method.upper() == "ORB":
                 _, warped, _ = register_orb(ref_img, mov_img, model=reg.model)
