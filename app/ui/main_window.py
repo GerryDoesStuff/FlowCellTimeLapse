@@ -1,7 +1,7 @@
 from __future__ import annotations
 from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QWidget, QVBoxLayout,
                              QPushButton, QHBoxLayout, QLabel, QCheckBox, QComboBox, QSpinBox,
-                             QDoubleSpinBox, QSlider, QGroupBox, QFormLayout, QLineEdit)
+                             QDoubleSpinBox, QSlider, QGroupBox, QFormLayout, QLineEdit, QToolTip)
 from PyQt6.QtCore import Qt, QThread, QTimer
 from pathlib import Path
 import json
@@ -38,6 +38,13 @@ class MainWindow(QMainWindow):
         # Track whether registration has been run so segmentation preview can
         # be gated until then.
         self._registration_done = False
+
+    def _add_help(self, widget, text: str) -> None:
+        widget.setToolTip(text)
+        widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        widget.customContextMenuRequested.connect(
+            lambda pos, w=widget, t=text: QToolTip.showText(w.mapToGlobal(pos), t, w)
+        )
 
     def _build_ui(self):
         central = QWidget()
@@ -87,6 +94,9 @@ class MainWindow(QMainWindow):
         self.reg_model = QComboBox(); self.reg_model.addItems(["translation","euclidean","affine","homography"]); self.reg_model.setCurrentText(self.reg.model)
         self.max_iters = QSpinBox(); self.max_iters.setRange(10, 10000); self.max_iters.setValue(self.reg.max_iters)
         self.eps = QDoubleSpinBox(); self.eps.setDecimals(9); self.eps.setSingleStep(1e-6); self.eps.setValue(self.reg.eps)
+        self.gauss_sigma = QDoubleSpinBox(); self.gauss_sigma.setRange(0.0, 10.0); self.gauss_sigma.setDecimals(2); self.gauss_sigma.setSingleStep(0.1); self.gauss_sigma.setValue(self.reg.gauss_blur_sigma)
+        self.clahe_clip = QDoubleSpinBox(); self.clahe_clip.setRange(0.0, 40.0); self.clahe_clip.setDecimals(2); self.clahe_clip.setSingleStep(0.1); self.clahe_clip.setValue(self.reg.clahe_clip)
+        self.clahe_grid = QSpinBox(); self.clahe_grid.setRange(1, 64); self.clahe_grid.setValue(self.reg.clahe_grid)
         self.use_masked = QCheckBox("Use masked ECC"); self.use_masked.setChecked(self.reg.use_masked_ecc)
         reg_form.addRow("Method", self.reg_method)
         reg_form.addRow("Model", self.reg_model)
@@ -94,7 +104,18 @@ class MainWindow(QMainWindow):
         self.max_iters_label = reg_form.labelForField(self.max_iters)
         reg_form.addRow("Epsilon", self.eps)
         self.eps_label = reg_form.labelForField(self.eps)
+        reg_form.addRow("Gaussian σ", self.gauss_sigma)
+        reg_form.addRow("CLAHE clip", self.clahe_clip)
+        reg_form.addRow("CLAHE grid", self.clahe_grid)
         reg_form.addRow(self.use_masked)
+        self._add_help(self.reg_method, "Registration algorithm: ECC or ORB.")
+        self._add_help(self.reg_model, "Geometric transform model for alignment.")
+        self._add_help(self.max_iters, "Maximum iterations for ECC algorithm.")
+        self._add_help(self.eps, "Convergence threshold for ECC.")
+        self._add_help(self.gauss_sigma, "Gaussian blur σ before registration; 0 disables.")
+        self._add_help(self.clahe_clip, "CLAHE clip limit; 0 disables.")
+        self._add_help(self.clahe_grid, "CLAHE tile grid size.")
+        self._add_help(self.use_masked, "Use segmentation mask during ECC.")
         reg_preview_btn = QPushButton("Preview Registration")
         reg_preview_btn.clicked.connect(self._preview_registration)
         reg_form.addRow(reg_preview_btn)
@@ -103,11 +124,17 @@ class MainWindow(QMainWindow):
         self.reg_model.currentTextChanged.connect(self._persist_settings)
         self.max_iters.valueChanged.connect(self._persist_settings)
         self.eps.valueChanged.connect(self._persist_settings)
+        self.gauss_sigma.valueChanged.connect(self._persist_settings)
+        self.clahe_clip.valueChanged.connect(self._persist_settings)
+        self.clahe_grid.valueChanged.connect(self._persist_settings)
         self.use_masked.toggled.connect(self._persist_settings)
         self.reg_method.currentTextChanged.connect(self._on_params_changed)
         self.reg_model.currentTextChanged.connect(self._on_params_changed)
         self.max_iters.valueChanged.connect(self._on_params_changed)
         self.eps.valueChanged.connect(self._on_params_changed)
+        self.gauss_sigma.valueChanged.connect(self._on_params_changed)
+        self.clahe_clip.valueChanged.connect(self._on_params_changed)
+        self.clahe_grid.valueChanged.connect(self._on_params_changed)
         self.use_masked.toggled.connect(self._on_params_changed)
         self.reg_method.currentTextChanged.connect(self._on_reg_method_change)
         # Initialize visibility of ECC-specific controls
@@ -274,9 +301,9 @@ class MainWindow(QMainWindow):
                         model=self.reg_model.currentText(),
                         max_iters=self.max_iters.value(),
                         eps=self.eps.value(),
-                        gauss_blur_sigma=self.reg.gauss_blur_sigma,
-                        clahe_clip=self.reg.clahe_clip,
-                        clahe_grid=self.reg.clahe_grid,
+                        gauss_blur_sigma=self.gauss_sigma.value(),
+                        clahe_clip=self.clahe_clip.value(),
+                        clahe_grid=self.clahe_grid.value(),
                         use_masked_ecc=self.use_masked.isChecked())
         seg = SegParams(method=self.seg_method.currentText(),
                         invert=self.invert.isChecked(),
@@ -328,6 +355,9 @@ class MainWindow(QMainWindow):
         self.reg_model.setCurrentText(reg.model)
         self.max_iters.setValue(reg.max_iters)
         self.eps.setValue(reg.eps)
+        self.gauss_sigma.setValue(reg.gauss_blur_sigma)
+        self.clahe_clip.setValue(reg.clahe_clip)
+        self.clahe_grid.setValue(reg.clahe_grid)
         self.use_masked.setChecked(reg.use_masked_ecc)
         self.seg_method.setCurrentText(seg.method)
         self.invert.setChecked(seg.invert)
