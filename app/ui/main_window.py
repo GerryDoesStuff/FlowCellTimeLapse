@@ -170,12 +170,15 @@ class MainWindow(QMainWindow):
         reg_form.addRow("CLAHE clip", self.clahe_clip)
         reg_form.addRow("CLAHE grid", self.clahe_grid)
         reg_form.addRow("Initial radius", self.init_radius)
+        self.init_radius_label = reg_form.labelForField(self.init_radius)
         reg_form.addRow("Growth factor", self.growth_factor)
+        self.growth_factor_label = reg_form.labelForField(self.growth_factor)
         reg_form.addRow("ORB features", self.orb_features)
         self.orb_features_label = reg_form.labelForField(self.orb_features)
         reg_form.addRow("Match ratio", self.match_ratio)
         self.match_ratio_label = reg_form.labelForField(self.match_ratio)
         reg_form.addRow(self.use_masked)
+        self.use_masked_label = reg_form.labelForField(self.use_masked)
         self._add_help(
             self.reg_method,
             "Registration algorithm. ECC correlates intensities for higher accuracy but "
@@ -557,21 +560,33 @@ class MainWindow(QMainWindow):
         self._on_reg_method_change(self.reg_method.currentText())
 
     def _on_reg_method_change(self, method: str):
-        """Enable or hide ECC-specific controls depending on method."""
+        """Enable or hide method-specific registration controls."""
         is_ecc = method == "ECC"
         is_orb = method == "ORB"
-        self.max_iters.setEnabled(is_ecc)
-        self.eps.setEnabled(is_ecc)
-        self.max_iters.setVisible(is_ecc)
-        self.eps.setVisible(is_ecc)
-        self.max_iters_label.setVisible(is_ecc)
-        self.eps_label.setVisible(is_ecc)
-        self.orb_features.setEnabled(is_orb)
-        self.match_ratio.setEnabled(is_orb)
-        self.orb_features.setVisible(is_orb)
-        self.match_ratio.setVisible(is_orb)
-        self.orb_features_label.setVisible(is_orb)
-        self.match_ratio_label.setVisible(is_orb)
+
+        # ECC-specific widgets
+        ecc_widgets = [
+            (self.max_iters, self.max_iters_label),
+            (self.eps, self.eps_label),
+            (self.init_radius, getattr(self, "init_radius_label", None)),
+            (self.growth_factor, getattr(self, "growth_factor_label", None)),
+            (self.use_masked, getattr(self, "use_masked_label", None)),
+        ]
+        for widget, label in ecc_widgets:
+            widget.setEnabled(is_ecc)
+            widget.setVisible(is_ecc)
+            if label is not None:
+                label.setVisible(is_ecc)
+
+        # ORB-specific widgets
+        orb_widgets = [
+            (self.orb_features, self.orb_features_label),
+            (self.match_ratio, self.match_ratio_label),
+        ]
+        for widget, label in orb_widgets:
+            widget.setEnabled(is_orb)
+            widget.setVisible(is_orb)
+            label.setVisible(is_orb)
 
     def _on_params_changed(self, *args):
         """Debounce rapid param changes and rerun active preview."""
