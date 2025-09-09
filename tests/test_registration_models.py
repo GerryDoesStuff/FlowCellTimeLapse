@@ -71,3 +71,28 @@ def test_orb_homography_fallback(monkeypatch):
     mov = np.zeros((5,5), dtype=np.uint8)
     success, _, _, _, fb = reg.register_orb(ref, mov, model="homography")
     assert success and fb
+
+
+def test_register_orb_fallback_model(monkeypatch):
+    import app.core.registration as reg
+
+    class DummyORB:
+        def detectAndCompute(self, img, mask):
+            return [], None
+
+    monkeypatch.setattr(cv2, "ORB_create", lambda n: DummyORB())
+
+    captured = {}
+
+    def fake_register_ecc(ref, mov, model="affine"):
+        captured["model"] = model
+        return True, np.eye(3, dtype=np.float32), mov, np.ones_like(ref, dtype=np.uint8)
+
+    monkeypatch.setattr(reg, "register_ecc", fake_register_ecc)
+
+    ref = np.zeros((5, 5), dtype=np.uint8)
+    mov = np.zeros((5, 5), dtype=np.uint8)
+
+    reg.register_orb(ref, mov, model="homography", fallback_model="translation")
+
+    assert captured["model"] == "translation"
