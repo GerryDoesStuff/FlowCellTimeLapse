@@ -243,8 +243,8 @@ class MainWindow(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Select image folder", "")
         if d:
             self.folder_edit.setText(d)
-            self.app.last_folder = d
-            save_settings(self.reg, self.seg, self.app)
+            # Persist the newly selected folder alongside other parameters
+            self._persist_settings()
             self.paths = discover_images(Path(d))
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
