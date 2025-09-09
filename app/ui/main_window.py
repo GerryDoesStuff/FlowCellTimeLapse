@@ -257,18 +257,31 @@ class MainWindow(QMainWindow):
         """Blend cached overlays according to slider and checkbox states."""
         alpha = self.alpha_slider.value() / 100.0
         if self._current_preview == "registration" and self._reg_ref is not None and self._reg_warp is not None:
+            # Color-code reference (green) and moving (magenta) images so changes are clear
+            ref_color = np.zeros((*self._reg_ref.shape, 3), dtype=np.uint8)
+            ref_color[..., 1] = self._reg_ref
+            mov_color = np.zeros((*self._reg_warp.shape, 3), dtype=np.uint8)
+            mov_color[..., 0] = self._reg_warp
+            mov_color[..., 2] = self._reg_warp
+
             if self.overlay_ref_cb.isChecked() and self.overlay_mov_cb.isChecked():
-                blend = cv2.addWeighted(self._reg_ref, 1 - alpha, self._reg_warp, alpha, 0)
+                blend = cv2.addWeighted(ref_color, 1 - alpha, mov_color, alpha, 0)
             elif self.overlay_ref_cb.isChecked():
-                blend = self._reg_ref
+                blend = ref_color
             elif self.overlay_mov_cb.isChecked():
-                blend = self._reg_warp
+                blend = mov_color
             else:
-                blend = np.zeros_like(self._reg_ref)
-            color = cv2.cvtColor(blend, cv2.COLOR_GRAY2BGR)
-            self.view.setImage(color.transpose(1, 0, 2))
+                blend = np.zeros_like(ref_color)
+            self.view.setImage(blend.transpose(1, 0, 2))
         elif self._current_preview == "segmentation" and self._seg_gray is not None and self._seg_overlay is not None:
-            blend = cv2.addWeighted(self._seg_gray, 1 - alpha, self._seg_overlay, alpha, 0)
+            if self.overlay_ref_cb.isChecked() and self.overlay_mov_cb.isChecked():
+                blend = cv2.addWeighted(self._seg_gray, 1 - alpha, self._seg_overlay, alpha, 0)
+            elif self.overlay_ref_cb.isChecked():
+                blend = self._seg_gray
+            elif self.overlay_mov_cb.isChecked():
+                blend = self._seg_overlay
+            else:
+                blend = np.zeros_like(self._seg_gray)
             self.view.setImage(blend.transpose(1, 0, 2))
 
     def _preview_registration(self):
