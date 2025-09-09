@@ -63,20 +63,38 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
     k1, d1 = orb.detectAndCompute(ref, None)
     k2, d2 = orb.detectAndCompute(mov, None)
     if d1 is None or d2 is None or len(k1) < 8 or len(k2) < 8:
-        return register_ecc(ref, mov, model="affine")
+        return register_ecc(ref, mov, model=model)
     matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
     matches = matcher.knnMatch(d1, d2, k=2)
     good = [m for m,n in matches if m.distance < match_ratio * n.distance]
     if len(good) < 8:
-        return register_ecc(ref, mov, model="affine")
+        return register_ecc(ref, mov, model=model)
     src = np.float32([k1[m.queryIdx].pt for m in good]).reshape(-1,1,2)
     dst = np.float32([k2[m.trainIdx].pt for m in good]).reshape(-1,1,2)
-    H, _ = cv2.findHomography(dst, src, cv2.RANSAC, 3.0)
     h, w = ref.shape
-    warped = cv2.warpPerspective(mov, H, (w,h), flags=cv2.INTER_LINEAR)
-    valid_mask = cv2.warpPerspective(np.ones_like(mov, dtype=np.uint8)*255, H, (w,h), flags=cv2.INTER_NEAREST)
-    valid_mask = (valid_mask>0).astype(np.uint8)
-    return True, H, warped, valid_mask
+    if model == "homography":
+        H, _ = cv2.findHomography(dst, src, cv2.RANSAC, 3.0)
+        if H is None:
+            return register_ecc(ref, mov, model=model)
+        warped = cv2.warpPerspective(mov, H, (w,h), flags=cv2.INTER_LINEAR)
+        valid_mask = cv2.warpPerspective(np.ones_like(mov, dtype=np.uint8)*255, H, (w,h), flags=cv2.INTER_NEAREST)
+        valid_mask = (valid_mask>0).astype(np.uint8)
+        return True, H, warped, valid_mask
+    else:
+        M, _ = cv2.estimateAffine2D(dst, src, method=cv2.RANSAC, ransacReprojThreshold=3.0)
+        if M is None:
+            return register_ecc(ref, mov, model=model)
+        if model == "translation":
+            M[:,:2] = np.eye(2, dtype=np.float32)
+        elif model == "euclidean":
+            R = M[:,:2]
+            U, _, Vt = np.linalg.svd(R)
+            R = U @ Vt
+            M[:,:2] = R
+        warped = cv2.warpAffine(mov, M, (w,h), flags=cv2.INTER_LINEAR)
+        valid_mask = cv2.warpAffine(np.ones_like(mov, dtype=np.uint8)*255, M, (w,h), flags=cv2.INTER_NEAREST)
+        valid_mask = (valid_mask>0).astype(np.uint8)
+        return True, M, warped, valid_mask
 
 def crop_to_overlap(mask: np.ndarray) -> tuple[int,int,int,int]:
     coords = cv2.findNonZero(mask)
