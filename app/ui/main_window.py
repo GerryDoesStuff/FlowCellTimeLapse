@@ -44,6 +44,8 @@ class MainWindow(QMainWindow):
         # Folder
         folder_box = QHBoxLayout()
         self.folder_edit = QLineEdit()
+        if self.app.last_folder:
+            self.folder_edit.setText(self.app.last_folder)
         browse_btn = QPushButton("Browse…")
         browse_btn.clicked.connect(self._choose_folder)
         folder_box.addWidget(self.folder_edit)
@@ -164,6 +166,15 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("Ready.")
         right.addWidget(self.status_label)
 
+        if self.app.last_folder:
+            p = Path(self.app.last_folder)
+            self.paths = discover_images(p)
+            if self.paths:
+                idx = self._show_reference_frame()
+                if idx is not None:
+                    self.status_label.setText(
+                        f"Found {len(self.paths)} images. Preview: {self.paths[idx].name}")
+
     def _show_reference_frame(self):
         """Display the frame chosen by the current reference settings."""
         if not self.paths:
@@ -186,6 +197,8 @@ class MainWindow(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Select image folder", "")
         if d:
             self.folder_edit.setText(d)
+            self.app.last_folder = d
+            save_settings(self.reg, self.seg, self.app)
             self.paths = discover_images(Path(d))
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
