@@ -39,7 +39,7 @@ def imread_gray(path: Path, normalize: bool = True,
     scale_minmax: tuple[int, int] | None, optional
         When provided, these values are treated as the global minimum and
         maximum across all frames.  The image is clipped to this range and
-        then normalized to ``uint8`` using :func:`cv2.normalize`.
+        then scaled linearly to ``uint8`` using this global range.
     """
     img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     if img is None:
@@ -52,7 +52,10 @@ def imread_gray(path: Path, normalize: bool = True,
         lo, hi = scale_minmax
         img = img.astype(np.float32)
         img = np.clip(img, lo, hi)
-        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+        if hi > lo:
+            img = (img - lo) * (255.0 / (hi - lo))
+        else:
+            img = img - lo
         return img.astype(np.uint8)
     if img.dtype != np.uint8:
         img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
@@ -63,6 +66,34 @@ def imread_color(path: Path) -> np.ndarray:
     if img is None:
         raise ValueError(f"Failed to read {path}")
     return img
+
+
+def compute_global_minmax(paths: list[Path]) -> tuple[int, int]:
+    """Scan all ``paths`` once to determine global min/max pixel values.
+
+    Parameters
+    ----------
+    paths: list[Path]
+        Image file paths to scan.
+
+    Returns
+    -------
+    tuple[int, int]
+        The minimum and maximum pixel intensities found across all images.
+    """
+    if not paths:
+        raise ValueError("No image paths provided")
+    global_min = None
+    global_max = None
+    for p in paths:
+        img = imread_gray(p, normalize=False)
+        img_min = int(img.min())
+        img_max = int(img.max())
+        if global_min is None or img_min < global_min:
+            global_min = img_min
+        if global_max is None or img_max > global_max:
+            global_max = img_max
+    return global_min, global_max
 
 def file_times_minutes(paths: list[Path]) -> list[float]:
     # Compute minutes elapsed from first frame using file modification timestamps

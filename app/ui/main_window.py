@@ -13,7 +13,7 @@ import pandas as pd
 import cv2
 
 from ..models.config import RegParams, SegParams, AppParams, save_settings, load_settings, save_preset, load_preset
-from ..core.io_utils import discover_images, imread_gray, file_times_minutes
+from ..core.io_utils import discover_images, imread_gray, file_times_minutes, compute_global_minmax
 from ..core.registration import register_ecc, register_orb, preprocess
 from ..core.segmentation import segment
 from ..core.processing import overlay_outline
@@ -28,13 +28,13 @@ class MainWindow(QMainWindow):
         self.ref_color = tuple(self.app.overlay_ref_color)
         self.mov_color = tuple(self.app.overlay_mov_color)
         self.paths: list[Path] = []
-        self._build_ui()
         # Cached preview images for alpha blending
         self._reg_ref = None
         self._reg_warp = None
         self._seg_gray = None
         self._seg_overlay = None
         self._current_preview = None
+        self._build_ui()
         self._param_timer = QTimer(self)
         self._param_timer.setSingleShot(True)
         self._param_timer.setInterval(200)
@@ -128,6 +128,9 @@ class MainWindow(QMainWindow):
         intensity_form.addRow(self.norm_cb)
         intensity_form.addRow("Min", self.scale_min)
         intensity_form.addRow("Max", self.scale_max)
+        self.auto_scale_btn = QPushButton("Auto min/max")
+        self.auto_scale_btn.clicked.connect(self._auto_scale_minmax)
+        intensity_form.addRow(self.auto_scale_btn)
         intensity_form.addRow(self.rescale_cb)
         controls.addWidget(intensity_group)
         self.scale_min.setEnabled(self.norm_cb.isChecked())
@@ -427,6 +430,16 @@ class MainWindow(QMainWindow):
             if idx is not None:
                 self.status_label.setText(
                     f"Found {len(self.paths)} images. Preview: {self.paths[idx].name}")
+
+    def _auto_scale_minmax(self):
+        if not self.paths:
+            QMessageBox.warning(self, "No images", "Choose an image folder first.")
+            return
+        lo, hi = compute_global_minmax(self.paths)
+        self.scale_min.setValue(int(lo))
+        self.scale_max.setValue(int(hi))
+        self.status_label.setText(f"Global min/max: {lo}–{hi}")
+        self._persist_settings()
 
     def _collect_params(self):
         # Pull from UI into dataclasses
