@@ -18,23 +18,26 @@ def segment(gray: np.ndarray, method: str="otsu", invert: bool=True,
             local_block: int=51,
             morph_open_radius: int=2, morph_close_radius: int=2,
             remove_objects_smaller_px: int=64, remove_holes_smaller_px: int=64) -> np.ndarray:
-    # Pre-emphasize outlines
-    feat = outline_focused(gray, invert=True) if invert else outline_focused(gray, invert=False)
-
-    if method == "otsu":
-        _, th = cv2.threshold(feat, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-        bw = (feat >= _).astype(np.uint8)
-    elif method == "adaptive":
-        blk = max(3, adaptive_block|1)
-        th = cv2.adaptiveThreshold(feat, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, blk, adaptive_C)
-        bw = (th>0).astype(np.uint8)
-    elif method == "local":
-        blk = max(3, local_block|1)
-        loc = filters.threshold_local(feat, blk)
-        bw = (feat > loc).astype(np.uint8)
-    else:  # manual
-        t = int(np.clip(manual_thresh,0,255))
-        bw = (feat >= t).astype(np.uint8)
+    if method == "manual":
+        proc = 255 - gray if invert else gray
+        t = int(np.clip(manual_thresh, 0, 255))
+        bw = (proc >= t).astype(np.uint8)
+    else:
+        feat = outline_focused(gray, invert=invert)
+        if method == "otsu":
+            _, th = cv2.threshold(feat, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            bw = (feat >= _).astype(np.uint8)
+        elif method == "adaptive":
+            blk = max(3, adaptive_block|1)
+            th = cv2.adaptiveThreshold(feat, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, blk, adaptive_C)
+            bw = (th>0).astype(np.uint8)
+        elif method == "local":
+            blk = max(3, local_block|1)
+            loc = filters.threshold_local(feat, blk)
+            bw = (feat > loc).astype(np.uint8)
+        else:
+            t = int(np.clip(manual_thresh, 0, 255))
+            bw = (feat >= t).astype(np.uint8)
 
     # Morphology
     if morph_open_radius>0:
