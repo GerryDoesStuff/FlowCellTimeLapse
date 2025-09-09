@@ -12,7 +12,7 @@ import cv2
 
 from ..models.config import RegParams, SegParams, AppParams, save_settings, load_settings, save_preset, load_preset
 from ..core.io_utils import discover_images, imread_gray, file_times_minutes
-from ..core.registration import register_ecc, register_orb
+from ..core.registration import register_ecc, register_orb, preprocess
 from ..core.segmentation import segment
 from ..core.processing import overlay_outline
 from ..workers.pipeline_worker import PipelineWorker
@@ -261,6 +261,9 @@ class MainWindow(QMainWindow):
                         model=self.reg_model.currentText(),
                         max_iters=self.max_iters.value(),
                         eps=self.eps.value(),
+                        gauss_blur_sigma=self.reg.gauss_blur_sigma,
+                        clahe_clip=self.reg.clahe_clip,
+                        clahe_grid=self.reg.clahe_grid,
                         use_masked_ecc=self.use_masked.isChecked())
         seg = SegParams(method=self.seg_method.currentText(),
                         invert=self.invert.isChecked(),
@@ -403,6 +406,8 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Invalid index", "Select a valid moving frame index.")
                 return
             mov_img = imread_gray(self.paths[mov_idx])
+            ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
+            mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             if reg.method.upper() == "ORB":
                 _, warped, _ = register_orb(ref_img, mov_img, model=reg.model)
             else:
@@ -468,7 +473,11 @@ class MainWindow(QMainWindow):
 
         reg, seg, app = self._persist_settings()
         # Build slim dicts for worker
-        reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters, eps=reg.eps, use_masked_ecc=reg.use_masked_ecc)
+        reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters,
+                       eps=reg.eps, use_masked_ecc=reg.use_masked_ecc,
+                       gauss_blur_sigma=reg.gauss_blur_sigma,
+                       clahe_clip=reg.clahe_clip,
+                       clahe_grid=reg.clahe_grid)
         seg_cfg = dict(method=seg.method, invert=seg.invert, manual_thresh=seg.manual_thresh,
                        adaptive_block=seg.adaptive_block, adaptive_C=seg.adaptive_C, local_block=seg.local_block,
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,
