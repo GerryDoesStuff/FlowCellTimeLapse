@@ -39,6 +39,15 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
     ref_f = ref.astype(np.float32)/255.0
     mov_f = mov.astype(np.float32)/255.0
     ref_mask = mask if mask is not None and mask.shape == ref.shape else None
+
+    # Check for low-variance images which can cause ECC to fail
+    ref_var = float(np.var(ref_f))
+    mov_var = float(np.var(mov_f))
+    if ref_var < 1e-6 or mov_var < 1e-6:
+        logging.warning("Skipping registration: low variance (ref=%e, mov=%e)", ref_var, mov_var)
+        identity = np.eye(3, dtype=np.float32) if mode == cv2.MOTION_HOMOGRAPHY else np.eye(2,3, dtype=np.float32)
+        return False, identity, mov, np.zeros_like(mov, dtype=np.uint8)
+
     success = True
     try:
         if ref_mask is not None:
