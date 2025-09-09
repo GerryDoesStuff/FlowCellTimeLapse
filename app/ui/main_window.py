@@ -356,8 +356,8 @@ class MainWindow(QMainWindow):
                          morph_close_radius=seg.morph_close_radius,
                          remove_objects_smaller_px=seg.remove_objects_smaller_px,
                          remove_holes_smaller_px=seg.remove_holes_smaller_px)
-            self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-            self._seg_overlay = overlay_outline(gray, bw)
+            self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+            self._seg_overlay = cv2.cvtColor(overlay_outline(gray, bw), cv2.COLOR_BGR2RGB)
             self._current_preview = "segmentation"
             # Blend and push the new image to the viewer
             self._refresh_overlay_alpha()
