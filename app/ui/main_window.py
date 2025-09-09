@@ -114,18 +114,54 @@ class MainWindow(QMainWindow):
         reg_form.addRow("Match ratio", self.match_ratio)
         self.match_ratio_label = reg_form.labelForField(self.match_ratio)
         reg_form.addRow(self.use_masked)
-        self._add_help(self.reg_method, "Registration algorithm: ECC or ORB.")
-        self._add_help(self.reg_model, "Geometric transform model for alignment.")
-        self._add_help(self.max_iters, "Maximum iterations for ECC algorithm.")
-        self._add_help(self.eps, "Convergence threshold for ECC.")
-        self._add_help(self.gauss_sigma, "Gaussian blur σ before registration; 0 disables.")
-        self._add_help(self.clahe_clip, "CLAHE clip limit; 0 disables.")
-        self._add_help(self.clahe_grid, "CLAHE tile grid size.")
+        self._add_help(
+            self.reg_method,
+            "Registration algorithm. ECC correlates intensities for higher accuracy but "
+            "is slower; ORB matches keypoints for speed and robustness to large "
+            "motions."
+        )
+        self._add_help(
+            self.reg_model,
+            "Geometric transform model. Translation is fastest; Euclidean adds rotation; "
+            "Affine adds shear/scale; Homography handles perspective but is slowest."
+        )
+        self._add_help(
+            self.max_iters,
+            "Maximum ECC iterations. More iterations improve alignment but slow "
+            "processing. Typical range: 50–300."
+        )
+        self._add_help(
+            self.eps,
+            "ECC convergence threshold. Smaller values yield more precise results at "
+            "the cost of extra iterations. Recommended: 1e-4–1e-6."
+        )
+        self._add_help(
+            self.gauss_sigma,
+            "Gaussian blur σ before registration to reduce noise. 0–2 is common; "
+            "higher values smooth detail (faster, less accurate)."
+        )
+        self._add_help(
+            self.clahe_clip,
+            "CLAHE clip limit for local contrast enhancement. 0 disables. Typical "
+            "range: 0–5; higher improves contrast but may amplify noise."
+        )
+        self._add_help(
+            self.clahe_grid,
+            "CLAHE tile grid size. Smaller (8–16) boosts local detail but may add "
+            "artifacts; larger (up to 32) is smoother but less adaptive."
+        )
         self._add_help(self.init_radius, "Initial search window radius in pixels for ECC.")
-        self._add_help(self.growth_factor, "Scale search window after each registration step (>=1 keeps more context).")
+        self._add_help(
+            self.growth_factor,
+            "Scale search window after each registration step (>=1 keeps more context)."
+        )
         self._add_help(self.orb_features, "Number of ORB features to detect.")
         self._add_help(self.match_ratio, "Lowe ratio for filtering ORB matches.")
-        self._add_help(self.use_masked, "Use segmentation mask during ECC.")
+        self._add_help(
+            self.use_masked,
+            "Use segmentation mask during ECC to focus on cells, improving "
+            "accuracy in cluttered scenes but requiring prior segmentation."
+        )
         reg_preview_btn = QPushButton("Preview Registration")
         reg_preview_btn.clicked.connect(self._preview_registration)
         reg_form.addRow(reg_preview_btn)
