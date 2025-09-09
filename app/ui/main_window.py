@@ -63,6 +63,8 @@ class MainWindow(QMainWindow):
         ref_form.addRow(self.use_ts)
         ref_form.addRow("Fallback Δt (min)", self.dt_min)
         controls.addWidget(ref_group)
+        self.ref_combo.currentTextChanged.connect(self._show_reference_frame)
+        self.ref_idx.valueChanged.connect(self._show_reference_frame)
 
         # Registration params
         reg_group = QGroupBox("Registration")
@@ -162,6 +164,24 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("Ready.")
         right.addWidget(self.status_label)
 
+    def _show_reference_frame(self):
+        """Display the frame chosen by the current reference settings."""
+        if not self.paths:
+            return None
+        choice = self.ref_combo.currentText()
+        if choice == "last":
+            idx = len(self.paths) - 1
+        elif choice == "first":
+            idx = 0
+        elif choice == "middle":
+            idx = len(self.paths) // 2
+        else:
+            idx = self.ref_idx.value()
+        idx = max(0, min(idx, len(self.paths) - 1))
+        img = imread_gray(self.paths[idx])
+        self.view.setImage(img.T)
+        return idx
+
     def _choose_folder(self):
         d = QFileDialog.getExistingDirectory(self, "Select image folder", "")
         if d:
@@ -170,10 +190,10 @@ class MainWindow(QMainWindow):
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
                 return
-            # show first for preview
-            img = imread_gray(self.paths[0])
-            self.view.setImage(img.T)  # pyqtgraph expects column-major by default
-            self.status_label.setText(f"Found {len(self.paths)} images. First: {self.paths[0].name}")
+            idx = self._show_reference_frame()
+            if idx is not None:
+                self.status_label.setText(
+                    f"Found {len(self.paths)} images. Preview: {self.paths[idx].name}")
 
     def _collect_params(self):
         # Pull from UI into dataclasses
