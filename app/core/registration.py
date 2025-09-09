@@ -27,6 +27,9 @@ def preprocess(gray: np.ndarray, gauss_sigma: float, clahe_clip: float, clahe_gr
 def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
                  max_iters: int=1000, eps: float=1e-6,
                  mask: Optional[np.ndarray]=None) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray]:
+    if mov.size == 0 or ref.size == 0:
+        logging.warning("Skipping registration: empty frame")
+        return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8)
     mode = ECC_MODELS.get(model, cv2.MOTION_AFFINE)
     if mode == cv2.MOTION_HOMOGRAPHY:
         W = np.eye(3, dtype=np.float32)
@@ -59,6 +62,9 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
 
 def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
                  orb_features: int = 4000, match_ratio: float = 0.75) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray, bool]:
+    if mov.size == 0 or ref.size == 0:
+        logging.warning("Skipping registration: empty frame")
+        return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8), False
     orb = cv2.ORB_create(int(orb_features))
     k1, d1 = orb.detectAndCompute(ref, None)
     k2, d2 = orb.detectAndCompute(mov, None)
