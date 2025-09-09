@@ -2,7 +2,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QWidget, QVBoxLayout,
                              QPushButton, QHBoxLayout, QLabel, QCheckBox, QComboBox, QSpinBox,
                              QDoubleSpinBox, QSlider, QGroupBox, QFormLayout, QLineEdit)
-from PyQt6.QtCore import Qt, QThread
+from PyQt6.QtCore import Qt, QThread, QTimer
 from pathlib import Path
 import json
 import pyqtgraph as pg
@@ -31,6 +31,10 @@ class MainWindow(QMainWindow):
         self._seg_gray = None
         self._seg_overlay = None
         self._current_preview = None
+        self._param_timer = QTimer(self)
+        self._param_timer.setSingleShot(True)
+        self._param_timer.setInterval(200)
+        self._param_timer.timeout.connect(self._apply_param_change)
 
     def _build_ui(self):
         central = QWidget()
@@ -92,6 +96,11 @@ class MainWindow(QMainWindow):
         self.max_iters.valueChanged.connect(self._persist_settings)
         self.eps.valueChanged.connect(self._persist_settings)
         self.use_masked.toggled.connect(self._persist_settings)
+        self.reg_method.currentTextChanged.connect(self._on_params_changed)
+        self.reg_model.currentTextChanged.connect(self._on_params_changed)
+        self.max_iters.valueChanged.connect(self._on_params_changed)
+        self.eps.valueChanged.connect(self._on_params_changed)
+        self.use_masked.toggled.connect(self._on_params_changed)
 
         # Segmentation params
         seg_group = QGroupBox("Segmentation")
@@ -130,6 +139,16 @@ class MainWindow(QMainWindow):
         self.close_r.valueChanged.connect(self._persist_settings)
         self.rm_obj.valueChanged.connect(self._persist_settings)
         self.rm_holes.valueChanged.connect(self._persist_settings)
+        self.seg_method.currentTextChanged.connect(self._on_params_changed)
+        self.invert.toggled.connect(self._on_params_changed)
+        self.manual_t.valueChanged.connect(self._on_params_changed)
+        self.adaptive_blk.valueChanged.connect(self._on_params_changed)
+        self.adaptive_C.valueChanged.connect(self._on_params_changed)
+        self.local_blk.valueChanged.connect(self._on_params_changed)
+        self.open_r.valueChanged.connect(self._on_params_changed)
+        self.close_r.valueChanged.connect(self._on_params_changed)
+        self.rm_obj.valueChanged.connect(self._on_params_changed)
+        self.rm_holes.valueChanged.connect(self._on_params_changed)
 
         # Presets
         preset_box = QHBoxLayout()
@@ -313,6 +332,18 @@ class MainWindow(QMainWindow):
         self.alpha_slider.setValue(app.overlay_opacity)
         self.status_label.setText(f"Preset loaded: {path}")
         self._persist_settings()
+
+    def _on_params_changed(self, *args):
+        """Debounce rapid param changes and rerun active preview."""
+        if self._current_preview not in ("registration", "segmentation"):
+            return
+        self._param_timer.start()
+
+    def _apply_param_change(self):
+        if self._current_preview == "registration":
+            self._preview_registration()
+        elif self._current_preview == "segmentation":
+            self._preview_segmentation()
 
     def _refresh_overlay_alpha(self):
         """Blend cached overlays according to slider and checkbox states."""
