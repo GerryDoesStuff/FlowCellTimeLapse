@@ -43,6 +43,9 @@ class AppParams:
     show_ref_overlay: bool = True
     show_mov_overlay: bool = True
     overlay_opacity: int = 50
+    overlay_mode: str = "magenta-green"
+    overlay_ref_color: tuple[int, int, int] = (0, 255, 0)
+    overlay_mov_color: tuple[int, int, int] = (255, 0, 255)
     save_jpg_quality: int = 95
     save_png: bool = False
     save_intermediates: bool = True
