@@ -1,8 +1,8 @@
 from __future__ import annotations
 from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QWidget, QVBoxLayout,
                              QPushButton, QHBoxLayout, QLabel, QCheckBox, QComboBox, QSpinBox,
-                             QDoubleSpinBox, QSlider, QGroupBox, QFormLayout, QLineEdit, QToolTip,
-                             QColorDialog)
+                             QDoubleSpinBox, QSlider, QGroupBox, QFormLayout, QGridLayout,
+                             QLineEdit, QToolTip, QColorDialog)
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QThread, QTimer
 from pathlib import Path
@@ -147,38 +147,46 @@ class MainWindow(QMainWindow):
 
         # Registration params
         reg_group = QGroupBox("Registration")
-        reg_form = QFormLayout(reg_group)
+        reg_grid = QGridLayout(reg_group)
         self.reg_method = QComboBox(); self.reg_method.addItems(["ECC","ORB"]); self.reg_method.setCurrentText(self.reg.method)
         self.reg_model = QComboBox(); self.reg_model.addItems(["translation","euclidean","affine","homography"]); self.reg_model.setCurrentText(self.reg.model)
+        self.max_iters_label = QLabel("Max iters")
         self.max_iters = QSpinBox(); self.max_iters.setRange(10, 10000); self.max_iters.setValue(self.reg.max_iters)
+        self.eps_label = QLabel("Epsilon")
         self.eps = QDoubleSpinBox(); self.eps.setDecimals(9); self.eps.setSingleStep(1e-6); self.eps.setValue(self.reg.eps)
+        gauss_label = QLabel("Gaussian σ")
         self.gauss_sigma = QDoubleSpinBox(); self.gauss_sigma.setRange(0.0, 10.0); self.gauss_sigma.setDecimals(2); self.gauss_sigma.setSingleStep(0.1); self.gauss_sigma.setValue(self.reg.gauss_blur_sigma)
+        clahe_clip_label = QLabel("CLAHE clip")
         self.clahe_clip = QDoubleSpinBox(); self.clahe_clip.setRange(0.0, 40.0); self.clahe_clip.setDecimals(2); self.clahe_clip.setSingleStep(0.1); self.clahe_clip.setValue(self.reg.clahe_clip)
+        clahe_grid_label = QLabel("CLAHE grid")
         self.clahe_grid = QSpinBox(); self.clahe_grid.setRange(1, 64); self.clahe_grid.setValue(self.reg.clahe_grid)
+        self.init_radius_label = QLabel("Initial radius")
         self.init_radius = QSpinBox(); self.init_radius.setRange(1, 1000); self.init_radius.setValue(self.reg.initial_radius)
+        self.growth_factor_label = QLabel("Growth factor")
         self.growth_factor = QDoubleSpinBox(); self.growth_factor.setRange(0.1, 10.0); self.growth_factor.setDecimals(2); self.growth_factor.setSingleStep(0.1); self.growth_factor.setValue(self.reg.growth_factor)
-        self.use_masked = QCheckBox("Use masked ECC"); self.use_masked.setChecked(self.reg.use_masked_ecc)
+        self.use_masked_label = QLabel("Use masked ECC")
+        self.use_masked = QCheckBox()
+        self.use_masked.setChecked(self.reg.use_masked_ecc)
+        self.orb_features_label = QLabel("ORB features")
         self.orb_features = QSpinBox(); self.orb_features.setRange(1, 100000); self.orb_features.setValue(self.reg.orb_features)
+        self.match_ratio_label = QLabel("Match ratio")
         self.match_ratio = QDoubleSpinBox(); self.match_ratio.setRange(0.0, 1.0); self.match_ratio.setDecimals(2); self.match_ratio.setSingleStep(0.05); self.match_ratio.setValue(self.reg.match_ratio)
-        reg_form.addRow("Method", self.reg_method)
-        reg_form.addRow("Model", self.reg_model)
-        reg_form.addRow("Max iters", self.max_iters)
-        self.max_iters_label = reg_form.labelForField(self.max_iters)
-        reg_form.addRow("Epsilon", self.eps)
-        self.eps_label = reg_form.labelForField(self.eps)
-        reg_form.addRow("Gaussian σ", self.gauss_sigma)
-        reg_form.addRow("CLAHE clip", self.clahe_clip)
-        reg_form.addRow("CLAHE grid", self.clahe_grid)
-        reg_form.addRow("Initial radius", self.init_radius)
-        self.init_radius_label = reg_form.labelForField(self.init_radius)
-        reg_form.addRow("Growth factor", self.growth_factor)
-        self.growth_factor_label = reg_form.labelForField(self.growth_factor)
-        reg_form.addRow("ORB features", self.orb_features)
-        self.orb_features_label = reg_form.labelForField(self.orb_features)
-        reg_form.addRow("Match ratio", self.match_ratio)
-        self.match_ratio_label = reg_form.labelForField(self.match_ratio)
-        reg_form.addRow(self.use_masked)
-        self.use_masked_label = reg_form.labelForField(self.use_masked)
+        reg_grid.addWidget(QLabel("Method"), 0, 0); reg_grid.addWidget(self.reg_method, 0, 1)
+        reg_grid.addWidget(QLabel("Model"), 1, 0); reg_grid.addWidget(self.reg_model, 1, 1)
+        reg_grid.addWidget(self.max_iters_label, 2, 0); reg_grid.addWidget(self.max_iters, 2, 1)
+        reg_grid.addWidget(self.eps_label, 3, 0); reg_grid.addWidget(self.eps, 3, 1)
+        reg_grid.addWidget(gauss_label, 4, 0); reg_grid.addWidget(self.gauss_sigma, 4, 1)
+        reg_grid.addWidget(clahe_clip_label, 5, 0); reg_grid.addWidget(self.clahe_clip, 5, 1)
+        reg_grid.addWidget(clahe_grid_label, 0, 2); reg_grid.addWidget(self.clahe_grid, 0, 3)
+        reg_grid.addWidget(self.init_radius_label, 1, 2); reg_grid.addWidget(self.init_radius, 1, 3)
+        reg_grid.addWidget(self.growth_factor_label, 2, 2); reg_grid.addWidget(self.growth_factor, 2, 3)
+        reg_grid.addWidget(self.use_masked_label, 3, 2); reg_grid.addWidget(self.use_masked, 3, 3)
+        reg_grid.addWidget(self.orb_features_label, 4, 2); reg_grid.addWidget(self.orb_features, 4, 3)
+        reg_grid.addWidget(self.match_ratio_label, 5, 2); reg_grid.addWidget(self.match_ratio, 5, 3)
+        reg_preview_btn = QPushButton("Preview Registration")
+        reg_preview_btn.clicked.connect(self._preview_registration)
+        reg_grid.addWidget(reg_preview_btn, 6, 0, 1, 4)
+        controls.addWidget(reg_group)
         self._add_help(
             self.reg_method,
             "Registration algorithm. ECC correlates intensities for higher accuracy but "
@@ -227,10 +235,6 @@ class MainWindow(QMainWindow):
             "Use segmentation mask during ECC to focus on cells, improving "
             "accuracy in cluttered scenes but requiring prior segmentation."
         )
-        reg_preview_btn = QPushButton("Preview Registration")
-        reg_preview_btn.clicked.connect(self._preview_registration)
-        reg_form.addRow(reg_preview_btn)
-        controls.addWidget(reg_group)
         self.reg_method.currentTextChanged.connect(self._persist_settings)
         self.reg_model.currentTextChanged.connect(self._persist_settings)
         self.max_iters.valueChanged.connect(self._persist_settings)
@@ -261,7 +265,7 @@ class MainWindow(QMainWindow):
 
         # Segmentation params
         seg_group = QGroupBox("Segmentation")
-        seg_form = QFormLayout(seg_group)
+        seg_grid = QGridLayout(seg_group)
         self.seg_method = QComboBox(); self.seg_method.addItems(["otsu","adaptive","local","manual"]); self.seg_method.setCurrentText(self.seg.method)
         self.invert = QCheckBox("Cells darker (invert)"); self.invert.setChecked(self.seg.invert)
         self.manual_t = QSpinBox(); self.manual_t.setRange(0,255); self.manual_t.setValue(self.seg.manual_thresh)
@@ -272,21 +276,21 @@ class MainWindow(QMainWindow):
         self.close_r = QSpinBox(); self.close_r.setRange(0,50); self.close_r.setValue(self.seg.morph_close_radius)
         self.rm_obj = QSpinBox(); self.rm_obj.setRange(0,100000); self.rm_obj.setValue(self.seg.remove_objects_smaller_px)
         self.rm_holes = QSpinBox(); self.rm_holes.setRange(0,100000); self.rm_holes.setValue(self.seg.remove_holes_smaller_px)
-        seg_form.addRow("Method", self.seg_method)
-        seg_form.addRow(self.invert)
-        seg_form.addRow("Manual threshold", self.manual_t)
-        seg_form.addRow("Adaptive block", self.adaptive_blk)
-        seg_form.addRow("Adaptive C", self.adaptive_C)
-        seg_form.addRow("Local block", self.local_blk)
-        seg_form.addRow("Open radius", self.open_r)
-        seg_form.addRow("Close radius", self.close_r)
-        seg_form.addRow("Remove objects < px", self.rm_obj)
-        seg_form.addRow("Remove holes < px", self.rm_holes)
+        seg_grid.addWidget(QLabel("Method"), 0, 0); seg_grid.addWidget(self.seg_method, 0, 1)
+        seg_grid.addWidget(self.invert, 1, 0, 1, 2)
+        seg_grid.addWidget(QLabel("Manual threshold"), 2, 0); seg_grid.addWidget(self.manual_t, 2, 1)
+        seg_grid.addWidget(QLabel("Adaptive block"), 3, 0); seg_grid.addWidget(self.adaptive_blk, 3, 1)
+        seg_grid.addWidget(QLabel("Adaptive C"), 4, 0); seg_grid.addWidget(self.adaptive_C, 4, 1)
+        seg_grid.addWidget(QLabel("Local block"), 0, 2); seg_grid.addWidget(self.local_blk, 0, 3)
+        seg_grid.addWidget(QLabel("Open radius"), 1, 2); seg_grid.addWidget(self.open_r, 1, 3)
+        seg_grid.addWidget(QLabel("Close radius"), 2, 2); seg_grid.addWidget(self.close_r, 2, 3)
+        seg_grid.addWidget(QLabel("Remove objects < px"), 3, 2); seg_grid.addWidget(self.rm_obj, 3, 3)
+        seg_grid.addWidget(QLabel("Remove holes < px"), 4, 2); seg_grid.addWidget(self.rm_holes, 4, 3)
         self.seg_preview_btn = QPushButton("Preview Segmentation")
         # Initially disabled until a registration preview is successfully run
         self.seg_preview_btn.setEnabled(False)
         self.seg_preview_btn.clicked.connect(self._preview_segmentation)
-        seg_form.addRow(self.seg_preview_btn)
+        seg_grid.addWidget(self.seg_preview_btn, 5, 0, 1, 4)
         controls.addWidget(seg_group)
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.invert.toggled.connect(self._persist_settings)
@@ -568,15 +572,14 @@ class MainWindow(QMainWindow):
         ecc_widgets = [
             (self.max_iters, self.max_iters_label),
             (self.eps, self.eps_label),
-            (self.init_radius, getattr(self, "init_radius_label", None)),
-            (self.growth_factor, getattr(self, "growth_factor_label", None)),
-            (self.use_masked, getattr(self, "use_masked_label", None)),
+            (self.init_radius, self.init_radius_label),
+            (self.growth_factor, self.growth_factor_label),
+            (self.use_masked, self.use_masked_label),
         ]
         for widget, label in ecc_widgets:
             widget.setEnabled(is_ecc)
             widget.setVisible(is_ecc)
-            if label is not None:
-                label.setVisible(is_ecc)
+            label.setVisible(is_ecc)
 
         # ORB-specific widgets
         orb_widgets = [
