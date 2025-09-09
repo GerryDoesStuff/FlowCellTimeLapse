@@ -35,6 +35,9 @@ class MainWindow(QMainWindow):
         self._param_timer.setSingleShot(True)
         self._param_timer.setInterval(200)
         self._param_timer.timeout.connect(self._apply_param_change)
+        # Track whether registration has been run so segmentation preview can
+        # be gated until then.
+        self._registration_done = False
 
     def _build_ui(self):
         central = QWidget()
@@ -128,9 +131,11 @@ class MainWindow(QMainWindow):
         seg_form.addRow("Close radius", self.close_r)
         seg_form.addRow("Remove objects < px", self.rm_obj)
         seg_form.addRow("Remove holes < px", self.rm_holes)
-        seg_preview_btn = QPushButton("Preview Segmentation")
-        seg_preview_btn.clicked.connect(self._preview_segmentation)
-        seg_form.addRow(seg_preview_btn)
+        self.seg_preview_btn = QPushButton("Preview Segmentation")
+        # Initially disabled until a registration preview is successfully run
+        self.seg_preview_btn.setEnabled(False)
+        self.seg_preview_btn.clicked.connect(self._preview_segmentation)
+        seg_form.addRow(self.seg_preview_btn)
         controls.addWidget(seg_group)
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.invert.toggled.connect(self._persist_settings)
@@ -245,6 +250,9 @@ class MainWindow(QMainWindow):
             self.folder_edit.setText(d)
             # Persist the newly selected folder alongside other parameters
             self._persist_settings()
+            # Changing folders invalidates previous registration
+            self._registration_done = False
+            self.seg_preview_btn.setEnabled(False)
             self.paths = discover_images(Path(d))
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
@@ -386,6 +394,9 @@ class MainWindow(QMainWindow):
         self._reg_warp = None
         self._seg_gray = None
         self._seg_overlay = None
+        # Reset registration flag until this preview completes successfully
+        self._registration_done = False
+        self.seg_preview_btn.setEnabled(False)
 
         if len(self.paths) < 2:
             QMessageBox.warning(self, "Need at least two images", "Load at least two images for preview.")
@@ -420,6 +431,9 @@ class MainWindow(QMainWindow):
             self._refresh_overlay_alpha()
             self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Preview successful.")
+            # Enable segmentation preview now that registration succeeded
+            self._registration_done = True
+            self.seg_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
@@ -433,6 +447,9 @@ class MainWindow(QMainWindow):
 
         if not self.paths:
             QMessageBox.warning(self, "No images", "Choose an image folder first.")
+            return
+        if not self._registration_done:
+            QMessageBox.warning(self, "Registration required", "Run registration preview first.")
             return
         try:
             _, seg, app = self._persist_settings()
