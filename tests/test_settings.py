@@ -1,6 +1,10 @@
 import os
 from PyQt6.QtWidgets import QApplication, QFileDialog
 from PyQt6.QtCore import QSettings
+import pyqtgraph as pg
+
+pg.setConfigOptions(useOpenGL=False)
+
 from app.ui.main_window import MainWindow
 from app.models.config import save_preset, RegParams, SegParams, AppParams
 
