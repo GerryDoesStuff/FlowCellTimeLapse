@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import numpy as np
 import cv2
 from typing import Optional, Tuple
@@ -25,7 +26,7 @@ def preprocess(gray: np.ndarray, gauss_sigma: float, clahe_clip: float, clahe_gr
 
 def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
                  max_iters: int=1000, eps: float=1e-6,
-                 mask: Optional[np.ndarray]=None) -> tuple[np.ndarray,np.ndarray,np.ndarray]:
+                 mask: Optional[np.ndarray]=None) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray]:
     mode = ECC_MODELS.get(model, cv2.MOTION_AFFINE)
     if mode == cv2.MOTION_HOMOGRAPHY:
         W = np.eye(3, dtype=np.float32)
@@ -35,14 +36,16 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
     ref_f = ref.astype(np.float32)/255.0
     mov_f = mov.astype(np.float32)/255.0
     ref_mask = mask if mask is not None and mask.shape == ref.shape else None
+    success = True
     try:
         if ref_mask is not None:
             _, W = cv2.findTransformECC(ref_f, mov_f, W, mode, criteria, inputMask=ref_mask, gaussFiltSize=5)
         else:
             ref_mask = np.ones_like(ref, dtype=np.uint8)*255
             _, W = cv2.findTransformECC(ref_f, mov_f, W, mode, criteria)
-    except cv2.error:
-        pass
+    except cv2.error as e:
+        logging.exception("ECC registration failed: %s", e)
+        success = False
     h, w = ref.shape
     if mode == cv2.MOTION_HOMOGRAPHY:
         warped = cv2.warpPerspective(mov, W, (w,h), flags=cv2.INTER_LINEAR)
@@ -52,10 +55,10 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
         warp_mask = cv2.warpAffine(ref_mask, W, (w,h), flags=cv2.INTER_NEAREST)
     valid_mask = cv2.bitwise_and(ref_mask, warp_mask)
     valid_mask = (valid_mask>0).astype(np.uint8)
-    return W, warped, valid_mask
+    return success, W, warped, valid_mask
 
 def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
-                 orb_features: int = 4000, match_ratio: float = 0.75) -> tuple[np.ndarray,np.ndarray,np.ndarray]:
+                 orb_features: int = 4000, match_ratio: float = 0.75) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray]:
     orb = cv2.ORB_create(int(orb_features))
     k1, d1 = orb.detectAndCompute(ref, None)
     k2, d2 = orb.detectAndCompute(mov, None)
@@ -73,7 +76,7 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
     warped = cv2.warpPerspective(mov, H, (w,h), flags=cv2.INTER_LINEAR)
     valid_mask = cv2.warpPerspective(np.ones_like(mov, dtype=np.uint8)*255, H, (w,h), flags=cv2.INTER_NEAREST)
     valid_mask = (valid_mask>0).astype(np.uint8)
-    return H, warped, valid_mask
+    return True, H, warped, valid_mask
 
 def crop_to_overlap(mask: np.ndarray) -> tuple[int,int,int,int]:
     coords = cv2.findNonZero(mask)
