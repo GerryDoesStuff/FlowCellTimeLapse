@@ -33,7 +33,7 @@ def setup_orb(monkeypatch):
 
     monkeypatch.setattr(cv2, "warpAffine", lambda img, M, dsize, flags=0: img)
     monkeypatch.setattr(cv2, "warpPerspective", lambda img, M, dsize, flags=0: img)
-    monkeypatch.setattr(cv2, "findHomography", lambda dst, src, method, ransac: (np.eye(3, dtype=np.float32), None))
+    monkeypatch.setattr(cv2, "findHomography", lambda dst, src, method, ransac: (np.eye(3, dtype=np.float32), np.ones((10,1), dtype=np.uint8)))
 
     def fake_estimate(dst, src, method=cv2.RANSAC, ransacReprojThreshold=3.0):
         return np.array([[0.5, 0.1, 2.0], [-0.1, 0.5, 3.0]], dtype=np.float32), None
@@ -45,17 +45,29 @@ def test_register_orb_models(monkeypatch):
     ref = np.zeros((5, 5), dtype=np.uint8)
     mov = np.zeros((5, 5), dtype=np.uint8)
 
-    _, H, _, _ = register_orb(ref, mov, model="homography")
-    assert H.shape == (3, 3)
+    _, H, _, _, fb = register_orb(ref, mov, model="homography")
+    assert H.shape == (3, 3) and not fb
 
-    _, A, _, _ = register_orb(ref, mov, model="affine")
-    assert A.shape == (2, 3)
+    _, A, _, _, fb = register_orb(ref, mov, model="affine")
+    assert A.shape == (2, 3) and not fb
 
-    _, E, _, _ = register_orb(ref, mov, model="euclidean")
-    assert E.shape == (2, 3)
+    _, E, _, _, fb = register_orb(ref, mov, model="euclidean")
+    assert E.shape == (2, 3) and not fb
     R = E[:, :2]
     assert np.allclose(R.T @ R, np.eye(2), atol=1e-6)
 
-    _, T, _, _ = register_orb(ref, mov, model="translation")
-    assert T.shape == (2, 3)
+    _, T, _, _, fb = register_orb(ref, mov, model="translation")
+    assert T.shape == (2, 3) and not fb
     assert np.allclose(T[:, :2], np.eye(2), atol=1e-6)
+
+
+def test_orb_homography_fallback(monkeypatch):
+    setup_orb(monkeypatch)
+    # Force findHomography to return a near-singular matrix
+    monkeypatch.setattr(cv2, "findHomography", lambda dst, src, method, ransac: (np.zeros((3,3), dtype=np.float32), np.ones((10,1), dtype=np.uint8)))
+    import app.core.registration as reg
+    monkeypatch.setattr(reg, "register_ecc", lambda ref, mov, model='homography': (True, np.eye(3, dtype=np.float32), mov, np.ones_like(ref, dtype=np.uint8)))
+    ref = np.zeros((5,5), dtype=np.uint8)
+    mov = np.zeros((5,5), dtype=np.uint8)
+    success, _, _, _, fb = reg.register_orb(ref, mov, model="homography")
+    assert success and fb
