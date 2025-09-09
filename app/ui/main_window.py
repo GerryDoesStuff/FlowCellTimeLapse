@@ -148,9 +148,9 @@ class MainWindow(QMainWindow):
         right.addWidget(self.view)
 
         overlay_box = QHBoxLayout()
-        self.overlay_ref_cb = QCheckBox("Show reference overlay"); self.overlay_ref_cb.setChecked(True)
-        self.overlay_mov_cb = QCheckBox("Show moving overlay"); self.overlay_mov_cb.setChecked(True)
-        self.alpha_slider = QSlider(Qt.Orientation.Horizontal); self.alpha_slider.setRange(0,100); self.alpha_slider.setValue(50)
+        self.overlay_ref_cb = QCheckBox("Show reference overlay"); self.overlay_ref_cb.setChecked(self.app.show_ref_overlay)
+        self.overlay_mov_cb = QCheckBox("Show moving overlay"); self.overlay_mov_cb.setChecked(self.app.show_mov_overlay)
+        self.alpha_slider = QSlider(Qt.Orientation.Horizontal); self.alpha_slider.setRange(0,100); self.alpha_slider.setValue(self.app.overlay_opacity)
         overlay_box.addWidget(self.overlay_ref_cb)
         overlay_box.addWidget(self.overlay_mov_cb)
         overlay_box.addWidget(QLabel("Opacity"))
@@ -228,7 +228,10 @@ class MainWindow(QMainWindow):
         app = AppParams(reference_choice=self.ref_combo.currentText(),
                         custom_ref_index=self.ref_idx.value(),
                         minutes_between_frames=self.dt_min.value(),
-                        use_file_timestamps=self.use_ts.isChecked())
+                        use_file_timestamps=self.use_ts.isChecked(),
+                        show_ref_overlay=self.overlay_ref_cb.isChecked(),
+                        show_mov_overlay=self.overlay_mov_cb.isChecked(),
+                        overlay_opacity=self.alpha_slider.value())
         return reg, seg, app
 
     def _save_preset(self):
@@ -263,6 +266,9 @@ class MainWindow(QMainWindow):
         self.ref_idx.setValue(app.custom_ref_index)
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
+        self.overlay_ref_cb.setChecked(app.show_ref_overlay)
+        self.overlay_mov_cb.setChecked(app.show_mov_overlay)
+        self.alpha_slider.setValue(app.overlay_opacity)
         self.status_label.setText(f"Preset loaded: {path}")
 
     def _refresh_overlay_alpha(self):
