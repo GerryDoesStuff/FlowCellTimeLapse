@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 from pathlib import Path
 import sys
+import logging
 
 # Ensure the application package is importable when tests are run directly
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -18,7 +19,7 @@ def create_dummy_images(tmp_path, n=3):
     return paths
 
 
-def run_analyze(paths, direction):
+def run_analyze(paths, direction, caplog=None):
     reg_cfg = {
         "model": "affine",
         "max_iters": 1,
@@ -43,20 +44,28 @@ def run_analyze(paths, direction):
         "save_intermediates": False,
     }
     out_dir = paths[0].parent / "out"
-    df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
+    if caplog:
+        with caplog.at_level(logging.INFO):
+            df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
+    else:
+        df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
     return int(df.loc[df["is_reference"], "frame_index"].iloc[0])
 
 
-def test_last_to_first(tmp_path):
+def test_last_to_first(tmp_path, caplog):
     paths = create_dummy_images(tmp_path)
-    ref = run_analyze(paths, "last-to-first")
+    ref = run_analyze(paths, "last-to-first", caplog)
     assert ref == len(paths) - 1
+    assert "direction=last-to-first" in caplog.text
+    assert f"reference_frame_index={len(paths) - 1}" in caplog.text
 
 
-def test_first_to_last(tmp_path):
+def test_first_to_last(tmp_path, caplog):
     paths = create_dummy_images(tmp_path)
-    ref = run_analyze(paths, "first-to-last")
+    ref = run_analyze(paths, "first-to-last", caplog)
     assert ref == 0
+    assert "direction=first-to-last" in caplog.text
+    assert "reference_frame_index=0" in caplog.text
 
 
 def test_last_to_first_registration_order(tmp_path, monkeypatch):

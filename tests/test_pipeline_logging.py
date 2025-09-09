@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
 import sys
-from PyQt6.QtWidgets import QApplication, QMessageBox
-from PyQt6.QtCore import QSettings
+import logging
+import pytest
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QSettings, QThread
 import pyqtgraph as pg
 
 pg.setConfigOptions(useOpenGL=False)
@@ -14,7 +16,8 @@ from app.ui.main_window import MainWindow
 from app.models.config import RegParams, SegParams, AppParams
 
 
-def test_invalid_direction_aborts(tmp_path, monkeypatch):
+@pytest.mark.parametrize("direction", ["first-to-last", "last-to-first"])
+def test_pipeline_logs_direction(tmp_path, monkeypatch, caplog, direction):
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
     QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
@@ -22,25 +25,18 @@ def test_invalid_direction_aborts(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     win = MainWindow()
     win.paths = [tmp_path / "dummy.png"]
+    win.folder_edit.setText(str(tmp_path))
 
     reg = RegParams()
     seg = SegParams()
-    app_params = AppParams(direction="invalid")
+    app_params = AppParams(direction=direction)
     monkeypatch.setattr(win, "_persist_settings", lambda *a, **k: (reg, seg, app_params))
+    monkeypatch.setattr(QThread, "start", lambda self: None)
 
-    captured = {}
+    with caplog.at_level(logging.INFO):
+        win._run_pipeline()
 
-    def fake_critical(parent, title, text):
-        captured["title"] = title
-        captured["text"] = text
-
-    monkeypatch.setattr(QMessageBox, "critical", fake_critical)
-
-    win._run_pipeline()
-
-    assert captured["title"] == "Invalid Direction"
-    assert "invalid" in captured["text"]
-    assert not hasattr(win, "worker")
+    assert f"direction={direction}" in caplog.text
 
     win.close()
     app.quit()

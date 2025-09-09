@@ -42,6 +42,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 paths[-1].name,
             )
     ref_idx = ordered_indices[0]
+    logging.info(
+        "Starting analysis with direction=%s reference_frame_index=%d",
+        direction,
+        ref_idx,
+    )
 
     # Optionally subtract a temporal background using early frames
     if app_cfg.get("subtract_background", False):

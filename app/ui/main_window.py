@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QWidget, QVB
                              QLineEdit, QToolTip, QColorDialog)
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QThread, QTimer
+import logging
 from pathlib import Path
 import json
 import pyqtgraph as pg
@@ -839,6 +840,8 @@ class MainWindow(QMainWindow):
                 f"Analysis direction must be 'first-to-last' or 'last-to-first'. Got: {app.direction}",
             )
             return
+
+        logging.info("Starting pipeline with direction=%s", app.direction)
 
         # Build slim dicts for worker
         reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters,
