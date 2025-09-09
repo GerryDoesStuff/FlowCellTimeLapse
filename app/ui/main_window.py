@@ -14,7 +14,7 @@ import cv2
 
 from ..models.config import RegParams, SegParams, AppParams, save_settings, load_settings, save_preset, load_preset
 from ..core.io_utils import discover_images, imread_gray, file_times_minutes, compute_global_minmax
-from ..core.registration import register_ecc, register_orb, preprocess
+from ..core.registration import register_ecc, register_orb, register_orb_ecc, preprocess
 from ..core.segmentation import segment
 from ..core.processing import overlay_outline
 from ..workers.pipeline_worker import PipelineWorker
@@ -148,7 +148,7 @@ class MainWindow(QMainWindow):
         # Registration params
         reg_group = QGroupBox("Registration")
         reg_grid = QGridLayout(reg_group)
-        self.reg_method = QComboBox(); self.reg_method.addItems(["ECC","ORB"]); self.reg_method.setCurrentText(self.reg.method)
+        self.reg_method = QComboBox(); self.reg_method.addItems(["ECC","ORB","ORB+ECC"]); self.reg_method.setCurrentText(self.reg.method)
         self.reg_model = QComboBox(); self.reg_model.addItems(["translation","euclidean","affine","homography"]); self.reg_model.setCurrentText(self.reg.model)
         self.max_iters_label = QLabel("Max iters")
         self.max_iters = QSpinBox(); self.max_iters.setRange(10, 10000); self.max_iters.setValue(self.reg.max_iters)
@@ -568,8 +568,8 @@ class MainWindow(QMainWindow):
 
     def _on_reg_method_change(self, method: str):
         """Enable or hide method-specific registration controls."""
-        is_ecc = method == "ECC"
-        is_orb = method == "ORB"
+        is_ecc = method in ("ECC", "ORB+ECC")
+        is_orb = method in ("ORB", "ORB+ECC")
 
         # ECC-specific widgets
         ecc_widgets = [
@@ -679,12 +679,19 @@ class MainWindow(QMainWindow):
                                  scale_minmax=app.scale_minmax)
             ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
-            if reg.method.upper() == "ORB":
+            method = reg.method.upper()
+            if method == "ORB":
                 success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
                                                          orb_features=reg.orb_features,
                                                          match_ratio=reg.match_ratio)
                 if fb:
                     self.status_label.setText("ORB fell back to ECC for registration.")
+            elif method == "ORB+ECC":
+                success, _, warped, _ = register_orb_ecc(
+                    ref_img, mov_img, model=reg.model,
+                    max_iters=reg.max_iters, eps=reg.eps,
+                    orb_features=reg.orb_features, match_ratio=reg.match_ratio
+                )
             else:
                 success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
                                                     max_iters=reg.max_iters, eps=reg.eps)
@@ -735,12 +742,19 @@ class MainWindow(QMainWindow):
                                      scale_minmax=app.scale_minmax)
                 ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
-                if reg.method.upper() == "ORB":
+                method = reg.method.upper()
+                if method == "ORB":
                     success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
                                                              orb_features=reg.orb_features,
                                                              match_ratio=reg.match_ratio)
                     if fb:
                         self.status_label.setText("ORB fell back to ECC for registration.")
+                elif method == "ORB+ECC":
+                    success, _, warped, _ = register_orb_ecc(
+                        ref_img, mov_img, model=reg.model,
+                        max_iters=reg.max_iters, eps=reg.eps,
+                        orb_features=reg.orb_features, match_ratio=reg.match_ratio
+                    )
                 else:
                     success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
                                                         max_iters=reg.max_iters, eps=reg.eps)

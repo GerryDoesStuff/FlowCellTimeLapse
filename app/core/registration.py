@@ -116,6 +116,54 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
         valid_mask = (valid_mask>0).astype(np.uint8)
         return True, M, warped, valid_mask, False
 
+def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
+                     max_iters: int = 1000, eps: float = 1e-6,
+                     orb_features: int = 4000, match_ratio: float = 0.75,
+                     mask: Optional[np.ndarray] = None) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray]:
+    """Register using ORB for initialization followed by ECC refinement."""
+    if mov.size == 0 or ref.size == 0:
+        logging.warning("Skipping registration: empty frame")
+        return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8)
+
+    # Initial alignment via ORB keypoints
+    success, W_orb, warped, valid_mask, fb = register_orb(
+        ref, mov, model=model, orb_features=orb_features, match_ratio=match_ratio
+    )
+    if fb or not success:
+        # Either ORB failed or already fell back to ECC; return its result
+        return success, W_orb, warped, valid_mask
+
+    mode = ECC_MODELS.get(model, cv2.MOTION_AFFINE)
+    W_init = W_orb.astype(np.float32)
+    if mode != cv2.MOTION_HOMOGRAPHY and W_init.shape == (3, 3):
+        W_init = W_init[:2, :]
+
+    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, int(max_iters), float(eps))
+    ref_f = ref.astype(np.float32) / 255.0
+    mov_f = mov.astype(np.float32) / 255.0
+    ref_mask = mask if mask is not None and mask.shape == ref.shape else None
+
+    try:
+        if ref_mask is not None:
+            _, W = cv2.findTransformECC(ref_f, mov_f, W_init, mode, criteria, inputMask=ref_mask, gaussFiltSize=5)
+        else:
+            ref_mask = np.ones_like(ref, dtype=np.uint8) * 255
+            _, W = cv2.findTransformECC(ref_f, mov_f, W_init, mode, criteria)
+    except cv2.error as e:
+        logging.exception("ORB+ECC registration failed: %s", e)
+        return success, W_orb, warped, valid_mask
+
+    h, w = ref.shape
+    if mode == cv2.MOTION_HOMOGRAPHY:
+        warped = cv2.warpPerspective(mov, W, (w, h), flags=cv2.INTER_LINEAR)
+        warp_mask = cv2.warpPerspective(ref_mask, W, (w, h), flags=cv2.INTER_NEAREST)
+    else:
+        warped = cv2.warpAffine(mov, W, (w, h), flags=cv2.INTER_LINEAR)
+        warp_mask = cv2.warpAffine(ref_mask, W, (w, h), flags=cv2.INTER_NEAREST)
+    valid_mask = cv2.bitwise_and(ref_mask, warp_mask)
+    valid_mask = (valid_mask > 0).astype(np.uint8)
+    return True, W, warped, valid_mask
+
 def crop_to_overlap(mask: np.ndarray) -> tuple[int,int,int,int]:
     coords = cv2.findNonZero(mask)
     if coords is None:
