@@ -93,6 +93,7 @@ class MainWindow(QMainWindow):
         self.gauss_sigma = QDoubleSpinBox(); self.gauss_sigma.setRange(0.0, 10.0); self.gauss_sigma.setDecimals(2); self.gauss_sigma.setSingleStep(0.1); self.gauss_sigma.setValue(self.reg.gauss_blur_sigma)
         self.clahe_clip = QDoubleSpinBox(); self.clahe_clip.setRange(0.0, 40.0); self.clahe_clip.setDecimals(2); self.clahe_clip.setSingleStep(0.1); self.clahe_clip.setValue(self.reg.clahe_clip)
         self.clahe_grid = QSpinBox(); self.clahe_grid.setRange(1, 64); self.clahe_grid.setValue(self.reg.clahe_grid)
+        self.init_radius = QSpinBox(); self.init_radius.setRange(1, 1000); self.init_radius.setValue(self.reg.initial_radius)
         self.growth_factor = QDoubleSpinBox(); self.growth_factor.setRange(0.1, 10.0); self.growth_factor.setDecimals(2); self.growth_factor.setSingleStep(0.1); self.growth_factor.setValue(self.reg.growth_factor)
         self.use_masked = QCheckBox("Use masked ECC"); self.use_masked.setChecked(self.reg.use_masked_ecc)
         reg_form.addRow("Method", self.reg_method)
@@ -104,6 +105,7 @@ class MainWindow(QMainWindow):
         reg_form.addRow("Gaussian σ", self.gauss_sigma)
         reg_form.addRow("CLAHE clip", self.clahe_clip)
         reg_form.addRow("CLAHE grid", self.clahe_grid)
+        reg_form.addRow("Initial radius", self.init_radius)
         reg_form.addRow("Growth factor", self.growth_factor)
         reg_form.addRow(self.use_masked)
         self._add_help(self.reg_method, "Registration algorithm: ECC or ORB.")
@@ -113,6 +115,7 @@ class MainWindow(QMainWindow):
         self._add_help(self.gauss_sigma, "Gaussian blur σ before registration; 0 disables.")
         self._add_help(self.clahe_clip, "CLAHE clip limit; 0 disables.")
         self._add_help(self.clahe_grid, "CLAHE tile grid size.")
+        self._add_help(self.init_radius, "Initial search window radius in pixels for ECC.")
         self._add_help(self.growth_factor, "Scale search window after each registration step (>=1 keeps more context).")
         self._add_help(self.use_masked, "Use segmentation mask during ECC.")
         reg_preview_btn = QPushButton("Preview Registration")
@@ -126,6 +129,7 @@ class MainWindow(QMainWindow):
         self.gauss_sigma.valueChanged.connect(self._persist_settings)
         self.clahe_clip.valueChanged.connect(self._persist_settings)
         self.clahe_grid.valueChanged.connect(self._persist_settings)
+        self.init_radius.valueChanged.connect(self._persist_settings)
         self.growth_factor.valueChanged.connect(self._persist_settings)
         self.use_masked.toggled.connect(self._persist_settings)
         self.reg_method.currentTextChanged.connect(self._on_params_changed)
@@ -135,6 +139,7 @@ class MainWindow(QMainWindow):
         self.gauss_sigma.valueChanged.connect(self._on_params_changed)
         self.clahe_clip.valueChanged.connect(self._on_params_changed)
         self.clahe_grid.valueChanged.connect(self._on_params_changed)
+        self.init_radius.valueChanged.connect(self._on_params_changed)
         self.growth_factor.valueChanged.connect(self._on_params_changed)
         self.use_masked.toggled.connect(self._on_params_changed)
         self.reg_method.currentTextChanged.connect(self._on_reg_method_change)
@@ -301,6 +306,7 @@ class MainWindow(QMainWindow):
                         gauss_blur_sigma=self.gauss_sigma.value(),
                         clahe_clip=self.clahe_clip.value(),
                         clahe_grid=self.clahe_grid.value(),
+                        initial_radius=self.init_radius.value(),
                         growth_factor=self.growth_factor.value(),
                         use_masked_ecc=self.use_masked.isChecked())
         seg = SegParams(method=self.seg_method.currentText(),
@@ -355,6 +361,7 @@ class MainWindow(QMainWindow):
         self.gauss_sigma.setValue(reg.gauss_blur_sigma)
         self.clahe_clip.setValue(reg.clahe_clip)
         self.clahe_grid.setValue(reg.clahe_grid)
+        self.init_radius.setValue(reg.initial_radius)
         self.growth_factor.setValue(reg.growth_factor)
         self.use_masked.setChecked(reg.use_masked_ecc)
         self.seg_method.setCurrentText(seg.method)
@@ -552,7 +559,9 @@ class MainWindow(QMainWindow):
                        eps=reg.eps, use_masked_ecc=reg.use_masked_ecc,
                        gauss_blur_sigma=reg.gauss_blur_sigma,
                        clahe_clip=reg.clahe_clip,
-                       clahe_grid=reg.clahe_grid)
+                       clahe_grid=reg.clahe_grid,
+                       initial_radius=reg.initial_radius,
+                       growth_factor=reg.growth_factor)
         seg_cfg = dict(method=seg.method, invert=seg.invert, manual_thresh=seg.manual_thresh,
                        adaptive_block=seg.adaptive_block, adaptive_C=seg.adaptive_C, local_block=seg.local_block,
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,

@@ -36,6 +36,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     gauss_sigma = float(reg_cfg.get("gauss_blur_sigma", 1.0))
     clahe_clip = float(reg_cfg.get("clahe_clip", 2.0))
     clahe_grid = int(reg_cfg.get("clahe_grid", 8))
+    initial_radius = int(reg_cfg.get("initial_radius", min(H, W) // 2))
     growth_factor = float(reg_cfg.get("growth_factor", 1.0))
     imgs_norm = [preprocess(g, gauss_sigma, clahe_clip, clahe_grid) for g in imgs_norm]
 
@@ -56,8 +57,18 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     # Initialize mask and bounding box covering the full image.  The
     # bbox is updated after each registration to track the common area
     # across all frames.
-    ecc_mask = np.ones((H, W), dtype=np.uint8) * 255
-    bbox_x, bbox_y, bbox_w, bbox_h = 0, 0, W, H
+    if initial_radius > 0:
+        ecc_mask = np.zeros((H, W), dtype=np.uint8)
+        cx, cy = W // 2, H // 2
+        x0 = max(cx - initial_radius, 0)
+        y0 = max(cy - initial_radius, 0)
+        x1 = min(cx + initial_radius, W)
+        y1 = min(cy + initial_radius, H)
+        ecc_mask[y0:y1, x0:x1] = 255
+        bbox_x, bbox_y, bbox_w, bbox_h = x0, y0, x1 - x0, y1 - y0
+    else:
+        ecc_mask = np.ones((H, W), dtype=np.uint8) * 255
+        bbox_x, bbox_y, bbox_w, bbox_h = 0, 0, W, H
 
     # Iterate through frames according to the chosen direction. Each
     # step registers the current frame to the previous original frame
@@ -71,7 +82,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             # Starting reference frame: no registration needed.
             ref_gray = g_norm
             warped = ref_gray.copy()
-            valid_mask = np.ones_like(ref_gray, dtype=np.uint8) * 255
+            valid_mask = ecc_mask.copy()[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
         else:
             prev_full = imgs_norm[k - step]
             ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
