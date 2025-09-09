@@ -12,6 +12,8 @@ import pandas as pd
 from ..models.config import RegParams, SegParams, AppParams, save_settings, load_settings, save_preset, load_preset
 from ..core.io_utils import discover_images, imread_gray, file_times_minutes
 from ..core.registration import register_ecc, register_orb
+from ..core.segmentation import segment
+from ..core.processing import overlay_outline
 from ..workers.pipeline_worker import PipelineWorker
 
 class MainWindow(QMainWindow):
@@ -93,6 +95,9 @@ class MainWindow(QMainWindow):
         seg_form.addRow("Close radius", self.close_r)
         seg_form.addRow("Remove objects < px", self.rm_obj)
         seg_form.addRow("Remove holes < px", self.rm_holes)
+        seg_preview_btn = QPushButton("Preview Segmentation")
+        seg_preview_btn.clicked.connect(self._preview_segmentation)
+        seg_form.addRow(seg_preview_btn)
         controls.addWidget(seg_group)
 
         # Presets
@@ -233,6 +238,38 @@ class MainWindow(QMainWindow):
             overlay[...,2] = warped
             self.view.setImage(overlay.transpose(1,0,2))
             self.status_label.setText("Preview successful.")
+        except Exception as e:
+            self.status_label.setText(f"Preview failed: {e}")
+
+    def _preview_segmentation(self):
+        if not self.paths:
+            QMessageBox.warning(self, "No images", "Choose an image folder first.")
+            return
+        try:
+            _, seg, app = self._collect_params()
+            if app.reference_choice == "last":
+                idx = len(self.paths) - 1
+            elif app.reference_choice == "first":
+                idx = 0
+            elif app.reference_choice == "middle":
+                idx = len(self.paths) // 2
+            else:
+                idx = app.custom_ref_index
+            gray = imread_gray(self.paths[idx])
+            bw = segment(gray,
+                         method=seg.method,
+                         invert=seg.invert,
+                         manual_thresh=seg.manual_thresh,
+                         adaptive_block=seg.adaptive_block,
+                         adaptive_C=seg.adaptive_C,
+                         local_block=seg.local_block,
+                         morph_open_radius=seg.morph_open_radius,
+                         morph_close_radius=seg.morph_close_radius,
+                         remove_objects_smaller_px=seg.remove_objects_smaller_px,
+                         remove_holes_smaller_px=seg.remove_holes_smaller_px)
+            overlay = overlay_outline(gray, bw)
+            self.view.setImage(overlay.transpose(1,0,2))
+            self.status_label.setText("Segmentation preview successful.")
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
