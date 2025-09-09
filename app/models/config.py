@@ -35,8 +35,7 @@ class SegParams:
 class AppParams:
     px_size_um: float = 1.0
     minutes_between_frames: float = 1.0  # default; can be overridden by timestamps
-    reference_choice: str = "last"  # last | first | middle | custom
-    custom_ref_index: int = 0
+    direction: str = "last-to-first"  # "last-to-first" | "first-to-last"
     show_ref_overlay: bool = True
     show_mov_overlay: bool = True
     overlay_opacity: int = 50

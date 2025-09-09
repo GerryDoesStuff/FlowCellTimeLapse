@@ -19,19 +19,16 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     imgs_gray = [imread_gray(p) for p in paths]
     H, W = imgs_gray[0].shape[:2]
 
-    # Determine starting reference frame based on user selection
-    ref_choice = app_cfg.get("reference_choice", "last")
-    if ref_choice == "first":
+    # Determine direction and starting reference frame
+    direction = app_cfg.get("direction", "last-to-first")
+    if direction == "first-to-last":
         ref_idx = 0
-    elif ref_choice == "middle":
-        ref_idx = len(paths) // 2
-    elif ref_choice == "custom":
-        # Clamp custom index to valid range
-        ref_idx = int(app_cfg.get("custom_ref_index", 0))
-        ref_idx = max(0, min(len(paths) - 1, ref_idx))
+        step = 1
+        k_range = range(ref_idx, len(paths))
     else:
-        # Default to using the last frame
         ref_idx = len(paths) - 1
+        step = -1
+        k_range = range(ref_idx, -1, -1)
 
     # Background normalization using early frames
     bg = estimate_temporal_background(imgs_gray, n_early=5)
@@ -61,12 +58,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     ecc_mask = np.ones((H, W), dtype=np.uint8) * 255
     bbox_x, bbox_y, bbox_w, bbox_h = 0, 0, W, H
 
-    # Iterate backwards from the reference frame so that at step k the
-    # registration target is the original frame at k+1 (i.e. the next
-    # later frame).  This avoids repeatedly warping already warped
-    # images and yields a transformation chain relative to the initial
-    # reference.
-    for k in range(ref_idx, -1, -1):
+    # Iterate through frames according to the chosen direction. Each
+    # step registers the current frame to the previous original frame
+    # to avoid compounding warps.
+    for k in k_range:
         g_full = imgs_norm[k]
         g_norm = g_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
 
@@ -76,9 +71,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             warped = ref_gray.copy()
             valid_mask = np.ones_like(ref_gray, dtype=np.uint8) * 255
         else:
-            # Use the original (unwarped) previous frame as the
-            # registration target for the current frame.
-            prev_full = imgs_norm[k + 1]
+            prev_full = imgs_norm[k - step]
             ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
 
             if reg_cfg.get("method", "ECC").upper() == "ORB":
@@ -93,10 +86,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
 
-            # Compose the step with the cumulative transform so we can
-            # later map this frame back to the starting reference.
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
-            transforms[k] = transforms[k + 1] @ W_h
+            transforms[k] = transforms[k - step] @ W_h
 
         # Segment the reference frame corresponding to this step.
         bw_ref = segment(ref_gray,

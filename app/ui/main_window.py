@@ -67,23 +67,19 @@ class MainWindow(QMainWindow):
         controls.addLayout(folder_box)
         self.folder_edit.textChanged.connect(self._persist_settings)
 
-        # Reference + timestamps
-        ref_group = QGroupBox("Reference & Timing")
+        # Direction + timestamps
+        ref_group = QGroupBox("Direction & Timing")
         ref_form = QFormLayout(ref_group)
-        self.ref_combo = QComboBox(); self.ref_combo.addItems(["last","first","middle","custom"])
-        self.ref_combo.setCurrentText(self.app.reference_choice)
-        self.ref_idx = QSpinBox(); self.ref_idx.setMinimum(0); self.ref_idx.setValue(self.app.custom_ref_index)
+        self.dir_combo = QComboBox(); self.dir_combo.addItems(["last-to-first", "first-to-last"])
+        self.dir_combo.setCurrentText(self.app.direction)
         self.use_ts = QCheckBox("Use file timestamps for frame spacing"); self.use_ts.setChecked(self.app.use_file_timestamps)
         self.dt_min = QDoubleSpinBox(); self.dt_min.setDecimals(3); self.dt_min.setMinimum(0.0); self.dt_min.setValue(self.app.minutes_between_frames)
-        ref_form.addRow("Reference frame", self.ref_combo)
-        ref_form.addRow("Custom index (0-based)", self.ref_idx)
+        ref_form.addRow("Analysis direction", self.dir_combo)
         ref_form.addRow(self.use_ts)
         ref_form.addRow("Fallback Δt (min)", self.dt_min)
         controls.addWidget(ref_group)
-        self.ref_combo.currentTextChanged.connect(self._show_reference_frame)
-        self.ref_combo.currentTextChanged.connect(self._persist_settings)
-        self.ref_idx.valueChanged.connect(self._show_reference_frame)
-        self.ref_idx.valueChanged.connect(self._persist_settings)
+        self.dir_combo.currentTextChanged.connect(self._show_reference_frame)
+        self.dir_combo.currentTextChanged.connect(self._persist_settings)
         self.use_ts.toggled.connect(self._persist_settings)
         self.dt_min.valueChanged.connect(self._persist_settings)
 
@@ -262,15 +258,11 @@ class MainWindow(QMainWindow):
         """Display the frame chosen by the current reference settings."""
         if not self.paths:
             return None
-        choice = self.ref_combo.currentText()
-        if choice == "last":
-            idx = len(self.paths) - 1
-        elif choice == "first":
+        choice = self.dir_combo.currentText()
+        if choice == "first-to-last":
             idx = 0
-        elif choice == "middle":
-            idx = len(self.paths) // 2
         else:
-            idx = self.ref_idx.value()
+            idx = len(self.paths) - 1
         idx = max(0, min(idx, len(self.paths) - 1))
         img = imread_gray(self.paths[idx])
         self.view.setImage(img.T)
@@ -315,8 +307,7 @@ class MainWindow(QMainWindow):
                         morph_close_radius=self.close_r.value(),
                         remove_objects_smaller_px=self.rm_obj.value(),
                         remove_holes_smaller_px=self.rm_holes.value())
-        app = AppParams(reference_choice=self.ref_combo.currentText(),
-                        custom_ref_index=self.ref_idx.value(),
+        app = AppParams(direction=self.dir_combo.currentText(),
                         minutes_between_frames=self.dt_min.value(),
                         use_file_timestamps=self.use_ts.isChecked(),
                         show_ref_overlay=self.overlay_ref_cb.isChecked(),
@@ -369,8 +360,7 @@ class MainWindow(QMainWindow):
         self.close_r.setValue(seg.morph_close_radius)
         self.rm_obj.setValue(seg.remove_objects_smaller_px)
         self.rm_holes.setValue(seg.remove_holes_smaller_px)
-        self.ref_combo.setCurrentText(app.reference_choice)
-        self.ref_idx.setValue(app.custom_ref_index)
+        self.dir_combo.setCurrentText(app.direction)
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
         self.overlay_ref_cb.setChecked(app.show_ref_overlay)
@@ -452,14 +442,10 @@ class MainWindow(QMainWindow):
             return
         try:
             reg, _, app = self._persist_settings()
-            if app.reference_choice == "last":
-                ref_idx = len(self.paths) - 1
-            elif app.reference_choice == "first":
+            if app.direction == "first-to-last":
                 ref_idx = 0
-            elif app.reference_choice == "middle":
-                ref_idx = len(self.paths) // 2
             else:
-                ref_idx = app.custom_ref_index
+                ref_idx = len(self.paths) - 1
             ref_img = imread_gray(self.paths[ref_idx])
             mov_idx = self.mov_idx_spin.value()
             if mov_idx < 0 or mov_idx >= len(self.paths):
@@ -499,14 +485,10 @@ class MainWindow(QMainWindow):
             reg, seg, app = self._persist_settings()
 
             # Determine reference and moving indices
-            if app.reference_choice == "last":
-                ref_idx = len(self.paths) - 1
-            elif app.reference_choice == "first":
+            if app.direction == "first-to-last":
                 ref_idx = 0
-            elif app.reference_choice == "middle":
-                ref_idx = len(self.paths) // 2
             else:
-                ref_idx = app.custom_ref_index
+                ref_idx = len(self.paths) - 1
 
             mov_idx = self.mov_idx_spin.value()
             if mov_idx < 0 or mov_idx >= len(self.paths):
@@ -568,7 +550,7 @@ class MainWindow(QMainWindow):
                        adaptive_block=seg.adaptive_block, adaptive_C=seg.adaptive_C, local_block=seg.local_block,
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,
                        remove_objects_smaller_px=seg.remove_objects_smaller_px, remove_holes_smaller_px=seg.remove_holes_smaller_px)
-        app_cfg = dict(reference_choice=app.reference_choice, custom_ref_index=app.custom_ref_index,
+        app_cfg = dict(direction=app.direction,
                        use_difference_for_seg=False, save_intermediates=True)
 
         # timestamps if requested
