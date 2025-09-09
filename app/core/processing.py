@@ -102,6 +102,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 )
                 if fb:
                     logging.warning("ORB registration fell back to ECC at frame %d", k)
+                if not success:
+                    logging.warning("Registration failed at frame %d", k)
+                    continue
             elif method == "ORB+ECC":
                 success, W_step, warped, valid_mask = register_orb_ecc(
                     ref_gray,
@@ -113,6 +116,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     match_ratio=float(reg_cfg.get("match_ratio", 0.75)),
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
+                if not success:
+                    logging.warning("Registration failed at frame %d", k)
+                    continue
             else:
                 success, W_step, warped, valid_mask = register_ecc(
                     ref_gray,
@@ -122,10 +128,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     eps=float(reg_cfg.get("eps", 1e-6)),
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
-
-            if not success:
-                logging.warning("Registration failed at frame %d", k)
-                continue
+                if not success:
+                    logging.warning("Registration failed at frame %d", k)
+                    continue
 
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
             transforms[k] = transforms[k - step] @ W_h
