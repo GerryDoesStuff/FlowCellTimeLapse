@@ -30,7 +30,7 @@ def imread_gray(path: Path) -> np.ndarray:
     if img is None:
         raise ValueError(f"Failed to read {path}")
     if img.ndim == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        img = img[..., 2]
     if img.dtype != np.uint8:
         img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     return img
