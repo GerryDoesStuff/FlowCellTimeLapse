@@ -34,20 +34,23 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
     criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, int(max_iters), float(eps))
     ref_f = ref.astype(np.float32)/255.0
     mov_f = mov.astype(np.float32)/255.0
+    ref_mask = mask if mask is not None and mask.shape == ref.shape else None
     try:
-        if mask is not None and mask.shape == ref.shape:
-            _, W = cv2.findTransformECC(ref_f, mov_f, W, mode, criteria, inputMask=mask, gaussFiltSize=5)
+        if ref_mask is not None:
+            _, W = cv2.findTransformECC(ref_f, mov_f, W, mode, criteria, inputMask=ref_mask, gaussFiltSize=5)
         else:
+            ref_mask = np.ones_like(ref, dtype=np.uint8)*255
             _, W = cv2.findTransformECC(ref_f, mov_f, W, mode, criteria)
     except cv2.error:
         pass
     h, w = ref.shape
     if mode == cv2.MOTION_HOMOGRAPHY:
         warped = cv2.warpPerspective(mov, W, (w,h), flags=cv2.INTER_LINEAR)
-        valid_mask = cv2.warpPerspective(np.ones_like(mov, dtype=np.uint8)*255, W, (w,h), flags=cv2.INTER_NEAREST)
+        warp_mask = cv2.warpPerspective(ref_mask, W, (w,h), flags=cv2.INTER_NEAREST)
     else:
         warped = cv2.warpAffine(mov, W, (w,h), flags=cv2.INTER_LINEAR)
-        valid_mask = cv2.warpAffine(np.ones_like(mov, dtype=np.uint8)*255, W, (w,h), flags=cv2.INTER_NEAREST)
+        warp_mask = cv2.warpAffine(ref_mask, W, (w,h), flags=cv2.INTER_NEAREST)
+    valid_mask = cv2.bitwise_and(ref_mask, warp_mask)
     valid_mask = (valid_mask>0).astype(np.uint8)
     return W, warped, valid_mask
 
