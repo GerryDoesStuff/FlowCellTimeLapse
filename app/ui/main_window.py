@@ -131,6 +131,16 @@ class MainWindow(QMainWindow):
         layout.addLayout(right, 1)
 
         self.view = pg.ImageView()
+        # Label histogram and ROI plot axes for clarity
+        hist = self.view.getHistogramWidget()
+        if hist is not None and hasattr(hist, 'axis'):
+            hist.axis.setLabel("Pixel intensity", color="#FFFFFF")
+        roi_plot = self.view.getRoiPlot()
+        if roi_plot is not None:
+            roi_plot.getAxis('bottom').setLabel("Frame", color="#FFFFFF")
+            roi_plot.getAxis('left').setLabel("Mean intensity", color="#FFFFFF")
+            roi_plot.showAxis('bottom', True)
+            roi_plot.showAxis('left', True)
         right.addWidget(self.view)
 
         overlay_box = QHBoxLayout()
