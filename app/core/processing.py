@@ -19,8 +19,19 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     imgs_gray = [imread_gray(p) for p in paths]
     H, W = imgs_gray[0].shape[:2]
 
-    # Always use the last frame as the starting reference
-    ref_idx = len(paths) - 1
+    # Determine starting reference frame based on user selection
+    ref_choice = app_cfg.get("reference_choice", "last")
+    if ref_choice == "first":
+        ref_idx = 0
+    elif ref_choice == "middle":
+        ref_idx = len(paths) // 2
+    elif ref_choice == "custom":
+        # Clamp custom index to valid range
+        ref_idx = int(app_cfg.get("custom_ref_index", 0))
+        ref_idx = max(0, min(len(paths) - 1, ref_idx))
+    else:
+        # Default to using the last frame
+        ref_idx = len(paths) - 1
 
     # Background normalization using early frames
     bg = estimate_temporal_background(imgs_gray, n_early=5)
