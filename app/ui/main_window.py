@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
         folder_box.addWidget(self.folder_edit)
         folder_box.addWidget(browse_btn)
         controls.addLayout(folder_box)
+        self.folder_edit.textChanged.connect(self._persist_settings)
 
         # Reference + timestamps
         ref_group = QGroupBox("Reference & Timing")
@@ -66,7 +67,11 @@ class MainWindow(QMainWindow):
         ref_form.addRow("Fallback Δt (min)", self.dt_min)
         controls.addWidget(ref_group)
         self.ref_combo.currentTextChanged.connect(self._show_reference_frame)
+        self.ref_combo.currentTextChanged.connect(self._persist_settings)
         self.ref_idx.valueChanged.connect(self._show_reference_frame)
+        self.ref_idx.valueChanged.connect(self._persist_settings)
+        self.use_ts.toggled.connect(self._persist_settings)
+        self.dt_min.valueChanged.connect(self._persist_settings)
 
         # Registration params
         reg_group = QGroupBox("Registration")
@@ -82,6 +87,11 @@ class MainWindow(QMainWindow):
         reg_form.addRow("Epsilon", self.eps)
         reg_form.addRow(self.use_masked)
         controls.addWidget(reg_group)
+        self.reg_method.currentTextChanged.connect(self._persist_settings)
+        self.reg_model.currentTextChanged.connect(self._persist_settings)
+        self.max_iters.valueChanged.connect(self._persist_settings)
+        self.eps.valueChanged.connect(self._persist_settings)
+        self.use_masked.toggled.connect(self._persist_settings)
 
         # Segmentation params
         seg_group = QGroupBox("Segmentation")
@@ -110,6 +120,16 @@ class MainWindow(QMainWindow):
         seg_preview_btn.clicked.connect(self._preview_segmentation)
         seg_form.addRow(seg_preview_btn)
         controls.addWidget(seg_group)
+        self.seg_method.currentTextChanged.connect(self._persist_settings)
+        self.invert.toggled.connect(self._persist_settings)
+        self.manual_t.valueChanged.connect(self._persist_settings)
+        self.adaptive_blk.valueChanged.connect(self._persist_settings)
+        self.adaptive_C.valueChanged.connect(self._persist_settings)
+        self.local_blk.valueChanged.connect(self._persist_settings)
+        self.open_r.valueChanged.connect(self._persist_settings)
+        self.close_r.valueChanged.connect(self._persist_settings)
+        self.rm_obj.valueChanged.connect(self._persist_settings)
+        self.rm_holes.valueChanged.connect(self._persist_settings)
 
         # Presets
         preset_box = QHBoxLayout()
@@ -161,6 +181,9 @@ class MainWindow(QMainWindow):
         self.alpha_slider.valueChanged.connect(self._refresh_overlay_alpha)
         self.overlay_ref_cb.toggled.connect(self._refresh_overlay_alpha)
         self.overlay_mov_cb.toggled.connect(self._refresh_overlay_alpha)
+        self.alpha_slider.valueChanged.connect(self._persist_settings)
+        self.overlay_ref_cb.toggled.connect(self._persist_settings)
+        self.overlay_mov_cb.toggled.connect(self._persist_settings)
 
         # Status
         self.status_label = QLabel("Ready.")
@@ -197,8 +220,8 @@ class MainWindow(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Select image folder", "")
         if d:
             self.folder_edit.setText(d)
-            self.app.last_folder = d
-            save_settings(self.reg, self.seg, self.app)
+            # Persist the chosen folder along with current settings
+            self._persist_settings()
             self.paths = discover_images(Path(d))
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
@@ -234,8 +257,17 @@ class MainWindow(QMainWindow):
                         overlay_opacity=self.alpha_slider.value())
         return reg, seg, app
 
-    def _save_preset(self):
+    def _persist_settings(self, *args):
+        """Collect current UI state and save via QSettings."""
+        last = self.folder_edit.text() or self.app.last_folder
         reg, seg, app = self._collect_params()
+        app.last_folder = last
+        self.reg, self.seg, self.app = reg, seg, app
+        save_settings(reg, seg, app)
+        return reg, seg, app
+
+    def _save_preset(self):
+        reg, seg, app = self._persist_settings()
         path, _ = QFileDialog.getSaveFileName(self, "Save Preset", "preset.json", "JSON (*.json)")
         if path:
             save_preset(path, reg, seg, app)
@@ -270,6 +302,7 @@ class MainWindow(QMainWindow):
         self.overlay_mov_cb.setChecked(app.show_mov_overlay)
         self.alpha_slider.setValue(app.overlay_opacity)
         self.status_label.setText(f"Preset loaded: {path}")
+        self._persist_settings()
 
     def _refresh_overlay_alpha(self):
         """Blend cached overlays according to slider and checkbox states."""
@@ -314,7 +347,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Need at least two images", "Load at least two images for preview.")
             return
         try:
-            reg, _, app = self._collect_params()
+            reg, _, app = self._persist_settings()
             if app.reference_choice == "last":
                 ref_idx = len(self.paths) - 1
             elif app.reference_choice == "first":
@@ -353,7 +386,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No images", "Choose an image folder first.")
             return
         try:
-            _, seg, app = self._collect_params()
+            _, seg, app = self._persist_settings()
             if app.reference_choice == "last":
                 idx = len(self.paths) - 1
             elif app.reference_choice == "first":
@@ -389,7 +422,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No images", "Choose an image folder first.")
             return
 
-        reg, seg, app = self._collect_params()
+        reg, seg, app = self._persist_settings()
         # Build slim dicts for worker
         reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters, eps=reg.eps, use_masked_ecc=reg.use_masked_ecc)
         seg_cfg = dict(method=seg.method, invert=seg.invert, manual_thresh=seg.manual_thresh,
@@ -425,6 +458,5 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Persist current settings when the window is closed."""
-        reg, seg, app = self._collect_params()
-        save_settings(reg, seg, app)
+        self._persist_settings()
         super().closeEvent(event)
