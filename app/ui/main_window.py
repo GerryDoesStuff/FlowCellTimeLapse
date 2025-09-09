@@ -831,6 +831,15 @@ class MainWindow(QMainWindow):
             return
 
         reg, seg, app = self._persist_settings()
+        # Guard against invalid direction values
+        if app.direction not in ("first-to-last", "last-to-first"):
+            QMessageBox.critical(
+                self,
+                "Invalid Direction",
+                f"Analysis direction must be 'first-to-last' or 'last-to-first'. Got: {app.direction}",
+            )
+            return
+
         # Build slim dicts for worker
         reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters,
                        eps=reg.eps, use_masked_ecc=reg.use_masked_ecc,
