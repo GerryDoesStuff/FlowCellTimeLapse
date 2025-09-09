@@ -27,6 +27,14 @@ def preprocess(gray: np.ndarray, gauss_sigma: float, clahe_clip: float, clahe_gr
 def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
                  max_iters: int=1000, eps: float=1e-6,
                  mask: Optional[np.ndarray]=None) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray]:
+    """Register *mov* to *ref* using the ECC algorithm.
+
+    The Enhanced Correlation Coefficient (ECC) maximizes image intensity
+    agreement, providing sub-pixel accuracy. It is sensitive to frames with
+    little variation, which can cause the optimization to diverge and produce
+    NaN values in the resulting warp matrix. Such nearly uniform images are
+    detected and handled gracefully by returning an identity transform.
+    """
     if mov.size == 0 or ref.size == 0:
         logging.warning("Skipping registration: empty frame")
         return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8)
@@ -58,6 +66,13 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
     except cv2.error as e:
         logging.exception("ECC registration failed: %s", e)
         success = False
+
+    if not success or np.isnan(W).any():
+        if np.isnan(W).any():
+            logging.warning("ECC produced NaN warp matrix; returning identity")
+        identity = np.eye(3, dtype=np.float32) if mode == cv2.MOTION_HOMOGRAPHY else np.eye(2,3, dtype=np.float32)
+        return False, identity, mov, np.zeros_like(mov, dtype=np.uint8)
+
     h, w = ref.shape
     if mode == cv2.MOTION_HOMOGRAPHY:
         warped = cv2.warpPerspective(mov, W, (w,h), flags=cv2.INTER_LINEAR)
@@ -67,7 +82,7 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
         warp_mask = cv2.warpAffine(ref_mask, W, (w,h), flags=cv2.INTER_NEAREST)
     valid_mask = cv2.bitwise_and(ref_mask, warp_mask)
     valid_mask = (valid_mask>0).astype(np.uint8)
-    return success, W, warped, valid_mask
+    return True, W, warped, valid_mask
 
 def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
                  orb_features: int = 4000, match_ratio: float = 0.75,

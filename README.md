@@ -23,7 +23,7 @@ Otherwise it runs on CPU with multi-processing. To install a CUDA wheel, conside
 - `app/ui/main_window.py` — PyQt UI and interactions.
 - `app/models/config.py` — dataclasses for parameters; JSON presets; QSettings persistence.
 - `app/core/io_utils.py` — file discovery, timestamp spacing, safe I/O.
-- `app/core/registration.py` — ECC / ORB(+RANSAC) on CPU; CUDA path when available.
+- `app/core/registration.py` — ECC / ORB(+RANSAC) on CPU; CUDA path when available. ECC assumes sufficient texture; nearly uniform frames can cause the optimizer to diverge, yielding NaN transforms that are handled by falling back to the identity matrix.
 - `app/core/segmentation.py` — outline-focused segmentation (black-hat + Otsu/adaptive), morphology.
 - `app/core/background.py` — on-the-fly background estimation (temporal median of early frames, fallback to blur).
 - `app/core/processing.py` — end-to-end per-frame pipeline; overlap cropping; metrics aggregation.
