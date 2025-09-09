@@ -33,10 +33,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         step = -1
         k_range = range(ref_idx, -1, -1)
 
-    # Background normalization using early frames
-    bg = estimate_temporal_background(imgs_gray, n_early=5)
-    rescale_bg = bool(app_cfg.get("rescale_background", True))
-    imgs_norm = [normalize_background(g, bg, rescale=rescale_bg) for g in imgs_gray]
+    # Optionally subtract a temporal background using early frames
+    if app_cfg.get("subtract_background", False):
+        bg = estimate_temporal_background(imgs_gray, n_early=5)
+        imgs_norm = [normalize_background(g, bg) for g in imgs_gray]
+    else:
+        imgs_norm = imgs_gray
     gauss_sigma = float(reg_cfg.get("gauss_blur_sigma", 1.0))
     clahe_clip = float(reg_cfg.get("clahe_clip", 2.0))
     clahe_grid = int(reg_cfg.get("clahe_grid", 8))
