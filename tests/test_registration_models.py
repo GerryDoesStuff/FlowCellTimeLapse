@@ -45,18 +45,19 @@ def test_register_orb_models(monkeypatch):
     ref = np.zeros((5, 5), dtype=np.uint8)
     mov = np.zeros((5, 5), dtype=np.uint8)
 
-    _, H, _, _, fb = register_orb(ref, mov, model="homography")
+    _, H, _, _, fb, n1, n2 = register_orb(ref, mov, model="homography")
     assert H.shape == (3, 3) and not fb
+    assert n1 == 10 and n2 == 10
 
-    _, A, _, _, fb = register_orb(ref, mov, model="affine")
+    _, A, _, _, fb, _, _ = register_orb(ref, mov, model="affine")
     assert A.shape == (2, 3) and not fb
 
-    _, E, _, _, fb = register_orb(ref, mov, model="euclidean")
+    _, E, _, _, fb, _, _ = register_orb(ref, mov, model="euclidean")
     assert E.shape == (2, 3) and not fb
     R = E[:, :2]
     assert np.allclose(R.T @ R, np.eye(2), atol=1e-6)
 
-    _, T, _, _, fb = register_orb(ref, mov, model="translation")
+    _, T, _, _, fb, _, _ = register_orb(ref, mov, model="translation")
     assert T.shape == (2, 3) and not fb
     assert np.allclose(T[:, :2], np.eye(2), atol=1e-6)
 
@@ -69,7 +70,7 @@ def test_orb_homography_fallback(monkeypatch):
     monkeypatch.setattr(reg, "register_ecc", lambda ref, mov, model='homography': (True, np.eye(3, dtype=np.float32), mov, np.ones_like(ref, dtype=np.uint8)))
     ref = np.zeros((5,5), dtype=np.uint8)
     mov = np.zeros((5,5), dtype=np.uint8)
-    success, _, _, _, fb = reg.register_orb(ref, mov, model="homography")
+    success, _, _, _, fb, _, _ = reg.register_orb(ref, mov, model="homography")
     assert success and fb
 
 
@@ -93,6 +94,6 @@ def test_register_orb_fallback_model(monkeypatch):
     ref = np.zeros((5, 5), dtype=np.uint8)
     mov = np.zeros((5, 5), dtype=np.uint8)
 
-    reg.register_orb(ref, mov, model="homography", fallback_model="translation")
+    _, _, _, _, _, _, _ = reg.register_orb(ref, mov, model="homography", fallback_model="translation")
 
     assert captured["model"] == "translation"

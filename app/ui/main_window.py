@@ -196,6 +196,8 @@ class MainWindow(QMainWindow):
         reg_preview_btn = QPushButton("Preview Registration")
         reg_preview_btn.clicked.connect(self._preview_registration)
         reg_grid.addWidget(reg_preview_btn, 8, 0, 1, 4)
+        self.kp_label = QLabel("Keypoints: -")
+        reg_grid.addWidget(self.kp_label, 9, 0, 1, 4)
         controls.addWidget(reg_group)
         self._add_help(
             self.reg_method,
@@ -709,27 +711,43 @@ class MainWindow(QMainWindow):
             mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             method = reg.method.upper()
             if method == "ORB":
-                success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
-                                                         orb_features=reg.orb_features,
-                                                         match_ratio=reg.match_ratio,
-                                                         min_keypoints=reg.min_keypoints,
-                                                         min_matches=reg.min_matches,
-                                                         use_ecc_fallback=reg.use_ecc_fallback)
+                success, _, warped, _, fb, ref_kp, mov_kp = register_orb(
+                    ref_img,
+                    mov_img,
+                    model=reg.model,
+                    orb_features=reg.orb_features,
+                    match_ratio=reg.match_ratio,
+                    min_keypoints=reg.min_keypoints,
+                    min_matches=reg.min_matches,
+                    use_ecc_fallback=reg.use_ecc_fallback,
+                )
                 if fb:
                     self.status_label.setText("ORB fell back to ECC for registration.")
             elif method == "ORB+ECC":
-                success, _, warped, _ = register_orb_ecc(
-                    ref_img, mov_img, model=reg.model,
-                    max_iters=reg.max_iters, eps=reg.eps,
-                    orb_features=reg.orb_features, match_ratio=reg.match_ratio,
-                    min_keypoints=reg.min_keypoints, min_matches=reg.min_matches,
-                    use_ecc_fallback=reg.use_ecc_fallback
+                success, _, warped, _, ref_kp, mov_kp = register_orb_ecc(
+                    ref_img,
+                    mov_img,
+                    model=reg.model,
+                    max_iters=reg.max_iters,
+                    eps=reg.eps,
+                    orb_features=reg.orb_features,
+                    match_ratio=reg.match_ratio,
+                    min_keypoints=reg.min_keypoints,
+                    min_matches=reg.min_matches,
+                    use_ecc_fallback=reg.use_ecc_fallback,
                 )
             else:
-                success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
-                                                    max_iters=reg.max_iters, eps=reg.eps)
+                success, _, warped, _ = register_ecc(
+                    ref_img,
+                    mov_img,
+                    model=reg.model,
+                    max_iters=reg.max_iters,
+                    eps=reg.eps,
+                )
+                ref_kp = mov_kp = 0
             if not success:
                 raise RuntimeError("Registration failed")
+            self.kp_label.setText(f"Keypoints: ref={ref_kp}, mov={mov_kp}")
             self._reg_ref = ref_img
             self._reg_warp = warped
             self._current_preview = "registration"
@@ -777,29 +795,45 @@ class MainWindow(QMainWindow):
                 mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 method = reg.method.upper()
                 if method == "ORB":
-                    success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
-                                                             orb_features=reg.orb_features,
-                                                             match_ratio=reg.match_ratio,
-                                                             min_keypoints=reg.min_keypoints,
-                                                             min_matches=reg.min_matches,
-                                                             use_ecc_fallback=reg.use_ecc_fallback)
+                    success, _, warped, _, fb, ref_kp, mov_kp = register_orb(
+                        ref_img,
+                        mov_img,
+                        model=reg.model,
+                        orb_features=reg.orb_features,
+                        match_ratio=reg.match_ratio,
+                        min_keypoints=reg.min_keypoints,
+                        min_matches=reg.min_matches,
+                        use_ecc_fallback=reg.use_ecc_fallback,
+                    )
                     if fb:
                         self.status_label.setText("ORB fell back to ECC for registration.")
                 elif method == "ORB+ECC":
-                    success, _, warped, _ = register_orb_ecc(
-                        ref_img, mov_img, model=reg.model,
-                        max_iters=reg.max_iters, eps=reg.eps,
-                        orb_features=reg.orb_features, match_ratio=reg.match_ratio,
-                        min_keypoints=reg.min_keypoints, min_matches=reg.min_matches,
-                        use_ecc_fallback=reg.use_ecc_fallback
+                    success, _, warped, _, ref_kp, mov_kp = register_orb_ecc(
+                        ref_img,
+                        mov_img,
+                        model=reg.model,
+                        max_iters=reg.max_iters,
+                        eps=reg.eps,
+                        orb_features=reg.orb_features,
+                        match_ratio=reg.match_ratio,
+                        min_keypoints=reg.min_keypoints,
+                        min_matches=reg.min_matches,
+                        use_ecc_fallback=reg.use_ecc_fallback,
                     )
                 else:
-                    success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
-                                                        max_iters=reg.max_iters, eps=reg.eps)
+                    success, _, warped, _ = register_ecc(
+                        ref_img,
+                        mov_img,
+                        model=reg.model,
+                        max_iters=reg.max_iters,
+                        eps=reg.eps,
+                    )
+                    ref_kp = mov_kp = 0
                 if not success:
                     raise RuntimeError("Registration failed")
                 self._reg_ref = ref_img
                 self._reg_warp = warped
+                self.kp_label.setText(f"Keypoints: ref={ref_kp}, mov={mov_kp}")
 
             gray = self._reg_warp
             bw = segment(gray,
