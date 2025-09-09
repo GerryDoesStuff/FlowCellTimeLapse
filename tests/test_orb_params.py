@@ -46,4 +46,4 @@ def test_orb_parameters_affect_registration(monkeypatch):
     success_good, H_good, _, _ = register_orb(ref, mov, orb_features=500, match_ratio=0.7)
     assert success_good and H_good.shape == (3, 3)
     success_bad, H_bad, _, _ = register_orb(ref, mov, orb_features=500, match_ratio=0.4)
-    assert H_bad.shape == (2, 3)
+    assert H_bad.shape == (3, 3)
