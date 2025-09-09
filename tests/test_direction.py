@@ -18,7 +18,7 @@ def create_dummy_images(tmp_path, n=3):
     return paths
 
 
-def run_analyze(paths, reference_choice, custom_index=0):
+def run_analyze(paths, direction):
     reg_cfg = {
         "model": "affine",
         "max_iters": 1,
@@ -37,35 +37,22 @@ def run_analyze(paths, reference_choice, custom_index=0):
         "remove_holes_smaller_px": 0,
     }
     app_cfg = {
-        "reference_choice": reference_choice,
-        "custom_ref_index": custom_index,
+        "direction": direction,
         "save_intermediates": False,
     }
     out_dir = paths[0].parent / "out"
     df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
-    # Extract the index of the reference frame
     return int(df.loc[df["is_reference"], "frame_index"].iloc[0])
 
 
-def test_reference_last(tmp_path):
+def test_last_to_first(tmp_path):
     paths = create_dummy_images(tmp_path)
-    ref = run_analyze(paths, "last")
+    ref = run_analyze(paths, "last-to-first")
     assert ref == len(paths) - 1
 
 
-def test_reference_first(tmp_path):
+def test_first_to_last(tmp_path):
     paths = create_dummy_images(tmp_path)
-    ref = run_analyze(paths, "first")
+    ref = run_analyze(paths, "first-to-last")
     assert ref == 0
 
-
-def test_reference_middle(tmp_path):
-    paths = create_dummy_images(tmp_path)
-    ref = run_analyze(paths, "middle")
-    assert ref == len(paths) // 2
-
-
-def test_reference_custom(tmp_path):
-    paths = create_dummy_images(tmp_path)
-    ref = run_analyze(paths, "custom", custom_index=1)
-    assert ref == 1
