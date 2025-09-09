@@ -19,23 +19,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     imgs_gray = [imread_gray(p) for p in paths]
     H, W = imgs_gray[0].shape[:2]
 
-    # Reference index
-    ref_choice = app_cfg.get("reference_choice","last")
-    if ref_choice == "last":
-        ref_idx = len(paths)-1
-    elif ref_choice == "first":
-        ref_idx = 0
-    elif ref_choice == "middle":
-        ref_idx = len(paths)//2
-    else:
-        ref_idx = int(app_cfg.get("custom_ref_index",0))
-
-    ref_gray = imgs_gray[ref_idx]
+    # Always use the last frame as the starting reference
+    ref_idx = len(paths) - 1
 
     # Background normalization using early frames
     bg = estimate_temporal_background(imgs_gray, n_early=5)
     imgs_norm = [normalize_background(g, bg) for g in imgs_gray]
-    ref_gray = imgs_norm[ref_idx]
 
     # Prepare outputs
     ensure_dir(out_dir)
@@ -45,25 +34,50 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
 
     rows = []
-    ecc_mask = np.ones_like(ref_gray, dtype=np.uint8)*255
 
-    for k, (g_norm, pth) in enumerate(zip(imgs_norm, paths)):
+    # Initialize reference frame, mask, and bbox
+    ref_gray = imgs_norm[ref_idx]
+    bw_ref = segment(ref_gray,
+                     method=seg_cfg.get("method","otsu"),
+                     invert=bool(seg_cfg.get("invert",True)),
+                     manual_thresh=int(seg_cfg.get("manual_thresh",128)),
+                     adaptive_block=int(seg_cfg.get("adaptive_block",51)),
+                     adaptive_C=int(seg_cfg.get("adaptive_C",5)),
+                     local_block=int(seg_cfg.get("local_block",51)),
+                     morph_open_radius=int(seg_cfg.get("morph_open_radius",2)),
+                     morph_close_radius=int(seg_cfg.get("morph_close_radius",2)),
+                     remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px",64)),
+                     remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px",64)))
+    ecc_mask = np.ones_like(ref_gray, dtype=np.uint8) * 255
+    bbox_x, bbox_y, bbox_w, bbox_h = 0, 0, W, H
+
+    for k in range(len(paths) - 1, -1, -1):
+        g_full = imgs_norm[k]
+        g_norm = g_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
+
         if k == ref_idx:
             warped = ref_gray.copy()
-            valid_mask = np.ones_like(ref_gray, dtype=np.uint8)
+            valid_mask = np.ones_like(ref_gray, dtype=np.uint8) * 255
         else:
-            if reg_cfg.get("method","ECC").upper() == "ORB":
-                _, warped, valid_mask = register_orb(ref_gray, g_norm, model=reg_cfg.get("model","homography"))
+            if reg_cfg.get("method", "ECC").upper() == "ORB":
+                _, warped, valid_mask = register_orb(ref_gray, g_norm, model=reg_cfg.get("model", "homography"))
             else:
-                _, warped, valid_mask = register_ecc(ref_gray, g_norm, model=reg_cfg.get("model","affine"),
-                                                     max_iters=int(reg_cfg.get("max_iters",1000)),
-                                                     eps=float(reg_cfg.get("eps",1e-6)),
-                                                     mask=ecc_mask if reg_cfg.get("use_masked_ecc",True) else None)
-        x,y,w,h = crop_to_overlap(valid_mask)
+                _, warped, valid_mask = register_ecc(
+                    ref_gray,
+                    g_norm,
+                    model=reg_cfg.get("model", "affine"),
+                    max_iters=int(reg_cfg.get("max_iters", 1000)),
+                    eps=float(reg_cfg.get("eps", 1e-6)),
+                    mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
+                )
+
+        x, y, w, h = crop_to_overlap(valid_mask)
         if w == 0 or h == 0:
             continue
-        ref_crop = ref_gray[y:y+h, x:x+w]
-        mov_crop = warped[y:y+h, x:x+w]
+
+        ref_crop = ref_gray[y:y + h, x:x + w]
+        mov_crop = warped[y:y + h, x:x + w]
+        bw_ref_crop = bw_ref[y:y + h, x:x + w]
 
         # Segmentation on diff or raw
         if app_cfg.get("use_difference_for_seg", False):
@@ -73,41 +87,30 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             seg_img = mov_crop
 
         bw_mov = segment(seg_img,
-                         method=seg_cfg.get("method","otsu"),
-                         invert=bool(seg_cfg.get("invert",True)),
-                         manual_thresh=int(seg_cfg.get("manual_thresh",128)),
-                         adaptive_block=int(seg_cfg.get("adaptive_block",51)),
-                         adaptive_C=int(seg_cfg.get("adaptive_C",5)),
-                         local_block=int(seg_cfg.get("local_block",51)),
-                         morph_open_radius=int(seg_cfg.get("morph_open_radius",2)),
-                         morph_close_radius=int(seg_cfg.get("morph_close_radius",2)),
-                         remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px",64)),
-                         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px",64)))
+                         method=seg_cfg.get("method", "otsu"),
+                         invert=bool(seg_cfg.get("invert", True)),
+                         manual_thresh=int(seg_cfg.get("manual_thresh", 128)),
+                         adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
+                         adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
+                         local_block=int(seg_cfg.get("local_block", 51)),
+                         morph_open_radius=int(seg_cfg.get("morph_open_radius", 2)),
+                         morph_close_radius=int(seg_cfg.get("morph_close_radius", 2)),
+                         remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
+                         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)))
 
-        # Reference segmentation for overlap metrics
-        bw_ref = segment(ref_crop,
-                         method=seg_cfg.get("method","otsu"),
-                         invert=bool(seg_cfg.get("invert",True)),
-                         manual_thresh=int(seg_cfg.get("manual_thresh",128)),
-                         adaptive_block=int(seg_cfg.get("adaptive_block",51)),
-                         adaptive_C=int(seg_cfg.get("adaptive_C",5)),
-                         local_block=int(seg_cfg.get("local_block",51)),
-                         morph_open_radius=int(seg_cfg.get("morph_open_radius",2)),
-                         morph_close_radius=int(seg_cfg.get("morph_close_radius",2)),
-                         remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px",64)),
-                         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px",64)))
-
-        bw_overlap = (bw_ref & bw_mov).astype(np.uint8)
-        bw_union = (bw_ref | bw_mov).astype(np.uint8)
-        bw_new = (bw_mov & (~bw_ref)).astype(np.uint8)
-        bw_lost = (bw_ref & (~bw_mov)).astype(np.uint8)
+        bw_overlap = (bw_ref_crop & bw_mov).astype(np.uint8)
+        bw_union = (bw_ref_crop | bw_mov).astype(np.uint8)
+        bw_new = (bw_mov & (~bw_ref_crop)).astype(np.uint8)
+        bw_lost = (bw_ref_crop & (~bw_mov)).astype(np.uint8)
 
         row = {
             "frame_index": k,
-            "filename": pth.name,
-            "is_reference": (k==ref_idx),
-            "overlap_w": w, "overlap_h": h, "overlap_px": int(w*h),
-            "area_ref_px": int(bw_ref.sum()),
+            "filename": paths[k].name,
+            "is_reference": (k == ref_idx),
+            "overlap_w": w,
+            "overlap_h": h,
+            "overlap_px": int(w * h),
+            "area_ref_px": int(bw_ref_crop.sum()),
             "area_mov_px": int(bw_mov.sum()),
             "area_union_px": int(bw_union.sum()),
             "area_new_px": int(bw_new.sum()),
@@ -118,16 +121,22 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         if app_cfg.get("save_intermediates", True):
             cv2.imencode('.png', ref_crop)[1].tofile(str(reg_dir / f"{k:04d}_ref.png"))
             cv2.imencode('.png', mov_crop)[1].tofile(str(reg_dir / f"{k:04d}_mov.png"))
-            cv2.imencode('.png', (bw_mov*255).astype(np.uint8))[1].tofile(str(bw_dir / f"{k:04d}_bw_mov.png"))
-            cv2.imencode('.png', (bw_ref*255).astype(np.uint8))[1].tofile(str(bw_dir / f"{k:04d}_bw_ref.png"))
-            cv2.imencode('.png', (bw_overlap*255).astype(np.uint8))[1].tofile(str(bw_dir / f"{k:04d}_bw_overlap.png"))
-            cv2.imencode('.png', (bw_new*255).astype(np.uint8))[1].tofile(str(diff_dir / f"{k:04d}_bw_new.png"))
-            cv2.imencode('.png', (bw_lost*255).astype(np.uint8))[1].tofile(str(diff_dir / f"{k:04d}_bw_lost.png"))
+            cv2.imencode('.png', (bw_mov * 255).astype(np.uint8))[1].tofile(str(bw_dir / f"{k:04d}_bw_mov.png"))
+            cv2.imencode('.png', (bw_ref_crop * 255).astype(np.uint8))[1].tofile(str(bw_dir / f"{k:04d}_bw_ref.png"))
+            cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(str(bw_dir / f"{k:04d}_bw_overlap.png"))
+            cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(str(diff_dir / f"{k:04d}_bw_new.png"))
+            cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(str(diff_dir / f"{k:04d}_bw_lost.png"))
             ov = overlay_outline(mov_crop, bw_mov)
             cv2.imencode('.png', ov)[1].tofile(str(overlay_dir / f"{k:04d}_overlay_mov.png"))
 
-        ecc_mask = np.zeros_like(ref_gray, dtype=np.uint8)
-        ecc_mask[y:y+h, x:x+w] = 255
+        # Update reference, masks, and bbox for next iteration
+        ecc_mask = valid_mask[y:y + h, x:x + w]
+        ref_gray = mov_crop
+        bw_ref = bw_mov
+        bbox_x += x
+        bbox_y += y
+        bbox_w = w
+        bbox_h = h
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
     df.to_csv(out_dir / "summary.csv", index=False)
