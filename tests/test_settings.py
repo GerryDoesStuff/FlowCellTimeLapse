@@ -30,6 +30,7 @@ def test_settings_persist(tmp_path):
     win.overlay_ref_cb.setChecked(False)
     win.overlay_mov_cb.setChecked(False)
     win.alpha_slider.setValue(75)
+    win.overlay_mode_combo.setCurrentText("grayscale")
     win.norm_cb.setChecked(True)
     win.scale_min.setValue(5)
     win.scale_max.setValue(100)
@@ -52,6 +53,7 @@ def test_settings_persist(tmp_path):
     assert not win2.overlay_ref_cb.isChecked()
     assert not win2.overlay_mov_cb.isChecked()
     assert win2.alpha_slider.value() == 75
+    assert win2.overlay_mode_combo.currentText() == "grayscale"
     assert win2.norm_cb.isChecked()
     assert win2.scale_min.value() == 5
     assert win2.scale_max.value() == 100

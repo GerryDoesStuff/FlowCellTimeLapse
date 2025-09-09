@@ -1,7 +1,9 @@
 from __future__ import annotations
 from PyQt6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QWidget, QVBoxLayout,
                              QPushButton, QHBoxLayout, QLabel, QCheckBox, QComboBox, QSpinBox,
-                             QDoubleSpinBox, QSlider, QGroupBox, QFormLayout, QLineEdit, QToolTip)
+                             QDoubleSpinBox, QSlider, QGroupBox, QFormLayout, QLineEdit, QToolTip,
+                             QColorDialog)
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QThread, QTimer
 from pathlib import Path
 import json
@@ -23,6 +25,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Yeast Flowcell Analyzer — PyQt")
         self.resize(1200, 800)
         self.reg, self.seg, self.app = load_settings()
+        self.ref_color = tuple(self.app.overlay_ref_color)
+        self.mov_color = tuple(self.app.overlay_mov_color)
         self.paths: list[Path] = []
         self._build_ui()
         # Cached preview images for alpha blending
@@ -45,6 +49,29 @@ class MainWindow(QMainWindow):
         widget.customContextMenuRequested.connect(
             lambda pos, w=widget, t=text: QToolTip.showText(w.mapToGlobal(pos), t, w)
         )
+
+    def _set_btn_color(self, btn: QPushButton, color: tuple[int, int, int]) -> None:
+        btn.setStyleSheet(f"background-color: rgb({color[0]}, {color[1]}, {color[2]});")
+
+    def _choose_color(self, which: str) -> None:
+        initial = self.ref_color if which == 'ref' else self.mov_color
+        col = QColorDialog.getColor(QColor(*initial), self, "Select color")
+        if col.isValid():
+            color = (col.red(), col.green(), col.blue())
+            if which == 'ref':
+                self.ref_color = color
+                self._set_btn_color(self.ref_color_btn, color)
+            else:
+                self.mov_color = color
+                self._set_btn_color(self.mov_color_btn, color)
+            self._refresh_overlay_alpha()
+            self._persist_settings()
+
+    def _on_overlay_mode_changed(self, mode: str) -> None:
+        custom = mode == 'custom'
+        for w in (self.ref_color_btn, self.mov_color_btn, self.ref_color_label, self.mov_color_label):
+            w.setVisible(custom)
+        self._refresh_overlay_alpha()
 
     def _build_ui(self):
         central = QWidget()
@@ -322,6 +349,23 @@ class MainWindow(QMainWindow):
         overlay_box.addWidget(self.alpha_slider)
         right.addLayout(overlay_box)
 
+        mode_box = QHBoxLayout()
+        mode_box.addWidget(QLabel("Mode"))
+        self.overlay_mode_combo = QComboBox(); self.overlay_mode_combo.addItems(["magenta-green", "grayscale", "custom"])
+        self.overlay_mode_combo.setCurrentText(self.app.overlay_mode)
+        mode_box.addWidget(self.overlay_mode_combo)
+        self.ref_color_label = QLabel("Ref")
+        self.ref_color_btn = QPushButton(); self.ref_color_btn.setFixedWidth(30)
+        self._set_btn_color(self.ref_color_btn, self.ref_color)
+        self.mov_color_label = QLabel("Mov")
+        self.mov_color_btn = QPushButton(); self.mov_color_btn.setFixedWidth(30)
+        self._set_btn_color(self.mov_color_btn, self.mov_color)
+        mode_box.addWidget(self.ref_color_label)
+        mode_box.addWidget(self.ref_color_btn)
+        mode_box.addWidget(self.mov_color_label)
+        mode_box.addWidget(self.mov_color_btn)
+        right.addLayout(mode_box)
+
         # Refresh overlays when controls change
         self.alpha_slider.valueChanged.connect(self._refresh_overlay_alpha)
         self.overlay_ref_cb.toggled.connect(self._refresh_overlay_alpha)
@@ -329,6 +373,12 @@ class MainWindow(QMainWindow):
         self.alpha_slider.valueChanged.connect(self._persist_settings)
         self.overlay_ref_cb.toggled.connect(self._persist_settings)
         self.overlay_mov_cb.toggled.connect(self._persist_settings)
+        self.overlay_mode_combo.currentTextChanged.connect(self._on_overlay_mode_changed)
+        self.overlay_mode_combo.currentTextChanged.connect(self._persist_settings)
+        self.ref_color_btn.clicked.connect(lambda: self._choose_color('ref'))
+        self.mov_color_btn.clicked.connect(lambda: self._choose_color('mov'))
+
+        self._on_overlay_mode_changed(self.overlay_mode_combo.currentText())
 
         # Status
         self.status_label = QLabel("Ready.")
@@ -413,7 +463,10 @@ class MainWindow(QMainWindow):
                         scale_minmax=scale_minmax,
                         show_ref_overlay=self.overlay_ref_cb.isChecked(),
                         show_mov_overlay=self.overlay_mov_cb.isChecked(),
-                        overlay_opacity=self.alpha_slider.value())
+                        overlay_opacity=self.alpha_slider.value(),
+                        overlay_mode=self.overlay_mode_combo.currentText(),
+                        overlay_ref_color=self.ref_color,
+                        overlay_mov_color=self.mov_color)
         app.presets_path = self.app.presets_path
         return reg, seg, app
 
@@ -480,6 +533,12 @@ class MainWindow(QMainWindow):
         self.overlay_ref_cb.setChecked(app.show_ref_overlay)
         self.overlay_mov_cb.setChecked(app.show_mov_overlay)
         self.alpha_slider.setValue(app.overlay_opacity)
+        self.overlay_mode_combo.setCurrentText(app.overlay_mode)
+        self.ref_color = tuple(app.overlay_ref_color)
+        self.mov_color = tuple(app.overlay_mov_color)
+        self._set_btn_color(self.ref_color_btn, self.ref_color)
+        self._set_btn_color(self.mov_color_btn, self.mov_color)
+        self._on_overlay_mode_changed(app.overlay_mode)
         self.status_label.setText(f"Preset loaded: {path}")
         self._persist_settings()
         self._on_reg_method_change(self.reg_method.currentText())
@@ -520,12 +579,19 @@ class MainWindow(QMainWindow):
         """Blend cached overlays according to slider and checkbox states."""
         alpha = self.alpha_slider.value() / 100.0
         if self._current_preview == "registration" and self._reg_ref is not None and self._reg_warp is not None:
-            # Color-code reference (green) and moving (magenta) images so changes are clear
-            ref_color = np.zeros((*self._reg_ref.shape, 3), dtype=np.uint8)
-            ref_color[..., 1] = self._reg_ref
-            mov_color = np.zeros((*self._reg_warp.shape, 3), dtype=np.uint8)
-            mov_color[..., 0] = self._reg_warp
-            mov_color[..., 2] = self._reg_warp
+            mode = self.overlay_mode_combo.currentText()
+            if mode == "magenta-green":
+                ref_c = np.array([0, 255, 0])
+                mov_c = np.array([255, 0, 255])
+            elif mode == "grayscale":
+                ref_c = mov_c = np.array([255, 255, 255])
+            else:
+                ref_c = np.array(self.ref_color)
+                mov_c = np.array(self.mov_color)
+            ref_color = cv2.cvtColor(self._reg_ref, cv2.COLOR_GRAY2RGB)
+            mov_color = cv2.cvtColor(self._reg_warp, cv2.COLOR_GRAY2RGB)
+            ref_color = (ref_color * (ref_c / 255)).astype(np.uint8)
+            mov_color = (mov_color * (mov_c / 255)).astype(np.uint8)
 
             if self.overlay_ref_cb.isChecked() and self.overlay_mov_cb.isChecked():
                 blend = cv2.addWeighted(ref_color, 1 - alpha, mov_color, alpha, 0)
