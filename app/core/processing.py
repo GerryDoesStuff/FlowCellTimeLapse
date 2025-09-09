@@ -113,6 +113,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
             if not success:
                 logging.warning("Registration failed at frame %d", k)
+                continue
 
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
             transforms[k] = transforms[k - step] @ W_h
