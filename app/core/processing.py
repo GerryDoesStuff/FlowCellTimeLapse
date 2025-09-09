@@ -9,6 +9,7 @@ from .registration import register_ecc, register_orb, register_orb_ecc, crop_to_
 from .segmentation import segment
 from .background import normalize_background, estimate_temporal_background
 import logging
+import re
 
 def overlay_outline(gray: np.ndarray, mask: np.ndarray) -> np.ndarray:
     color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
@@ -22,16 +23,25 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     imgs_gray = [imread_gray(p, normalize=norm, scale_minmax=scale_minmax) for p in paths]
     H, W = imgs_gray[0].shape[:2]
 
-    # Determine direction and starting reference frame
+    # Determine processing order and starting reference frame
     direction = app_cfg.get("direction", "last-to-first")
-    if direction == "first-to-last":
-        ref_idx = 0
-        step = 1
-        k_range = range(ref_idx, len(paths))
-    else:
-        ref_idx = len(paths) - 1
-        step = -1
-        k_range = range(ref_idx, -1, -1)
+    ordered_indices = list(range(len(paths)))
+    if direction == "last-to-first":
+        ordered_indices.reverse()
+
+        def _extract_num(p: Path) -> Optional[int]:
+            m = re.search(r"\d+", p.name)
+            return int(m.group()) if m else None
+
+        start_num = _extract_num(paths[ordered_indices[0]])
+        last_num = _extract_num(paths[-1])
+        if start_num is not None and last_num is not None and start_num < last_num:
+            logging.warning(
+                "Input paths may be unsorted: starting frame %s is lower-numbered than last path %s",
+                paths[ordered_indices[0]].name,
+                paths[-1].name,
+            )
+    ref_idx = ordered_indices[0]
 
     # Optionally subtract a temporal background using early frames
     if app_cfg.get("subtract_background", False):
@@ -57,7 +67,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     # Transformation chain mapping each frame back to the chosen
     # starting reference.  Each step registers the current frame to the
-    # previous original frame and composes the transforms.
+    # previously processed original frame and composes the transforms.
     transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
 
     # Initialize mask and bounding box covering the full image.  The
@@ -76,21 +86,22 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         ecc_mask = np.ones((H, W), dtype=np.uint8) * 255
         bbox_x, bbox_y, bbox_w, bbox_h = 0, 0, W, H
 
-    # Iterate through frames according to the chosen direction. Each
-    # step registers the current frame to the previous original frame
-    # to avoid compounding warps.
-    for k in k_range:
+    # Iterate through frames in the chosen order. Each step registers
+    # the current frame to the previously processed original frame to
+    # avoid compounding warps.
+    for idx, k in enumerate(ordered_indices):
         g_full = imgs_norm[k]
         g_norm = g_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
         prev_bbox_w, prev_bbox_h = bbox_w, bbox_h
 
-        if k == ref_idx:
+        if idx == 0:
             # Starting reference frame: no registration needed.
             ref_gray = g_norm
             warped = ref_gray.copy()
             valid_mask = ecc_mask.copy()[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
         else:
-            prev_full = imgs_norm[k - step]
+            prev_k = ordered_indices[idx - 1]
+            prev_full = imgs_norm[prev_k]
             ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
 
             method = reg_cfg.get("method", "ECC").upper()
@@ -141,7 +152,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     continue
 
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
-            transforms[k] = transforms[k - step] @ W_h
+            transforms[k] = transforms[prev_k] @ W_h
 
         # Segment the reference frame corresponding to this step.
         bw_ref = segment(ref_gray,
