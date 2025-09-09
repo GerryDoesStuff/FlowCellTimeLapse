@@ -10,7 +10,7 @@ import app.core.registration as reg
 def test_orb_ecc_uses_orb_init(monkeypatch):
     W_orb = np.array([[1, 0, 2], [0, 1, 3], [0, 0, 1]], dtype=np.float32)
 
-    def fake_register_orb(ref, mov, model="affine", orb_features=4000, match_ratio=0.75):
+    def fake_register_orb(ref, mov, model="affine", orb_features=4000, match_ratio=0.75, fallback_model="affine"):
         return True, W_orb.copy(), mov, np.ones_like(mov, dtype=np.uint8), False
 
     captured = {}
