@@ -16,6 +16,7 @@ class RegParams:
     gauss_blur_sigma: float = 1.0
     clahe_clip: float = 2.0
     clahe_grid: int = 8
+    growth_factor: float = 1.0
     use_masked_ecc: bool = True
 
 @dataclass
