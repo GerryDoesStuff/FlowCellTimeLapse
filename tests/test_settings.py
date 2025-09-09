@@ -37,7 +37,7 @@ def test_settings_persist(tmp_path):
     win.norm_cb.setChecked(True)
     win.scale_min.setValue(5)
     win.scale_max.setValue(100)
-    win.rescale_cb.setChecked(False)
+    win.bg_sub_cb.setChecked(True)
     win.close()
     app.processEvents()
 
@@ -63,7 +63,7 @@ def test_settings_persist(tmp_path):
     assert win2.norm_cb.isChecked()
     assert win2.scale_min.value() == 5
     assert win2.scale_max.value() == 100
-    assert not win2.rescale_cb.isChecked()
+    assert win2.bg_sub_cb.isChecked()
     win2.close()
     app.quit()
 
