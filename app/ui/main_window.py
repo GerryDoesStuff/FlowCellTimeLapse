@@ -552,7 +552,8 @@ class MainWindow(QMainWindow):
                        eps=reg.eps, use_masked_ecc=reg.use_masked_ecc,
                        gauss_blur_sigma=reg.gauss_blur_sigma,
                        clahe_clip=reg.clahe_clip,
-                       clahe_grid=reg.clahe_grid)
+                       clahe_grid=reg.clahe_grid,
+                       growth_factor=reg.growth_factor)
         seg_cfg = dict(method=seg.method, invert=seg.invert, manual_thresh=seg.manual_thresh,
                        adaptive_block=seg.adaptive_block, adaptive_C=seg.adaptive_C, local_block=seg.local_block,
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,
