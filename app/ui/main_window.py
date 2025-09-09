@@ -255,6 +255,7 @@ class MainWindow(QMainWindow):
                         show_ref_overlay=self.overlay_ref_cb.isChecked(),
                         show_mov_overlay=self.overlay_mov_cb.isChecked(),
                         overlay_opacity=self.alpha_slider.value())
+        app.presets_path = self.app.presets_path
         return reg, seg, app
 
     def _persist_settings(self, *args):
@@ -267,16 +268,20 @@ class MainWindow(QMainWindow):
         return reg, seg, app
 
     def _save_preset(self):
-        reg, seg, app = self._persist_settings()
-        path, _ = QFileDialog.getSaveFileName(self, "Save Preset", "preset.json", "JSON (*.json)")
+        reg, seg, _ = self._persist_settings()
+        initial = str(Path(self.app.presets_path) / "preset.json") if self.app.presets_path else "preset.json"
+        path, _ = QFileDialog.getSaveFileName(self, "Save Preset", initial, "JSON (*.json)")
         if path:
-            save_preset(path, reg, seg, app)
+            self.app.presets_path = str(Path(path).parent)
+            save_preset(path, reg, seg, self.app)
+            save_settings(self.reg, self.seg, self.app)
             self.status_label.setText(f"Preset saved: {path}")
 
     def _load_preset(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Load Preset", "", "JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Load Preset", self.app.presets_path or "", "JSON (*.json)")
         if not path: return
         reg, seg, app = load_preset(path)
+        app.presets_path = str(Path(path).parent)
         self.reg = reg; self.seg = seg; self.app = app
         # Update UI
         self.reg_method.setCurrentText(reg.method)
