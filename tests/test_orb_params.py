@@ -37,13 +37,13 @@ def test_orb_parameters_affect_registration(monkeypatch):
 
     monkeypatch.setattr(cv2, "ORB_create", fake_orb_create)
     monkeypatch.setattr(cv2, "BFMatcher", fake_bfmatcher)
-    monkeypatch.setattr(cv2, "findHomography", lambda dst, src, method, ransac: (np.eye(3, dtype=np.float32), None))
+    monkeypatch.setattr(cv2, "findHomography", lambda dst, src, method, ransac: (np.eye(3, dtype=np.float32), np.ones((10,1), dtype=np.uint8)))
     monkeypatch.setattr(cv2, "warpPerspective", lambda img, H, dsize, flags=0: img)
     monkeypatch.setattr(cv2, "warpAffine", lambda img, M, dsize, flags=0: img)
 
     ref = np.zeros((5, 5), dtype=np.uint8)
     mov = np.zeros((5, 5), dtype=np.uint8)
-    success_good, H_good, _, _ = register_orb(ref, mov, orb_features=500, match_ratio=0.7)
-    assert success_good and H_good.shape == (3, 3)
-    success_bad, H_bad, _, _ = register_orb(ref, mov, orb_features=500, match_ratio=0.4)
-    assert H_bad.shape == (3, 3)
+    success_good, H_good, _, _, fb_good = register_orb(ref, mov, orb_features=500, match_ratio=0.7)
+    assert success_good and H_good.shape == (3, 3) and not fb_good
+    success_bad, H_bad, _, _, fb_bad = register_orb(ref, mov, orb_features=500, match_ratio=0.4)
+    assert H_bad.shape == (3, 3) and fb_bad

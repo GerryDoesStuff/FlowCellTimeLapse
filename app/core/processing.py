@@ -92,13 +92,15 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
 
             if reg_cfg.get("method", "ECC").upper() == "ORB":
-                success, W_step, warped, valid_mask = register_orb(
+                success, W_step, warped, valid_mask, fb = register_orb(
                     ref_gray,
                     g_norm,
                     model=reg_cfg.get("model", "homography"),
                     orb_features=int(reg_cfg.get("orb_features", 4000)),
                     match_ratio=float(reg_cfg.get("match_ratio", 0.75)),
                 )
+                if fb:
+                    logging.warning("ORB registration fell back to ECC at frame %d", k)
             else:
                 success, W_step, warped, valid_mask = register_ecc(
                     ref_gray,

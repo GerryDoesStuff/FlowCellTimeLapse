@@ -675,9 +675,11 @@ class MainWindow(QMainWindow):
             ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             if reg.method.upper() == "ORB":
-                success, _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
-                                                    orb_features=reg.orb_features,
-                                                    match_ratio=reg.match_ratio)
+                success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
+                                                         orb_features=reg.orb_features,
+                                                         match_ratio=reg.match_ratio)
+                if fb:
+                    self.status_label.setText("ORB fell back to ECC for registration.")
             else:
                 success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
                                                     max_iters=reg.max_iters, eps=reg.eps)
@@ -728,9 +730,11 @@ class MainWindow(QMainWindow):
                 ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 if reg.method.upper() == "ORB":
-                    success, _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
-                                                        orb_features=reg.orb_features,
-                                                        match_ratio=reg.match_ratio)
+                    success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
+                                                             orb_features=reg.orb_features,
+                                                             match_ratio=reg.match_ratio)
+                    if fb:
+                        self.status_label.setText("ORB fell back to ECC for registration.")
                 else:
                     success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
                                                         max_iters=reg.max_iters, eps=reg.eps)
