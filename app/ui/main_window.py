@@ -8,6 +8,7 @@ import json
 import pyqtgraph as pg
 import numpy as np
 import pandas as pd
+import cv2
 
 from ..models.config import RegParams, SegParams, AppParams, save_settings, load_settings, save_preset, load_preset
 from ..core.io_utils import discover_images, imread_gray, file_times_minutes
@@ -24,6 +25,12 @@ class MainWindow(QMainWindow):
         self.reg, self.seg, self.app = load_settings()
         self.paths: list[Path] = []
         self._build_ui()
+        # Cached preview images for alpha blending
+        self._reg_ref = None
+        self._reg_warp = None
+        self._seg_gray = None
+        self._seg_overlay = None
+        self._current_preview = None
 
     def _build_ui(self):
         central = QWidget()
@@ -136,6 +143,11 @@ class MainWindow(QMainWindow):
         overlay_box.addWidget(self.alpha_slider)
         right.addLayout(overlay_box)
 
+        # Refresh overlays when controls change
+        self.alpha_slider.valueChanged.connect(self._refresh_overlay_alpha)
+        self.overlay_ref_cb.toggled.connect(self._refresh_overlay_alpha)
+        self.overlay_mov_cb.toggled.connect(self._refresh_overlay_alpha)
+
         # Status
         self.status_label = QLabel("Ready.")
         right.addWidget(self.status_label)
@@ -211,6 +223,24 @@ class MainWindow(QMainWindow):
         self.use_ts.setChecked(app.use_file_timestamps)
         self.status_label.setText(f"Preset loaded: {path}")
 
+    def _refresh_overlay_alpha(self):
+        """Blend cached overlays according to slider and checkbox states."""
+        alpha = self.alpha_slider.value() / 100.0
+        if self._current_preview == "registration" and self._reg_ref is not None and self._reg_warp is not None:
+            if self.overlay_ref_cb.isChecked() and self.overlay_mov_cb.isChecked():
+                blend = cv2.addWeighted(self._reg_ref, 1 - alpha, self._reg_warp, alpha, 0)
+            elif self.overlay_ref_cb.isChecked():
+                blend = self._reg_ref
+            elif self.overlay_mov_cb.isChecked():
+                blend = self._reg_warp
+            else:
+                blend = np.zeros_like(self._reg_ref)
+            color = cv2.cvtColor(blend, cv2.COLOR_GRAY2BGR)
+            self.view.setImage(color.transpose(1, 0, 2))
+        elif self._current_preview == "segmentation" and self._seg_gray is not None and self._seg_overlay is not None:
+            blend = cv2.addWeighted(self._seg_gray, 1 - alpha, self._seg_overlay, alpha, 0)
+            self.view.setImage(blend.transpose(1, 0, 2))
+
     def _preview_registration(self):
         if len(self.paths) < 2:
             QMessageBox.warning(self, "Need at least two images", "Load at least two images for preview.")
@@ -233,10 +263,10 @@ class MainWindow(QMainWindow):
             else:
                 _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
                                             max_iters=reg.max_iters, eps=reg.eps)
-            overlay = np.zeros((*ref_img.shape, 3), dtype=np.uint8)
-            overlay[...,1] = ref_img
-            overlay[...,2] = warped
-            self.view.setImage(overlay.transpose(1,0,2))
+            self._reg_ref = ref_img
+            self._reg_warp = warped
+            self._current_preview = "registration"
+            self._refresh_overlay_alpha()
             self.status_label.setText("Preview successful.")
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
@@ -267,8 +297,10 @@ class MainWindow(QMainWindow):
                          morph_close_radius=seg.morph_close_radius,
                          remove_objects_smaller_px=seg.remove_objects_smaller_px,
                          remove_holes_smaller_px=seg.remove_holes_smaller_px)
-            overlay = overlay_outline(gray, bw)
-            self.view.setImage(overlay.transpose(1,0,2))
+            self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            self._seg_overlay = overlay_outline(gray, bw)
+            self._current_preview = "segmentation"
+            self._refresh_overlay_alpha()
             self.status_label.setText("Segmentation preview successful.")
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
