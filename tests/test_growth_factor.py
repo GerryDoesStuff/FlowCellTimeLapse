@@ -47,6 +47,9 @@ def test_growth_factor_influences_window(tmp_path):
     paths = create_blank_images(tmp_path, n=3)
     df1 = run(paths, 1.0)
     df2 = run(paths, 0.5)
-    w1 = int(df1.loc[df1["frame_index"] == 2, "overlap_w"].iloc[0])
-    w2 = int(df2.loc[df2["frame_index"] == 2, "overlap_w"].iloc[0])
+    row1 = df1.loc[df1["frame_index"] == 2].iloc[0]
+    row2 = df2.loc[df2["frame_index"] == 2].iloc[0]
+    w1, h1 = int(row1["overlap_w"]), int(row1["overlap_h"])
+    w2, h2 = int(row2["overlap_w"]), int(row2["overlap_h"])
     assert w2 < w1
+    assert h2 < h1
