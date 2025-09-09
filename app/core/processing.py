@@ -101,6 +101,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     model=reg_cfg.get("model", "homography"),
                     orb_features=int(reg_cfg.get("orb_features", 4000)),
                     match_ratio=float(reg_cfg.get("match_ratio", 0.75)),
+                    min_keypoints=int(reg_cfg.get("min_keypoints", 8)),
+                    min_matches=int(reg_cfg.get("min_matches", 8)),
+                    use_ecc_fallback=bool(reg_cfg.get("use_ecc_fallback", True)),
                 )
                 if fb:
                     logging.warning("ORB registration fell back to ECC at frame %d", k)
@@ -116,6 +119,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     eps=float(reg_cfg.get("eps", 1e-6)),
                     orb_features=int(reg_cfg.get("orb_features", 4000)),
                     match_ratio=float(reg_cfg.get("match_ratio", 0.75)),
+                    min_keypoints=int(reg_cfg.get("min_keypoints", 8)),
+                    min_matches=int(reg_cfg.get("min_matches", 8)),
+                    use_ecc_fallback=bool(reg_cfg.get("use_ecc_fallback", True)),
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
                 if not success:

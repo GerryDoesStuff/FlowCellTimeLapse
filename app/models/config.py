@@ -22,6 +22,9 @@ class RegParams:
     use_masked_ecc: bool = True
     orb_features: int = 4000
     match_ratio: float = 0.75
+    min_keypoints: int = 8
+    min_matches: int = 8
+    use_ecc_fallback: bool = True
 
 @dataclass
 class SegParams:

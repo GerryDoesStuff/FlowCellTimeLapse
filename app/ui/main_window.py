@@ -171,6 +171,12 @@ class MainWindow(QMainWindow):
         self.orb_features = QSpinBox(); self.orb_features.setRange(1, 100000); self.orb_features.setValue(self.reg.orb_features)
         self.match_ratio_label = QLabel("Match ratio")
         self.match_ratio = QDoubleSpinBox(); self.match_ratio.setRange(0.0, 1.0); self.match_ratio.setDecimals(2); self.match_ratio.setSingleStep(0.05); self.match_ratio.setValue(self.reg.match_ratio)
+        self.use_ecc_label = QLabel("ECC fallback")
+        self.use_ecc_fallback = QCheckBox(); self.use_ecc_fallback.setChecked(self.reg.use_ecc_fallback)
+        self.min_keypoints_label = QLabel("Min keypoints")
+        self.min_keypoints = QSpinBox(); self.min_keypoints.setRange(0, 100000); self.min_keypoints.setValue(self.reg.min_keypoints)
+        self.min_matches_label = QLabel("Min matches")
+        self.min_matches = QSpinBox(); self.min_matches.setRange(0, 100000); self.min_matches.setValue(self.reg.min_matches)
         reg_grid.addWidget(QLabel("Method"), 0, 0); reg_grid.addWidget(self.reg_method, 0, 1)
         reg_grid.addWidget(QLabel("Model"), 1, 0); reg_grid.addWidget(self.reg_model, 1, 1)
         reg_grid.addWidget(self.max_iters_label, 2, 0); reg_grid.addWidget(self.max_iters, 2, 1)
@@ -183,9 +189,12 @@ class MainWindow(QMainWindow):
         reg_grid.addWidget(self.use_masked_label, 3, 2); reg_grid.addWidget(self.use_masked, 3, 3)
         reg_grid.addWidget(self.orb_features_label, 4, 2); reg_grid.addWidget(self.orb_features, 4, 3)
         reg_grid.addWidget(self.match_ratio_label, 5, 2); reg_grid.addWidget(self.match_ratio, 5, 3)
+        reg_grid.addWidget(self.use_ecc_label, 6, 0); reg_grid.addWidget(self.use_ecc_fallback, 6, 1)
+        reg_grid.addWidget(self.min_keypoints_label, 6, 2); reg_grid.addWidget(self.min_keypoints, 6, 3)
+        reg_grid.addWidget(self.min_matches_label, 7, 2); reg_grid.addWidget(self.min_matches, 7, 3)
         reg_preview_btn = QPushButton("Preview Registration")
         reg_preview_btn.clicked.connect(self._preview_registration)
-        reg_grid.addWidget(reg_preview_btn, 6, 0, 1, 4)
+        reg_grid.addWidget(reg_preview_btn, 8, 0, 1, 4)
         controls.addWidget(reg_group)
         self._add_help(
             self.reg_method,
@@ -230,6 +239,9 @@ class MainWindow(QMainWindow):
         )
         self._add_help(self.orb_features, "Number of ORB features to detect.")
         self._add_help(self.match_ratio, "Lowe ratio for filtering ORB matches.")
+        self._add_help(self.use_ecc_fallback, "Fallback to ECC when ORB fails.")
+        self._add_help(self.min_keypoints, "Minimum detected ORB keypoints to attempt matching.")
+        self._add_help(self.min_matches, "Minimum good ORB matches before estimating transform.")
         self._add_help(
             self.use_masked,
             "Use segmentation mask during ECC to focus on cells, improving "
@@ -246,6 +258,9 @@ class MainWindow(QMainWindow):
         self.growth_factor.valueChanged.connect(self._persist_settings)
         self.orb_features.valueChanged.connect(self._persist_settings)
         self.match_ratio.valueChanged.connect(self._persist_settings)
+        self.use_ecc_fallback.toggled.connect(self._persist_settings)
+        self.min_keypoints.valueChanged.connect(self._persist_settings)
+        self.min_matches.valueChanged.connect(self._persist_settings)
         self.use_masked.toggled.connect(self._persist_settings)
         self.reg_method.currentTextChanged.connect(self._on_params_changed)
         self.reg_model.currentTextChanged.connect(self._on_params_changed)
@@ -258,6 +273,9 @@ class MainWindow(QMainWindow):
         self.growth_factor.valueChanged.connect(self._on_params_changed)
         self.orb_features.valueChanged.connect(self._on_params_changed)
         self.match_ratio.valueChanged.connect(self._on_params_changed)
+        self.use_ecc_fallback.toggled.connect(self._on_params_changed)
+        self.min_keypoints.valueChanged.connect(self._on_params_changed)
+        self.min_matches.valueChanged.connect(self._on_params_changed)
         self.use_masked.toggled.connect(self._on_params_changed)
         self.reg_method.currentTextChanged.connect(self._on_reg_method_change)
         # Initialize visibility of ECC-specific controls
@@ -464,7 +482,10 @@ class MainWindow(QMainWindow):
                         growth_factor=self.growth_factor.value(),
                         use_masked_ecc=self.use_masked.isChecked(),
                         orb_features=self.orb_features.value(),
-                        match_ratio=self.match_ratio.value())
+                        match_ratio=self.match_ratio.value(),
+                        min_keypoints=self.min_keypoints.value(),
+                        min_matches=self.min_matches.value(),
+                        use_ecc_fallback=self.use_ecc_fallback.isChecked())
         seg = SegParams(method=self.seg_method.currentText(),
                         invert=self.invert.isChecked(),
                         manual_thresh=self.manual_t.value(),
@@ -531,6 +552,9 @@ class MainWindow(QMainWindow):
         self.use_masked.setChecked(reg.use_masked_ecc)
         self.orb_features.setValue(reg.orb_features)
         self.match_ratio.setValue(reg.match_ratio)
+        self.use_ecc_fallback.setChecked(reg.use_ecc_fallback)
+        self.min_keypoints.setValue(reg.min_keypoints)
+        self.min_matches.setValue(reg.min_matches)
         self.seg_method.setCurrentText(seg.method)
         self.invert.setChecked(seg.invert)
         self.manual_t.setValue(seg.manual_thresh)
@@ -588,6 +612,9 @@ class MainWindow(QMainWindow):
         orb_widgets = [
             (self.orb_features, self.orb_features_label),
             (self.match_ratio, self.match_ratio_label),
+            (self.min_keypoints, self.min_keypoints_label),
+            (self.min_matches, self.min_matches_label),
+            (self.use_ecc_fallback, self.use_ecc_label),
         ]
         for widget, label in orb_widgets:
             widget.setEnabled(is_orb)
@@ -683,14 +710,19 @@ class MainWindow(QMainWindow):
             if method == "ORB":
                 success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
                                                          orb_features=reg.orb_features,
-                                                         match_ratio=reg.match_ratio)
+                                                         match_ratio=reg.match_ratio,
+                                                         min_keypoints=reg.min_keypoints,
+                                                         min_matches=reg.min_matches,
+                                                         use_ecc_fallback=reg.use_ecc_fallback)
                 if fb:
                     self.status_label.setText("ORB fell back to ECC for registration.")
             elif method == "ORB+ECC":
                 success, _, warped, _ = register_orb_ecc(
                     ref_img, mov_img, model=reg.model,
                     max_iters=reg.max_iters, eps=reg.eps,
-                    orb_features=reg.orb_features, match_ratio=reg.match_ratio
+                    orb_features=reg.orb_features, match_ratio=reg.match_ratio,
+                    min_keypoints=reg.min_keypoints, min_matches=reg.min_matches,
+                    use_ecc_fallback=reg.use_ecc_fallback
                 )
             else:
                 success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
@@ -746,14 +778,19 @@ class MainWindow(QMainWindow):
                 if method == "ORB":
                     success, _, warped, _, fb = register_orb(ref_img, mov_img, model=reg.model,
                                                              orb_features=reg.orb_features,
-                                                             match_ratio=reg.match_ratio)
+                                                             match_ratio=reg.match_ratio,
+                                                             min_keypoints=reg.min_keypoints,
+                                                             min_matches=reg.min_matches,
+                                                             use_ecc_fallback=reg.use_ecc_fallback)
                     if fb:
                         self.status_label.setText("ORB fell back to ECC for registration.")
                 elif method == "ORB+ECC":
                     success, _, warped, _ = register_orb_ecc(
                         ref_img, mov_img, model=reg.model,
                         max_iters=reg.max_iters, eps=reg.eps,
-                        orb_features=reg.orb_features, match_ratio=reg.match_ratio
+                        orb_features=reg.orb_features, match_ratio=reg.match_ratio,
+                        min_keypoints=reg.min_keypoints, min_matches=reg.min_matches,
+                        use_ecc_fallback=reg.use_ecc_fallback
                     )
                 else:
                     success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
@@ -803,7 +840,10 @@ class MainWindow(QMainWindow):
                        initial_radius=reg.initial_radius,
                        growth_factor=reg.growth_factor,
                        orb_features=reg.orb_features,
-                       match_ratio=reg.match_ratio)
+                       match_ratio=reg.match_ratio,
+                       min_keypoints=reg.min_keypoints,
+                       min_matches=reg.min_matches,
+                       use_ecc_fallback=reg.use_ecc_fallback)
         seg_cfg = dict(method=seg.method, invert=seg.invert, manual_thresh=seg.manual_thresh,
                        adaptive_block=seg.adaptive_block, adaptive_C=seg.adaptive_C, local_block=seg.local_block,
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,
