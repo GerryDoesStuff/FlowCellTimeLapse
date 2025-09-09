@@ -26,6 +26,8 @@ def run_analyze(paths, direction):
         "clahe_clip": 0,
         "clahe_grid": 8,
         "use_masked_ecc": False,
+        "method": "ECC",
+        "eps": 1e-6,
     }
     seg_cfg = {
         "method": "manual",
