@@ -91,7 +91,9 @@ class MainWindow(QMainWindow):
         reg_form.addRow("Method", self.reg_method)
         reg_form.addRow("Model", self.reg_model)
         reg_form.addRow("Max iters", self.max_iters)
+        self.max_iters_label = reg_form.labelForField(self.max_iters)
         reg_form.addRow("Epsilon", self.eps)
+        self.eps_label = reg_form.labelForField(self.eps)
         reg_form.addRow(self.use_masked)
         reg_preview_btn = QPushButton("Preview Registration")
         reg_preview_btn.clicked.connect(self._preview_registration)
@@ -107,6 +109,9 @@ class MainWindow(QMainWindow):
         self.max_iters.valueChanged.connect(self._on_params_changed)
         self.eps.valueChanged.connect(self._on_params_changed)
         self.use_masked.toggled.connect(self._on_params_changed)
+        self.reg_method.currentTextChanged.connect(self._on_reg_method_change)
+        # Initialize visibility of ECC-specific controls
+        self._on_reg_method_change(self.reg_method.currentText())
 
         # Segmentation params
         seg_group = QGroupBox("Segmentation")
@@ -343,9 +348,23 @@ class MainWindow(QMainWindow):
         self.alpha_slider.setValue(app.overlay_opacity)
         self.status_label.setText(f"Preset loaded: {path}")
         self._persist_settings()
+        self._on_reg_method_change(self.reg_method.currentText())
+
+    def _on_reg_method_change(self, method: str):
+        """Enable or hide ECC-specific controls depending on method."""
+        is_ecc = method == "ECC"
+        self.max_iters.setEnabled(is_ecc)
+        self.eps.setEnabled(is_ecc)
+        self.max_iters.setVisible(is_ecc)
+        self.eps.setVisible(is_ecc)
+        self.max_iters_label.setVisible(is_ecc)
+        self.eps_label.setVisible(is_ecc)
 
     def _on_params_changed(self, *args):
         """Debounce rapid param changes and rerun active preview."""
+        sender = self.sender()
+        if sender is not None and hasattr(sender, "isEnabled") and not sender.isEnabled():
+            return
         if self._current_preview not in ("registration", "segmentation"):
             return
         self._param_timer.start()
