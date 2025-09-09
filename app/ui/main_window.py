@@ -11,6 +11,7 @@ import pandas as pd
 
 from ..models.config import RegParams, SegParams, AppParams, save_settings, load_settings, save_preset, load_preset
 from ..core.io_utils import discover_images, imread_gray, file_times_minutes
+from ..core.registration import register_ecc, register_orb
 from ..workers.pipeline_worker import PipelineWorker
 
 class MainWindow(QMainWindow):
@@ -101,10 +102,15 @@ class MainWindow(QMainWindow):
         preset_box.addWidget(save_p); preset_box.addWidget(load_p)
         controls.addLayout(preset_box)
 
-        # Run
+        # Run / Preview
+        run_box = QHBoxLayout()
         run_btn = QPushButton("Run Analysis")
         run_btn.clicked.connect(self._run_pipeline)
-        controls.addWidget(run_btn)
+        preview_btn = QPushButton("Preview Registration")
+        preview_btn.clicked.connect(self._preview_registration)
+        run_box.addWidget(run_btn)
+        run_box.addWidget(preview_btn)
+        controls.addLayout(run_box)
 
         controls.addStretch(1)
 
@@ -199,6 +205,36 @@ class MainWindow(QMainWindow):
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
         self.status_label.setText(f"Preset loaded: {path}")
+
+    def _preview_registration(self):
+        if len(self.paths) < 2:
+            QMessageBox.warning(self, "Need at least two images", "Load at least two images for preview.")
+            return
+        try:
+            reg, _, app = self._collect_params()
+            if app.reference_choice == "last":
+                ref_idx = len(self.paths) - 1
+            elif app.reference_choice == "first":
+                ref_idx = 0
+            elif app.reference_choice == "middle":
+                ref_idx = len(self.paths) // 2
+            else:
+                ref_idx = app.custom_ref_index
+            ref_img = imread_gray(self.paths[ref_idx])
+            mov_idx = 0 if ref_idx != 0 else 1
+            mov_img = imread_gray(self.paths[mov_idx])
+            if reg.method.upper() == "ORB":
+                _, warped, _ = register_orb(ref_img, mov_img, model=reg.model)
+            else:
+                _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
+                                            max_iters=reg.max_iters, eps=reg.eps)
+            overlay = np.zeros((*ref_img.shape, 3), dtype=np.uint8)
+            overlay[...,1] = ref_img
+            overlay[...,2] = warped
+            self.view.setImage(overlay.transpose(1,0,2))
+            self.status_label.setText("Preview successful.")
+        except Exception as e:
+            self.status_label.setText(f"Preview failed: {e}")
 
     def _run_pipeline(self):
         if not self.paths:
