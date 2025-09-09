@@ -16,7 +16,9 @@ def overlay_outline(gray: np.ndarray, mask: np.ndarray) -> np.ndarray:
     return color
 
 def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: dict, out_dir: Path) -> pd.DataFrame:
-    imgs_gray = [imread_gray(p) for p in paths]
+    norm = bool(app_cfg.get("normalize", True))
+    scale_minmax = app_cfg.get("scale_minmax")
+    imgs_gray = [imread_gray(p, normalize=norm, scale_minmax=scale_minmax) for p in paths]
     H, W = imgs_gray[0].shape[:2]
 
     # Determine direction and starting reference frame

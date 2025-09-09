@@ -48,6 +48,8 @@ class AppParams:
     save_intermediates: bool = True
     use_difference_for_seg: bool = False
     use_file_timestamps: bool = True
+    normalize: bool = True
+    scale_minmax: Optional[tuple[int, int]] = None
     presets_path: Optional[str] = None
     last_folder: str | None = None
 

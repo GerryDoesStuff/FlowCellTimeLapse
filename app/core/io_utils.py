@@ -25,15 +25,38 @@ def discover_images(folder: Path, numeric_sort: bool=True) -> list[Path]:
         paths = sorted(paths, key=lambda p: p.name)
     return paths
 
-def imread_gray(path: Path) -> np.ndarray:
+def imread_gray(path: Path, normalize: bool = True,
+                scale_minmax: tuple[int, int] | None = None) -> np.ndarray:
+    """Read an image and return a grayscale ``uint8`` array.
+
+    Parameters
+    ----------
+    path: Path
+        Image file to read.
+    normalize: bool, default True
+        If ``True`` the image is scaled to ``uint8``. When ``False`` the
+        original dtype/range is preserved.
+    scale_minmax: tuple[int, int] | None, optional
+        When provided, these values are treated as the global minimum and
+        maximum across all frames.  The image is clipped to this range and
+        then normalized to ``uint8`` using :func:`cv2.normalize`.
+    """
     img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError(f"Failed to read {path}")
     if img.ndim == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if not normalize:
+        return img
+    if scale_minmax is not None:
+        lo, hi = scale_minmax
+        img = img.astype(np.float32)
+        img = np.clip(img, lo, hi)
+        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+        return img.astype(np.uint8)
     if img.dtype != np.uint8:
-        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    return img
+        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+    return img.astype(np.uint8)
 
 def imread_color(path: Path) -> np.ndarray:
     img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)

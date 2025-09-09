@@ -83,6 +83,33 @@ class MainWindow(QMainWindow):
         self.use_ts.toggled.connect(self._persist_settings)
         self.dt_min.valueChanged.connect(self._persist_settings)
 
+        # Intensity scaling
+        intensity_group = QGroupBox("Intensity")
+        intensity_form = QFormLayout(intensity_group)
+        self.norm_cb = QCheckBox("Normalize frames")
+        self.norm_cb.setChecked(self.app.normalize)
+        self.scale_min = QSpinBox(); self.scale_min.setRange(-1000000, 1000000)
+        self.scale_max = QSpinBox(); self.scale_max.setRange(-1000000, 1000000)
+        if self.app.scale_minmax is not None:
+            self.scale_min.setValue(int(self.app.scale_minmax[0]))
+            self.scale_max.setValue(int(self.app.scale_minmax[1]))
+        else:
+            self.scale_min.setValue(0)
+            self.scale_max.setValue(0)
+        intensity_form.addRow(self.norm_cb)
+        intensity_form.addRow("Min", self.scale_min)
+        intensity_form.addRow("Max", self.scale_max)
+        controls.addWidget(intensity_group)
+        self.scale_min.setEnabled(self.norm_cb.isChecked())
+        self.scale_max.setEnabled(self.norm_cb.isChecked())
+        self.norm_cb.toggled.connect(lambda v: [self.scale_min.setEnabled(v), self.scale_max.setEnabled(v)])
+        self.norm_cb.toggled.connect(self._persist_settings)
+        self.scale_min.valueChanged.connect(self._persist_settings)
+        self.scale_max.valueChanged.connect(self._persist_settings)
+        self.norm_cb.toggled.connect(self._on_params_changed)
+        self.scale_min.valueChanged.connect(self._on_params_changed)
+        self.scale_max.valueChanged.connect(self._on_params_changed)
+
         # Registration params
         reg_group = QGroupBox("Registration")
         reg_form = QFormLayout(reg_group)
@@ -322,7 +349,8 @@ class MainWindow(QMainWindow):
         else:
             idx = len(self.paths) - 1
         idx = max(0, min(idx, len(self.paths) - 1))
-        img = imread_gray(self.paths[idx])
+        img = imread_gray(self.paths[idx], normalize=self.app.normalize,
+                          scale_minmax=self.app.scale_minmax)
         self.view.setImage(img.T)
         return idx
 
@@ -369,9 +397,14 @@ class MainWindow(QMainWindow):
                         morph_close_radius=self.close_r.value(),
                         remove_objects_smaller_px=self.rm_obj.value(),
                         remove_holes_smaller_px=self.rm_holes.value())
+        scale_minmax = (self.scale_min.value(), self.scale_max.value())
+        if scale_minmax[1] <= scale_minmax[0]:
+            scale_minmax = None
         app = AppParams(direction=self.dir_combo.currentText(),
                         minutes_between_frames=self.dt_min.value(),
                         use_file_timestamps=self.use_ts.isChecked(),
+                        normalize=self.norm_cb.isChecked(),
+                        scale_minmax=scale_minmax,
                         show_ref_overlay=self.overlay_ref_cb.isChecked(),
                         show_mov_overlay=self.overlay_mov_cb.isChecked(),
                         overlay_opacity=self.alpha_slider.value())
@@ -429,6 +462,15 @@ class MainWindow(QMainWindow):
         self.dir_combo.setCurrentText(app.direction)
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
+        self.norm_cb.setChecked(app.normalize)
+        if app.scale_minmax is not None:
+            self.scale_min.setValue(int(app.scale_minmax[0]))
+            self.scale_max.setValue(int(app.scale_minmax[1]))
+        else:
+            self.scale_min.setValue(0)
+            self.scale_max.setValue(0)
+        self.scale_min.setEnabled(self.norm_cb.isChecked())
+        self.scale_max.setEnabled(self.norm_cb.isChecked())
         self.overlay_ref_cb.setChecked(app.show_ref_overlay)
         self.overlay_mov_cb.setChecked(app.show_mov_overlay)
         self.alpha_slider.setValue(app.overlay_opacity)
@@ -519,12 +561,14 @@ class MainWindow(QMainWindow):
                 ref_idx = 0
             else:
                 ref_idx = len(self.paths) - 1
-            ref_img = imread_gray(self.paths[ref_idx])
+            ref_img = imread_gray(self.paths[ref_idx], normalize=app.normalize,
+                                 scale_minmax=app.scale_minmax)
             mov_idx = self.mov_idx_spin.value()
             if mov_idx < 0 or mov_idx >= len(self.paths):
                 QMessageBox.warning(self, "Invalid index", "Select a valid moving frame index.")
                 return
-            mov_img = imread_gray(self.paths[mov_idx])
+            mov_img = imread_gray(self.paths[mov_idx], normalize=app.normalize,
+                                 scale_minmax=app.scale_minmax)
             ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             if reg.method.upper() == "ORB":
@@ -572,8 +616,10 @@ class MainWindow(QMainWindow):
 
             # Reuse previously registered images or run a quick registration
             if self._reg_ref is None or self._reg_warp is None:
-                ref_img = imread_gray(self.paths[ref_idx])
-                mov_img = imread_gray(self.paths[mov_idx])
+                ref_img = imread_gray(self.paths[ref_idx], normalize=app.normalize,
+                                     scale_minmax=app.scale_minmax)
+                mov_img = imread_gray(self.paths[mov_idx], normalize=app.normalize,
+                                     scale_minmax=app.scale_minmax)
                 ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 if reg.method.upper() == "ORB":
@@ -632,7 +678,8 @@ class MainWindow(QMainWindow):
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,
                        remove_objects_smaller_px=seg.remove_objects_smaller_px, remove_holes_smaller_px=seg.remove_holes_smaller_px)
         app_cfg = dict(direction=app.direction,
-                       use_difference_for_seg=False, save_intermediates=True)
+                       use_difference_for_seg=False, save_intermediates=True,
+                       normalize=app.normalize, scale_minmax=app.scale_minmax)
 
         # timestamps if requested
         if app.use_file_timestamps:
