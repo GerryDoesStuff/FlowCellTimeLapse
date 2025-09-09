@@ -5,11 +5,12 @@ import json
 from PyQt6.QtCore import QSettings
 
 RegistrationModel = Literal["translation","euclidean","affine","homography"]
+RegMethod = Literal["ECC", "ORB", "ORB+ECC"]
 SegMethod = Literal["otsu","adaptive","local","manual"]
 
 @dataclass
 class RegParams:
-    method: str = "ECC"   # "ECC" or "ORB"
+    method: RegMethod = "ECC"  # "ECC", "ORB", or "ORB+ECC"
     model: RegistrationModel = "affine"
     max_iters: int = 1000
     eps: float = 1e-6

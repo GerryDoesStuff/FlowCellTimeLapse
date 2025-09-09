@@ -5,7 +5,7 @@ import cv2
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 from .io_utils import imread_gray, imread_color, ensure_dir
-from .registration import register_ecc, register_orb, crop_to_overlap, preprocess
+from .registration import register_ecc, register_orb, register_orb_ecc, crop_to_overlap, preprocess
 from .segmentation import segment
 from .background import normalize_background, estimate_temporal_background
 import logging
@@ -91,7 +91,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             prev_full = imgs_norm[k - step]
             ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
 
-            if reg_cfg.get("method", "ECC").upper() == "ORB":
+            method = reg_cfg.get("method", "ECC").upper()
+            if method == "ORB":
                 success, W_step, warped, valid_mask, fb = register_orb(
                     ref_gray,
                     g_norm,
@@ -101,6 +102,17 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 )
                 if fb:
                     logging.warning("ORB registration fell back to ECC at frame %d", k)
+            elif method == "ORB+ECC":
+                success, W_step, warped, valid_mask = register_orb_ecc(
+                    ref_gray,
+                    g_norm,
+                    model=reg_cfg.get("model", "affine"),
+                    max_iters=int(reg_cfg.get("max_iters", 1000)),
+                    eps=float(reg_cfg.get("eps", 1e-6)),
+                    orb_features=int(reg_cfg.get("orb_features", 4000)),
+                    match_ratio=float(reg_cfg.get("match_ratio", 0.75)),
+                    mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
+                )
             else:
                 success, W_step, warped, valid_mask = register_ecc(
                     ref_gray,
