@@ -36,6 +36,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     gauss_sigma = float(reg_cfg.get("gauss_blur_sigma", 1.0))
     clahe_clip = float(reg_cfg.get("clahe_clip", 2.0))
     clahe_grid = int(reg_cfg.get("clahe_grid", 8))
+    growth_factor = float(reg_cfg.get("growth_factor", 1.0))
     imgs_norm = [preprocess(g, gauss_sigma, clahe_clip, clahe_grid) for g in imgs_norm]
 
     # Prepare outputs
@@ -64,6 +65,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     for k in k_range:
         g_full = imgs_norm[k]
         g_norm = g_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
+        prev_bbox_w, prev_bbox_h = bbox_w, bbox_h
 
         if k == ref_idx:
             # Starting reference frame: no registration needed.
@@ -163,14 +165,19 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ov = overlay_outline(mov_crop, bw_mov)
             cv2.imencode('.png', ov)[1].tofile(str(overlay_dir / f"{k:04d}_overlay_mov.png"))
 
-        # Update mask and bbox for next iteration. The reference frame
-        # for the next step will be loaded fresh from disk, so only the
-        # ROI and mask need to be carried forward.
-        ecc_mask = valid_mask[y:y + h, x:x + w]
-        bbox_x += x
-        bbox_y += y
-        bbox_w = w
-        bbox_h = h
+        # Update mask and bbox for next iteration, optionally expanding
+        # the search window based on growth_factor.
+        w2 = int(min(prev_bbox_w, w * growth_factor))
+        h2 = int(min(prev_bbox_h, h * growth_factor))
+        x2 = max(0, x - (w2 - w) // 2)
+        y2 = max(0, y - (h2 - h) // 2)
+        x2 = min(x2, prev_bbox_w - w2)
+        y2 = min(y2, prev_bbox_h - h2)
+        ecc_mask = valid_mask[y2:y2 + h2, x2:x2 + w2]
+        bbox_x += x2
+        bbox_y += y2
+        bbox_w = w2
+        bbox_h = h2
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
     df.to_csv(out_dir / "summary.csv", index=False)

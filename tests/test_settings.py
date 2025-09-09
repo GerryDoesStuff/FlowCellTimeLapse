@@ -20,6 +20,7 @@ def test_settings_persist(tmp_path):
     win.gauss_sigma.setValue(2.5)
     win.clahe_clip.setValue(1.5)
     win.clahe_grid.setValue(16)
+    win.growth_factor.setValue(1.8)
     win.seg_method.setCurrentText("manual")
     win.dir_combo.setCurrentText("first-to-last")
     win.overlay_ref_cb.setChecked(False)
@@ -33,6 +34,7 @@ def test_settings_persist(tmp_path):
     assert win2.gauss_sigma.value() == 2.5
     assert win2.clahe_clip.value() == 1.5
     assert win2.clahe_grid.value() == 16
+    assert win2.growth_factor.value() == 1.8
     assert win2.seg_method.currentText() == "manual"
     assert win2.dir_combo.currentText() == "first-to-last"
     assert not win2.overlay_ref_cb.isChecked()
