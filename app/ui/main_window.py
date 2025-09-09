@@ -285,6 +285,13 @@ class MainWindow(QMainWindow):
             self.view.setImage(blend.transpose(1, 0, 2))
 
     def _preview_registration(self):
+        # Clear any previous previews so stale images aren't blended
+        self._current_preview = None
+        self._reg_ref = None
+        self._reg_warp = None
+        self._seg_gray = None
+        self._seg_overlay = None
+
         if len(self.paths) < 2:
             QMessageBox.warning(self, "Need at least two images", "Load at least two images for preview.")
             return
@@ -309,12 +316,21 @@ class MainWindow(QMainWindow):
             self._reg_ref = ref_img
             self._reg_warp = warped
             self._current_preview = "registration"
+            # Blend and push the new image to the viewer
             self._refresh_overlay_alpha()
+            self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Preview successful.")
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
     def _preview_segmentation(self):
+        # Clear any previous previews so stale images aren't blended
+        self._current_preview = None
+        self._reg_ref = None
+        self._reg_warp = None
+        self._seg_gray = None
+        self._seg_overlay = None
+
         if not self.paths:
             QMessageBox.warning(self, "No images", "Choose an image folder first.")
             return
@@ -343,7 +359,9 @@ class MainWindow(QMainWindow):
             self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
             self._seg_overlay = overlay_outline(gray, bw)
             self._current_preview = "segmentation"
+            # Blend and push the new image to the viewer
             self._refresh_overlay_alpha()
+            self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Segmentation preview successful.")
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
