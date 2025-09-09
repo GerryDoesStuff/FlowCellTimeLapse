@@ -459,28 +459,45 @@ class MainWindow(QMainWindow):
     def _preview_segmentation(self):
         # Clear any previous previews so stale images aren't blended
         self._current_preview = None
-        self._reg_ref = None
-        self._reg_warp = None
         self._seg_gray = None
         self._seg_overlay = None
 
         if not self.paths:
             QMessageBox.warning(self, "No images", "Choose an image folder first.")
             return
-        if not self._registration_done:
-            QMessageBox.warning(self, "Registration required", "Run registration preview first.")
-            return
         try:
-            _, seg, app = self._persist_settings()
+            reg, seg, app = self._persist_settings()
+
+            # Determine reference and moving indices
             if app.reference_choice == "last":
-                idx = len(self.paths) - 1
+                ref_idx = len(self.paths) - 1
             elif app.reference_choice == "first":
-                idx = 0
+                ref_idx = 0
             elif app.reference_choice == "middle":
-                idx = len(self.paths) // 2
+                ref_idx = len(self.paths) // 2
             else:
-                idx = app.custom_ref_index
-            gray = imread_gray(self.paths[idx])
+                ref_idx = app.custom_ref_index
+
+            mov_idx = self.mov_idx_spin.value()
+            if mov_idx < 0 or mov_idx >= len(self.paths):
+                QMessageBox.warning(self, "Invalid index", "Select a valid moving frame index.")
+                return
+
+            # Reuse previously registered images or run a quick registration
+            if self._reg_ref is None or self._reg_warp is None:
+                ref_img = imread_gray(self.paths[ref_idx])
+                mov_img = imread_gray(self.paths[mov_idx])
+                ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
+                mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
+                if reg.method.upper() == "ORB":
+                    _, warped, _ = register_orb(ref_img, mov_img, model=reg.model)
+                else:
+                    _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
+                                                max_iters=reg.max_iters, eps=reg.eps)
+                self._reg_ref = ref_img
+                self._reg_warp = warped
+
+            gray = self._reg_warp
             bw = segment(gray,
                          method=seg.method,
                          invert=seg.invert,
@@ -492,9 +509,12 @@ class MainWindow(QMainWindow):
                          morph_close_radius=seg.morph_close_radius,
                          remove_objects_smaller_px=seg.remove_objects_smaller_px,
                          remove_holes_smaller_px=seg.remove_holes_smaller_px)
+
             self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
             self._seg_overlay = cv2.cvtColor(overlay_outline(gray, bw), cv2.COLOR_BGR2RGB)
             self._current_preview = "segmentation"
+            self._registration_done = True
+
             # Blend and push the new image to the viewer
             self._refresh_overlay_alpha()
             self.view.setImage(self.view.imageItem.image)
