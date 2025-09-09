@@ -43,6 +43,7 @@ class AppParams:
     use_difference_for_seg: bool = False
     use_file_timestamps: bool = True
     presets_path: Optional[str] = None
+    last_folder: str | None = None
 
 def save_preset(path: str, reg: RegParams, seg: SegParams, app: AppParams) -> None:
     data = {"reg": asdict(reg), "seg": asdict(seg), "app": asdict(app)}
