@@ -675,12 +675,14 @@ class MainWindow(QMainWindow):
             ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             if reg.method.upper() == "ORB":
-                _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
-                                            orb_features=reg.orb_features,
-                                            match_ratio=reg.match_ratio)
+                success, _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
+                                                    orb_features=reg.orb_features,
+                                                    match_ratio=reg.match_ratio)
             else:
-                _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
-                                            max_iters=reg.max_iters, eps=reg.eps)
+                success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
+                                                    max_iters=reg.max_iters, eps=reg.eps)
+            if not success:
+                raise RuntimeError("Registration failed")
             self._reg_ref = ref_img
             self._reg_warp = warped
             self._current_preview = "registration"
@@ -726,12 +728,14 @@ class MainWindow(QMainWindow):
                 ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 if reg.method.upper() == "ORB":
-                    _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
-                                                orb_features=reg.orb_features,
-                                                match_ratio=reg.match_ratio)
+                    success, _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
+                                                        orb_features=reg.orb_features,
+                                                        match_ratio=reg.match_ratio)
                 else:
-                    _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
-                                                max_iters=reg.max_iters, eps=reg.eps)
+                    success, _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
+                                                        max_iters=reg.max_iters, eps=reg.eps)
+                if not success:
+                    raise RuntimeError("Registration failed")
                 self._reg_ref = ref_img
                 self._reg_warp = warped
 

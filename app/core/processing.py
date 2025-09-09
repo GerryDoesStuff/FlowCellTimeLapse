@@ -8,6 +8,7 @@ from .io_utils import imread_gray, imread_color, ensure_dir
 from .registration import register_ecc, register_orb, crop_to_overlap, preprocess
 from .segmentation import segment
 from .background import normalize_background, estimate_temporal_background
+import logging
 
 def overlay_outline(gray: np.ndarray, mask: np.ndarray) -> np.ndarray:
     color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
@@ -91,7 +92,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
 
             if reg_cfg.get("method", "ECC").upper() == "ORB":
-                W_step, warped, valid_mask = register_orb(
+                success, W_step, warped, valid_mask = register_orb(
                     ref_gray,
                     g_norm,
                     model=reg_cfg.get("model", "homography"),
@@ -99,7 +100,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     match_ratio=float(reg_cfg.get("match_ratio", 0.75)),
                 )
             else:
-                W_step, warped, valid_mask = register_ecc(
+                success, W_step, warped, valid_mask = register_ecc(
                     ref_gray,
                     g_norm,
                     model=reg_cfg.get("model", "affine"),
@@ -107,6 +108,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     eps=float(reg_cfg.get("eps", 1e-6)),
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
+
+            if not success:
+                logging.warning("Registration failed at frame %d", k)
 
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
             transforms[k] = transforms[k - step] @ W_h
