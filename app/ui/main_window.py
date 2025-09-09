@@ -325,8 +325,9 @@ class MainWindow(QMainWindow):
         run_btn = QPushButton("Run Analysis")
         run_btn.clicked.connect(self._run_pipeline)
         run_box.addWidget(run_btn)
-        run_box.addWidget(QLabel("Moving frame"))
+        run_box.addWidget(QLabel("Frame pair"))
         self.mov_idx_spin = QSpinBox(); self.mov_idx_spin.setMinimum(0); self.mov_idx_spin.setMaximum(0)
+        self.mov_idx_spin.setToolTip("Select frame pair index")
         run_box.addWidget(self.mov_idx_spin)
         controls.addLayout(run_box)
 
@@ -398,7 +399,8 @@ class MainWindow(QMainWindow):
             p = Path(self.app.last_folder)
             self.paths = discover_images(p)
             if self.paths:
-                self.mov_idx_spin.setMaximum(len(self.paths) - 1)
+                self.mov_idx_spin.setMaximum(max(0, len(self.paths) - 2))
+                self.mov_idx_spin.setValue(0)
                 idx = self._show_reference_frame()
                 if idx is not None:
                     self.status_label.setText(
@@ -432,7 +434,8 @@ class MainWindow(QMainWindow):
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
                 return
-            self.mov_idx_spin.setMaximum(len(self.paths) - 1)
+            self.mov_idx_spin.setMaximum(max(0, len(self.paths) - 2))
+            self.mov_idx_spin.setValue(0)
             idx = self._show_reference_frame()
             if idx is not None:
                 self.status_label.setText(
@@ -660,16 +663,18 @@ class MainWindow(QMainWindow):
             return
         try:
             reg, _, app = self._persist_settings()
+            pair_idx = self.mov_idx_spin.value()
+            if pair_idx < 0 or pair_idx > len(self.paths) - 2:
+                QMessageBox.warning(self, "Invalid index", "Select a valid frame pair index.")
+                return
             if app.direction == "first-to-last":
-                ref_idx = 0
+                ref_idx = pair_idx
+                mov_idx = pair_idx + 1
             else:
-                ref_idx = len(self.paths) - 1
+                ref_idx = len(self.paths) - 1 - pair_idx
+                mov_idx = ref_idx - 1
             ref_img = imread_gray(self.paths[ref_idx], normalize=app.normalize,
                                  scale_minmax=app.scale_minmax)
-            mov_idx = self.mov_idx_spin.value()
-            if mov_idx < 0 or mov_idx >= len(self.paths):
-                QMessageBox.warning(self, "Invalid index", "Select a valid moving frame index.")
-                return
             mov_img = imread_gray(self.paths[mov_idx], normalize=app.normalize,
                                  scale_minmax=app.scale_minmax)
             ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
@@ -710,16 +715,17 @@ class MainWindow(QMainWindow):
         try:
             reg, seg, app = self._persist_settings()
 
-            # Determine reference and moving indices
-            if app.direction == "first-to-last":
-                ref_idx = 0
-            else:
-                ref_idx = len(self.paths) - 1
-
-            mov_idx = self.mov_idx_spin.value()
-            if mov_idx < 0 or mov_idx >= len(self.paths):
-                QMessageBox.warning(self, "Invalid index", "Select a valid moving frame index.")
+            pair_idx = self.mov_idx_spin.value()
+            if pair_idx < 0 or pair_idx > len(self.paths) - 2:
+                QMessageBox.warning(self, "Invalid index", "Select a valid frame pair index.")
                 return
+
+            if app.direction == "first-to-last":
+                ref_idx = pair_idx
+                mov_idx = pair_idx + 1
+            else:
+                ref_idx = len(self.paths) - 1 - pair_idx
+                mov_idx = ref_idx - 1
 
             # Reuse previously registered images or run a quick registration
             if self._reg_ref is None or self._reg_warp is None:
