@@ -18,6 +18,9 @@ def test_settings_persist(tmp_path):
     win.max_iters.setValue(321)
     win.seg_method.setCurrentText("manual")
     win.ref_combo.setCurrentText("first")
+    win.overlay_ref_cb.setChecked(False)
+    win.overlay_mov_cb.setChecked(False)
+    win.alpha_slider.setValue(75)
     win.close()
     app.processEvents()
 
@@ -25,5 +28,8 @@ def test_settings_persist(tmp_path):
     assert win2.max_iters.value() == 321
     assert win2.seg_method.currentText() == "manual"
     assert win2.ref_combo.currentText() == "first"
+    assert not win2.overlay_ref_cb.isChecked()
+    assert not win2.overlay_mov_cb.isChecked()
+    assert win2.alpha_slider.value() == 75
     win2.close()
     app.quit()

@@ -37,6 +37,9 @@ class AppParams:
     minutes_between_frames: float = 1.0  # default; can be overridden by timestamps
     reference_choice: str = "last"  # last | first | middle | custom
     custom_ref_index: int = 0
+    show_ref_overlay: bool = True
+    show_mov_overlay: bool = True
+    overlay_opacity: int = 50
     save_jpg_quality: int = 95
     save_png: bool = False
     save_intermediates: bool = True
