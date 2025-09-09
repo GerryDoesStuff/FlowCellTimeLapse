@@ -54,15 +54,16 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
     valid_mask = (valid_mask>0).astype(np.uint8)
     return W, warped, valid_mask
 
-def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography") -> tuple[np.ndarray,np.ndarray,np.ndarray]:
-    orb = cv2.ORB_create(4000)
+def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
+                 orb_features: int = 4000, match_ratio: float = 0.75) -> tuple[np.ndarray,np.ndarray,np.ndarray]:
+    orb = cv2.ORB_create(int(orb_features))
     k1, d1 = orb.detectAndCompute(ref, None)
     k2, d2 = orb.detectAndCompute(mov, None)
     if d1 is None or d2 is None or len(k1) < 8 or len(k2) < 8:
         return register_ecc(ref, mov, model="affine")
     matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
     matches = matcher.knnMatch(d1, d2, k=2)
-    good = [m for m,n in matches if m.distance < 0.75*n.distance]
+    good = [m for m,n in matches if m.distance < match_ratio * n.distance]
     if len(good) < 8:
         return register_ecc(ref, mov, model="affine")
     src = np.float32([k1[m.queryIdx].pt for m in good]).reshape(-1,1,2)

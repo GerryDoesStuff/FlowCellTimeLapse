@@ -96,6 +96,8 @@ class MainWindow(QMainWindow):
         self.init_radius = QSpinBox(); self.init_radius.setRange(1, 1000); self.init_radius.setValue(self.reg.initial_radius)
         self.growth_factor = QDoubleSpinBox(); self.growth_factor.setRange(0.1, 10.0); self.growth_factor.setDecimals(2); self.growth_factor.setSingleStep(0.1); self.growth_factor.setValue(self.reg.growth_factor)
         self.use_masked = QCheckBox("Use masked ECC"); self.use_masked.setChecked(self.reg.use_masked_ecc)
+        self.orb_features = QSpinBox(); self.orb_features.setRange(1, 100000); self.orb_features.setValue(self.reg.orb_features)
+        self.match_ratio = QDoubleSpinBox(); self.match_ratio.setRange(0.0, 1.0); self.match_ratio.setDecimals(2); self.match_ratio.setSingleStep(0.05); self.match_ratio.setValue(self.reg.match_ratio)
         reg_form.addRow("Method", self.reg_method)
         reg_form.addRow("Model", self.reg_model)
         reg_form.addRow("Max iters", self.max_iters)
@@ -107,6 +109,10 @@ class MainWindow(QMainWindow):
         reg_form.addRow("CLAHE grid", self.clahe_grid)
         reg_form.addRow("Initial radius", self.init_radius)
         reg_form.addRow("Growth factor", self.growth_factor)
+        reg_form.addRow("ORB features", self.orb_features)
+        self.orb_features_label = reg_form.labelForField(self.orb_features)
+        reg_form.addRow("Match ratio", self.match_ratio)
+        self.match_ratio_label = reg_form.labelForField(self.match_ratio)
         reg_form.addRow(self.use_masked)
         self._add_help(self.reg_method, "Registration algorithm: ECC or ORB.")
         self._add_help(self.reg_model, "Geometric transform model for alignment.")
@@ -117,6 +123,8 @@ class MainWindow(QMainWindow):
         self._add_help(self.clahe_grid, "CLAHE tile grid size.")
         self._add_help(self.init_radius, "Initial search window radius in pixels for ECC.")
         self._add_help(self.growth_factor, "Scale search window after each registration step (>=1 keeps more context).")
+        self._add_help(self.orb_features, "Number of ORB features to detect.")
+        self._add_help(self.match_ratio, "Lowe ratio for filtering ORB matches.")
         self._add_help(self.use_masked, "Use segmentation mask during ECC.")
         reg_preview_btn = QPushButton("Preview Registration")
         reg_preview_btn.clicked.connect(self._preview_registration)
@@ -131,6 +139,8 @@ class MainWindow(QMainWindow):
         self.clahe_grid.valueChanged.connect(self._persist_settings)
         self.init_radius.valueChanged.connect(self._persist_settings)
         self.growth_factor.valueChanged.connect(self._persist_settings)
+        self.orb_features.valueChanged.connect(self._persist_settings)
+        self.match_ratio.valueChanged.connect(self._persist_settings)
         self.use_masked.toggled.connect(self._persist_settings)
         self.reg_method.currentTextChanged.connect(self._on_params_changed)
         self.reg_model.currentTextChanged.connect(self._on_params_changed)
@@ -141,6 +151,8 @@ class MainWindow(QMainWindow):
         self.clahe_grid.valueChanged.connect(self._on_params_changed)
         self.init_radius.valueChanged.connect(self._on_params_changed)
         self.growth_factor.valueChanged.connect(self._on_params_changed)
+        self.orb_features.valueChanged.connect(self._on_params_changed)
+        self.match_ratio.valueChanged.connect(self._on_params_changed)
         self.use_masked.toggled.connect(self._on_params_changed)
         self.reg_method.currentTextChanged.connect(self._on_reg_method_change)
         # Initialize visibility of ECC-specific controls
@@ -308,7 +320,9 @@ class MainWindow(QMainWindow):
                         clahe_grid=self.clahe_grid.value(),
                         initial_radius=self.init_radius.value(),
                         growth_factor=self.growth_factor.value(),
-                        use_masked_ecc=self.use_masked.isChecked())
+                        use_masked_ecc=self.use_masked.isChecked(),
+                        orb_features=self.orb_features.value(),
+                        match_ratio=self.match_ratio.value())
         seg = SegParams(method=self.seg_method.currentText(),
                         invert=self.invert.isChecked(),
                         manual_thresh=self.manual_t.value(),
@@ -364,6 +378,8 @@ class MainWindow(QMainWindow):
         self.init_radius.setValue(reg.initial_radius)
         self.growth_factor.setValue(reg.growth_factor)
         self.use_masked.setChecked(reg.use_masked_ecc)
+        self.orb_features.setValue(reg.orb_features)
+        self.match_ratio.setValue(reg.match_ratio)
         self.seg_method.setCurrentText(seg.method)
         self.invert.setChecked(seg.invert)
         self.manual_t.setValue(seg.manual_thresh)
@@ -387,12 +403,19 @@ class MainWindow(QMainWindow):
     def _on_reg_method_change(self, method: str):
         """Enable or hide ECC-specific controls depending on method."""
         is_ecc = method == "ECC"
+        is_orb = method == "ORB"
         self.max_iters.setEnabled(is_ecc)
         self.eps.setEnabled(is_ecc)
         self.max_iters.setVisible(is_ecc)
         self.eps.setVisible(is_ecc)
         self.max_iters_label.setVisible(is_ecc)
         self.eps_label.setVisible(is_ecc)
+        self.orb_features.setEnabled(is_orb)
+        self.match_ratio.setEnabled(is_orb)
+        self.orb_features.setVisible(is_orb)
+        self.match_ratio.setVisible(is_orb)
+        self.orb_features_label.setVisible(is_orb)
+        self.match_ratio_label.setVisible(is_orb)
 
     def _on_params_changed(self, *args):
         """Debounce rapid param changes and rerun active preview."""
@@ -469,7 +492,9 @@ class MainWindow(QMainWindow):
             ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
             if reg.method.upper() == "ORB":
-                _, warped, _ = register_orb(ref_img, mov_img, model=reg.model)
+                _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
+                                            orb_features=reg.orb_features,
+                                            match_ratio=reg.match_ratio)
             else:
                 _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
                                             max_iters=reg.max_iters, eps=reg.eps)
@@ -516,7 +541,9 @@ class MainWindow(QMainWindow):
                 ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
                 if reg.method.upper() == "ORB":
-                    _, warped, _ = register_orb(ref_img, mov_img, model=reg.model)
+                    _, warped, _ = register_orb(ref_img, mov_img, model=reg.model,
+                                                orb_features=reg.orb_features,
+                                                match_ratio=reg.match_ratio)
                 else:
                     _, warped, _ = register_ecc(ref_img, mov_img, model=reg.model,
                                                 max_iters=reg.max_iters, eps=reg.eps)
@@ -561,7 +588,9 @@ class MainWindow(QMainWindow):
                        clahe_clip=reg.clahe_clip,
                        clahe_grid=reg.clahe_grid,
                        initial_radius=reg.initial_radius,
-                       growth_factor=reg.growth_factor)
+                       growth_factor=reg.growth_factor,
+                       orb_features=reg.orb_features,
+                       match_ratio=reg.match_ratio)
         seg_cfg = dict(method=seg.method, invert=seg.invert, manual_thresh=seg.manual_thresh,
                        adaptive_block=seg.adaptive_block, adaptive_C=seg.adaptive_C, local_block=seg.local_block,
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,

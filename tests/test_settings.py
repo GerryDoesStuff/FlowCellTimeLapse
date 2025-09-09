@@ -22,6 +22,9 @@ def test_settings_persist(tmp_path):
     win.clahe_grid.setValue(16)
     win.init_radius.setValue(12)
     win.growth_factor.setValue(1.8)
+    win.reg_method.setCurrentText("ORB")
+    win.orb_features.setValue(123)
+    win.match_ratio.setValue(0.55)
     win.seg_method.setCurrentText("manual")
     win.dir_combo.setCurrentText("first-to-last")
     win.overlay_ref_cb.setChecked(False)
@@ -37,6 +40,9 @@ def test_settings_persist(tmp_path):
     assert win2.clahe_grid.value() == 16
     assert win2.init_radius.value() == 12
     assert win2.growth_factor.value() == 1.8
+    assert win2.reg_method.currentText() == "ORB"
+    assert win2.orb_features.value() == 123
+    assert win2.match_ratio.value() == 0.55
     assert win2.seg_method.currentText() == "manual"
     assert win2.dir_combo.currentText() == "first-to-last"
     assert not win2.overlay_ref_cb.isChecked()
