@@ -50,34 +50,41 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     rows = []
 
-    # Initialize reference frame, mask, and bbox
-    ref_gray = imgs_norm[ref_idx]
-    bw_ref = segment(ref_gray,
-                     method=seg_cfg.get("method","otsu"),
-                     invert=bool(seg_cfg.get("invert",True)),
-                     manual_thresh=int(seg_cfg.get("manual_thresh",128)),
-                     adaptive_block=int(seg_cfg.get("adaptive_block",51)),
-                     adaptive_C=int(seg_cfg.get("adaptive_C",5)),
-                     local_block=int(seg_cfg.get("local_block",51)),
-                     morph_open_radius=int(seg_cfg.get("morph_open_radius",2)),
-                     morph_close_radius=int(seg_cfg.get("morph_close_radius",2)),
-                     remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px",64)),
-                     remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px",64)))
-    ecc_mask = np.ones_like(ref_gray, dtype=np.uint8) * 255
+    # Transformation chain mapping each frame back to the chosen
+    # starting reference.  Each step registers the current frame to the
+    # previous original frame and composes the transforms.
+    transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
+
+    # Initialize mask and bounding box covering the full image.  The
+    # bbox is updated after each registration to track the common area
+    # across all frames.
+    ecc_mask = np.ones((H, W), dtype=np.uint8) * 255
     bbox_x, bbox_y, bbox_w, bbox_h = 0, 0, W, H
 
-    for k in range(len(paths) - 1, -1, -1):
+    # Iterate backwards from the reference frame so that at step k the
+    # registration target is the original frame at k+1 (i.e. the next
+    # later frame).  This avoids repeatedly warping already warped
+    # images and yields a transformation chain relative to the initial
+    # reference.
+    for k in range(ref_idx, -1, -1):
         g_full = imgs_norm[k]
         g_norm = g_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
 
         if k == ref_idx:
+            # Starting reference frame: no registration needed.
+            ref_gray = g_norm
             warped = ref_gray.copy()
             valid_mask = np.ones_like(ref_gray, dtype=np.uint8) * 255
         else:
+            # Use the original (unwarped) previous frame as the
+            # registration target for the current frame.
+            prev_full = imgs_norm[k + 1]
+            ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
+
             if reg_cfg.get("method", "ECC").upper() == "ORB":
-                _, warped, valid_mask = register_orb(ref_gray, g_norm, model=reg_cfg.get("model", "homography"))
+                W_step, warped, valid_mask = register_orb(ref_gray, g_norm, model=reg_cfg.get("model", "homography"))
             else:
-                _, warped, valid_mask = register_ecc(
+                W_step, warped, valid_mask = register_ecc(
                     ref_gray,
                     g_norm,
                     model=reg_cfg.get("model", "affine"),
@@ -85,6 +92,24 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     eps=float(reg_cfg.get("eps", 1e-6)),
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
+
+            # Compose the step with the cumulative transform so we can
+            # later map this frame back to the starting reference.
+            W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
+            transforms[k] = transforms[k + 1] @ W_h
+
+        # Segment the reference frame corresponding to this step.
+        bw_ref = segment(ref_gray,
+                         method=seg_cfg.get("method", "otsu"),
+                         invert=bool(seg_cfg.get("invert", True)),
+                         manual_thresh=int(seg_cfg.get("manual_thresh", 128)),
+                         adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
+                         adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
+                         local_block=int(seg_cfg.get("local_block", 51)),
+                         morph_open_radius=int(seg_cfg.get("morph_open_radius", 2)),
+                         morph_close_radius=int(seg_cfg.get("morph_close_radius", 2)),
+                         remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
+                         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)))
 
         x, y, w, h = crop_to_overlap(valid_mask)
         if w == 0 or h == 0:
@@ -130,6 +155,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "area_union_px": int(bw_union.sum()),
             "area_new_px": int(bw_new.sum()),
             "area_lost_px": int(bw_lost.sum()),
+            # Flattened homography mapping this frame back to the
+            # starting reference frame.
+            "to_ref_transform": transforms.get(k, np.eye(3)).flatten().tolist(),
         }
         rows.append(row)
 
@@ -144,10 +172,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ov = overlay_outline(mov_crop, bw_mov)
             cv2.imencode('.png', ov)[1].tofile(str(overlay_dir / f"{k:04d}_overlay_mov.png"))
 
-        # Update reference, masks, and bbox for next iteration
+        # Update mask and bbox for next iteration. The reference frame
+        # for the next step will be loaded fresh from disk, so only the
+        # ROI and mask need to be carried forward.
         ecc_mask = valid_mask[y:y + h, x:x + w]
-        ref_gray = mov_crop
-        bw_ref = bw_mov
         bbox_x += x
         bbox_y += y
         bbox_w = w
