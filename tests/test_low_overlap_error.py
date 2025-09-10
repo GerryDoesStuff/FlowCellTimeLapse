@@ -1,8 +1,10 @@
 import numpy as np
+import numpy as np
+import numpy as np
 import cv2
 from pathlib import Path
 import sys
-import logging
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -18,7 +20,7 @@ def create_blank_images(tmp_path, n=2):
     return paths
 
 
-def test_warns_and_preserves_mask(tmp_path, caplog):
+def test_aborts_on_low_overlap(tmp_path):
     paths = create_blank_images(tmp_path, n=2)
 
     reg_cfg = {
@@ -57,10 +59,6 @@ def test_warns_and_preserves_mask(tmp_path, caplog):
     processing.register_ecc = fake_register
 
     out_dir = tmp_path / "out"
-    with caplog.at_level(logging.WARNING):
-        df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
-    assert any("overlap area" in rec.message for rec in caplog.records)
-    row = df[df["frame_index"] == 1].iloc[0]
-    assert row["overlap_w"] == 1
-    assert row["overlap_h"] == 1
+    with pytest.raises(ValueError, match="overlap area"):
+        analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
