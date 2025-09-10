@@ -35,9 +35,33 @@ def test_orb_ecc_uses_orb_init(monkeypatch):
     success, W_refined, _, _, n1, n2 = reg.register_orb_ecc(ref, mov, model="homography", max_iters=10, eps=1e-4)
 
     assert success
-    assert np.allclose(captured["init"], W_orb)
+    # ECC should receive the inverse of the ORB matrix
+    assert np.allclose(captured["init"], np.linalg.inv(W_orb))
+    # The returned matrix should be the inverse of the refined ECC matrix
     expected = W_orb.copy()
-    expected[0, 2] += 1
-    expected[1, 2] += 1
+    expected[0, 2] -= 1
+    expected[1, 2] -= 1
     assert np.allclose(W_refined, expected)
     assert n1 == 12 and n2 == 34
+
+
+def test_orb_ecc_aligns_shift_direction(monkeypatch):
+    dx = 5
+    ref = np.zeros((40, 40), dtype=np.uint8)
+    cv2.circle(ref, (20, 20), 5, 255, -1)
+    mov = np.zeros_like(ref)
+    cv2.circle(mov, (20 + dx, 20), 5, 255, -1)
+
+    def fake_register_orb(ref_img, mov_img, **kwargs):
+        return True, np.array([[1, 0, 0], [0, 1, 0]], dtype=np.float32), mov_img, np.ones_like(mov_img, dtype=np.uint8), False, 20, 20
+
+    monkeypatch.setattr(reg, "register_orb", fake_register_orb)
+
+    success, W, warped, _ , _, _ = reg.register_orb_ecc(ref, mov, model="translation", max_iters=50, eps=1e-4)
+
+    assert success
+    # Returned warp should map moving -> reference, undoing the +dx shift
+    assert np.allclose(W, np.array([[1, 0, -dx], [0, 1, 0]], dtype=np.float32), atol=0.5)
+    # Warped image should align with reference location
+    cy, cx = np.argwhere(warped > 0).mean(axis=0)
+    assert abs(cx - 20) < 0.5 and abs(cy - 20) < 0.5
