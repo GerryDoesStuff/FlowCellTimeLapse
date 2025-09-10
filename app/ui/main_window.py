@@ -20,6 +20,8 @@ from ..core.segmentation import segment
 from ..core.processing import overlay_outline
 from ..workers.pipeline_worker import PipelineWorker
 
+logger = logging.getLogger(__name__)
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -55,10 +57,12 @@ class MainWindow(QMainWindow):
         btn.setStyleSheet(f"background-color: rgb({color[0]}, {color[1]}, {color[2]});")
 
     def _choose_color(self, which: str) -> None:
+        logger.info("Color button clicked: %s", which)
         initial = self.ref_color if which == 'ref' else self.mov_color
         col = QColorDialog.getColor(QColor(*initial), self, "Select color")
         if col.isValid():
             color = (col.red(), col.green(), col.blue())
+            logger.info("%s color selected: %s", which, color)
             if which == 'ref':
                 self.ref_color = color
                 self._set_btn_color(self.ref_color_btn, color)
@@ -67,12 +71,15 @@ class MainWindow(QMainWindow):
                 self._set_btn_color(self.mov_color_btn, color)
             self._refresh_overlay_alpha()
             self._persist_settings()
+        else:
+            logger.info("%s color selection canceled", which)
 
     def _on_overlay_mode_changed(self, mode: str) -> None:
         custom = mode == 'custom'
         for w in (self.ref_color_btn, self.mov_color_btn, self.ref_color_label, self.mov_color_label):
             w.setVisible(custom)
         self._refresh_overlay_alpha()
+        logger.info("Overlay mode changed: %s", mode)
 
     def _build_ui(self):
         central = QWidget()
@@ -426,6 +433,7 @@ class MainWindow(QMainWindow):
                 if idx is not None:
                     self.status_label.setText(
                         f"Found {len(self.paths)} images. Preview: {self.paths[idx].name}")
+        logger.info("UI build complete")
 
     def _show_reference_frame(self):
         """Display the frame chosen by the current reference settings."""
@@ -443,8 +451,10 @@ class MainWindow(QMainWindow):
         return idx
 
     def _choose_folder(self):
+        logger.info("Browse button clicked")
         d = QFileDialog.getExistingDirectory(self, "Select image folder", "")
         if d:
+            logger.info("Folder selected: %s", d)
             self.folder_edit.setText(d)
             # Persist the newly selected folder alongside other parameters
             self._persist_settings()
@@ -461,6 +471,8 @@ class MainWindow(QMainWindow):
             if idx is not None:
                 self.status_label.setText(
                     f"Found {len(self.paths)} images. Preview: {self.paths[idx].name}")
+        else:
+            logger.info("Folder selection canceled")
 
     def _auto_scale_minmax(self):
         if not self.paths:
@@ -627,6 +639,22 @@ class MainWindow(QMainWindow):
     def _on_params_changed(self, *args):
         """Debounce rapid param changes and rerun active preview."""
         sender = self.sender()
+        if sender is not None:
+            try:
+                if hasattr(sender, "value"):
+                    val = sender.value()
+                elif hasattr(sender, "isChecked"):
+                    val = sender.isChecked()
+                elif hasattr(sender, "currentText"):
+                    val = sender.currentText()
+                elif hasattr(sender, "text"):
+                    val = sender.text()
+                else:
+                    val = None
+            except Exception:
+                val = None
+            name = sender.objectName() or sender.__class__.__name__
+            logger.info("Parameter changed via %s: %s", name, val)
         if sender is not None and hasattr(sender, "isEnabled") and not sender.isEnabled():
             return
         if self._current_preview not in ("registration", "segmentation"):
@@ -634,6 +662,7 @@ class MainWindow(QMainWindow):
         self._param_timer.start()
 
     def _apply_param_change(self):
+        logger.info("Applying parameter change for preview: %s", self._current_preview)
         if self._current_preview == "registration":
             self._preview_registration()
         elif self._current_preview == "segmentation":
@@ -875,7 +904,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        logging.info("Starting pipeline with direction=%s", app.direction)
+        logger.info("Run Analysis button clicked with direction=%s", app.direction)
 
         # Build slim dicts for worker
         reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters,
@@ -910,16 +939,19 @@ class MainWindow(QMainWindow):
         self.worker = PipelineWorker(self.paths, reg_cfg, seg_cfg, app_cfg, out_dir)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
+        self.thread.started.connect(lambda: logger.info("Pipeline thread started"))
         self.worker.finished.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
         self.thread.start()
         self.status_label.setText("Processing…")
 
     def _on_done(self, out_dir: str):
+        logger.info("Pipeline thread finished successfully: %s", out_dir)
         self.status_label.setText(f"Done. Outputs: {out_dir}")
         self.thread.quit(); self.thread.wait()
 
     def _on_failed(self, err: str):
+        logger.error("Pipeline thread failed: %s", err)
         QMessageBox.critical(self, "Error", err)
         self.status_label.setText("Failed.")
         self.thread.quit(); self.thread.wait()
