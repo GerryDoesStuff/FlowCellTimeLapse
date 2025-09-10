@@ -185,6 +185,22 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # Restrict valid region to the accumulated mask
         valid_mask = cv2.bitwise_and(valid_mask, ecc_mask)
 
+        # Measure overlap before cropping to detect severe misalignment
+        overlap_area = int(valid_mask.sum())
+        min_overlap = int(0.01 * H * W)
+        skip_mask_update = False
+        if overlap_area < min_overlap:
+            logger.warning(
+                "Frame %d: overlap area %d below 1%% threshold %d; skipping ecc_mask update",
+                k,
+                overlap_area,
+                min_overlap,
+            )
+            if idx > 0:
+                transforms[k] = transforms[prev_k]
+            valid_mask = ecc_mask.copy()
+            skip_mask_update = True
+
         # Segment the reference frame corresponding to this step.
         logger.debug("Frame %d: starting segmentation", k)
         bw_ref = segment(ref_gray,
@@ -303,25 +319,28 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ]
             logger.debug("Frame %d: saved intermediates %s", k, [str(p) for p in saved_paths])
 
-        # Update mask and bbox for next iteration, allowing the region to
-        # shrink or grow according to ``growth_factor``.
-        w2 = max(1, min(int(w * growth_factor), W))
-        h2 = max(1, min(int(h * growth_factor), H))
-        x2 = max(0, x - (w2 - w) // 2)
-        y2 = max(0, y - (h2 - h) // 2)
-        x2 = min(x2, W - w2)
-        y2 = min(y2, H - h2)
-        ecc_mask = np.zeros((H, W), dtype=np.uint8)
-        ecc_mask[y2:y2 + h2, x2:x2 + w2] = 255
-        bbox_x, bbox_y, bbox_w, bbox_h = x2, y2, w2, h2
-        logger.debug(
-            "Frame %d: bbox updated to x=%d y=%d w=%d h=%d",
-            k,
-            bbox_x,
-            bbox_y,
-            bbox_w,
-            bbox_h,
-        )
+        if not skip_mask_update:
+            # Update mask and bbox for next iteration, allowing the region to
+            # shrink or grow according to ``growth_factor``.
+            w2 = max(1, min(int(w * growth_factor), W))
+            h2 = max(1, min(int(h * growth_factor), H))
+            x2 = max(0, x - (w2 - w) // 2)
+            y2 = max(0, y - (h2 - h) // 2)
+            x2 = min(x2, W - w2)
+            y2 = min(y2, H - h2)
+            ecc_mask = np.zeros((H, W), dtype=np.uint8)
+            ecc_mask[y2:y2 + h2, x2:x2 + w2] = 255
+            bbox_x, bbox_y, bbox_w, bbox_h = x2, y2, w2, h2
+            logger.debug(
+                "Frame %d: bbox updated to x=%d y=%d w=%d h=%d",
+                k,
+                bbox_x,
+                bbox_y,
+                bbox_w,
+                bbox_h,
+            )
+        else:
+            logger.debug("Frame %d: ecc_mask update skipped due to low overlap", k)
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
     summary_path = out_dir / "summary.csv"
