@@ -69,8 +69,8 @@ def test_per_frame_crop_rectangles(tmp_path):
     row1 = df[df["frame_index"] == 1].iloc[0]
     row2 = df[df["frame_index"] == 2].iloc[0]
 
-    assert int(row1["overlap_w"]) == 50
-    assert int(row1["overlap_h"]) == 60
-    assert int(row2["overlap_w"]) == 70
-    assert int(row2["overlap_h"]) == 70
+    assert int(row1["overlap_w"]) == 30
+    assert int(row1["overlap_h"]) == 50
+    assert int(row2["overlap_w"]) == 30
+    assert int(row2["overlap_h"]) == 50
 

@@ -58,7 +58,9 @@ def test_refuses_small_crop(tmp_path):
     out_dir = tmp_path / "out"
     df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
-    row = df[df["frame_index"] == 1].iloc[0]
-    overlap_area = int(row["overlap_w"]) * int(row["overlap_h"])
-    assert overlap_area == 25
+    row0 = df[df["frame_index"] == 0].iloc[0]
+    row1 = df[df["frame_index"] == 1].iloc[0]
+    for row in (row0, row1):
+        overlap_area = int(row["overlap_w"]) * int(row["overlap_h"])
+        assert overlap_area == 25
 
