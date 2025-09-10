@@ -53,6 +53,7 @@ class AppParams:
     save_jpg_quality: int = 95
     save_png: bool = False
     save_intermediates: bool = True
+    save_masks: bool = False
     use_difference_for_seg: bool = False
     use_file_timestamps: bool = True
     normalize: bool = True

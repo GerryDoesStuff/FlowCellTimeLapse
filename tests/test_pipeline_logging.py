@@ -14,6 +14,9 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.ui.main_window import MainWindow
 from app.models.config import RegParams, SegParams, AppParams
+from app.core.processing import analyze_sequence
+import numpy as np
+import cv2
 
 
 @pytest.mark.parametrize("direction", ["first-to-last", "last-to-first"])
@@ -40,3 +43,53 @@ def test_pipeline_logs_direction(tmp_path, monkeypatch, caplog, direction):
 
     win.close()
     app.quit()
+
+
+def test_save_masks(tmp_path, monkeypatch):
+    paths = []
+    img0 = np.zeros((30, 30), dtype=np.uint8)
+    cv2.rectangle(img0, (5, 5), (15, 15), 255, -1)
+    p0 = tmp_path / "img0.png"; cv2.imwrite(str(p0), img0); paths.append(p0)
+    img1 = np.zeros((30, 30), dtype=np.uint8)
+    cv2.rectangle(img1, (10, 10), (20, 20), 255, -1)
+    p1 = tmp_path / "img1.png"; cv2.imwrite(str(p1), img1); paths.append(p1)
+
+    reg_cfg = {
+        "model": "translation",
+        "max_iters": 10,
+        "gauss_blur_sigma": 0,
+        "clahe_clip": 0,
+        "clahe_grid": 8,
+        "use_masked_ecc": False,
+        "method": "ECC",
+        "eps": 1e-6,
+        "growth_factor": 1.0,
+        "initial_radius": 0,
+    }
+
+    seg_cfg = {
+        "method": "manual",
+        "manual_thresh": 1,
+        "invert": False,
+        "morph_open_radius": 0,
+        "morph_close_radius": 0,
+        "remove_objects_smaller_px": 0,
+        "remove_holes_smaller_px": 0,
+    }
+
+    app_cfg = {"direction": "first-to-last", "save_intermediates": False, "save_masks": True}
+
+    from app.core import processing
+
+    def fake_register(ref, mov, model="affine", **kwargs):
+        h, w = ref.shape
+        valid = np.ones((h, w), dtype=np.uint8)
+        return True, np.eye(3, dtype=np.float32), mov.copy(), valid
+
+    monkeypatch.setattr(processing, "register_ecc", fake_register)
+
+    out_dir = tmp_path / "out"
+    analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
+
+    assert (out_dir / "mask_0000.png").exists()
+    assert (out_dir / "mask_0001.png").exists()
