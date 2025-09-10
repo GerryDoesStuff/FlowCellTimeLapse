@@ -202,6 +202,15 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     ref_crop = ref_gray[y:y + h, x:x + w]
     bw_ref_crop = bw_ref[y:y + h, x:x + w]
 
+    ecc_mask = None
+    if not np.any(bw_ref_crop):
+        logger.warning("Reference segmentation mask is empty; skipping ecc_mask update")
+        cv2.imencode('.png', (bw_ref_crop * 255).astype(np.uint8))[1].tofile(
+            str(bw_dir / f"{ref_idx:04d}_bw_ref_empty.png")
+        )
+    else:
+        ecc_mask = bw_ref_crop.copy()
+
     for k in ordered_indices:
         logger.debug("Frame %d: segmentation phase", k)
         warped = cv2.warpPerspective(imgs_norm[k], transforms[k], (W, H))
@@ -223,6 +232,15 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
             remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
         )
+        if not np.any(bw_mov):
+            logger.warning(
+                "Frame %d: segmentation mask is empty; skipping ecc_mask update", k
+            )
+            cv2.imencode('.png', (bw_mov * 255).astype(np.uint8))[1].tofile(
+                str(bw_dir / f"{k:04d}_bw_mov_empty.png")
+            )
+        else:
+            ecc_mask = bw_mov.copy()
 
         bw_overlap = (bw_ref_crop & bw_mov).astype(np.uint8)
         bw_union = (bw_ref_crop | bw_mov).astype(np.uint8)
