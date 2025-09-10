@@ -38,6 +38,7 @@ class SegParams:
     morph_open_radius: int = 2
     morph_close_radius: int = 2
     invert: bool = True  # cells darker
+    skip_outline: bool = False
 
 @dataclass
 class AppParams:

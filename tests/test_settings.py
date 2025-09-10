@@ -36,6 +36,7 @@ def test_settings_persist(tmp_path):
     win.min_matches.setValue(6)
     win.use_ecc_fallback.setChecked(False)
     win.seg_method.setCurrentText("manual")
+    win.skip_outline.setChecked(True)
     win.dir_combo.setCurrentText("first-to-last")
     win.overlay_ref_cb.setChecked(False)
     win.overlay_mov_cb.setChecked(False)
@@ -65,6 +66,7 @@ def test_settings_persist(tmp_path):
     assert win2.min_matches.value() == 6
     assert not win2.use_ecc_fallback.isChecked()
     assert win2.seg_method.currentText() == "manual"
+    assert win2.skip_outline.isChecked()
     assert win2.dir_combo.currentText() == "first-to-last"
     assert not win2.overlay_ref_cb.isChecked()
     assert not win2.overlay_mov_cb.isChecked()
