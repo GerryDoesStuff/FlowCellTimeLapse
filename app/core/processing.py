@@ -185,6 +185,19 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         cv2.imencode('.png', global_mask)[1].tofile(str(out_dir / "final_mask.png"))
 
     # Phase 2: segmentation using the final mask
+    def _save_mask(idx: int, mask: np.ndarray) -> None:
+        if not app_cfg.get("save_masks", False):
+            return
+        cv2.imencode('.png', (mask * 255).astype(np.uint8))[1].tofile(
+            str(out_dir / f"mask_{idx:04d}.png")
+        )
+        frame_color = cv2.cvtColor(imgs_gray[idx], cv2.COLOR_GRAY2BGR)
+        cnts, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if cnts:
+            x_m, y_m, w_m, h_m = cv2.boundingRect(np.vstack(cnts))
+            cv2.rectangle(frame_color, (x + x_m, y + y_m), (x + x_m + w_m, y + y_m + h_m), (0, 255, 0), 1)
+        cv2.imencode('.png', frame_color)[1].tofile(str(out_dir / f"mask_{idx:04d}_overlay.png"))
+
     ref_gray = imgs_norm[ref_idx]
     bw_ref = segment(
         ref_gray,
@@ -210,6 +223,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         )
     else:
         ecc_mask = bw_ref_crop.copy()
+        _save_mask(ref_idx, ecc_mask)
 
     for k in ordered_indices:
         logger.debug("Frame %d: segmentation phase", k)
@@ -241,6 +255,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
         else:
             ecc_mask = bw_mov.copy()
+            _save_mask(k, ecc_mask)
 
         bw_overlap = (bw_ref_crop & bw_mov).astype(np.uint8)
         bw_union = (bw_ref_crop | bw_mov).astype(np.uint8)
