@@ -85,6 +85,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     rows: List[Dict] = []
 
     transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
+    registered_frames: List[np.ndarray] = [imgs_norm[ref_idx]]
 
     if initial_radius > 0:
         global_mask = np.zeros((H, W), dtype=np.uint8)
@@ -105,11 +106,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             valid_mask = global_mask.copy()
         else:
             prev_k = ordered_indices[idx - 1]
-            ref_gray = imgs_norm[prev_k]
+            ref_gray = registered_frames[idx - 1]
             method = reg_cfg.get("method", "ECC").upper()
             logger.debug("Frame %d: registration method %s", k, method)
             if method == "ORB":
-                success, W_step, _, valid_mask, fb, _, _ = register_orb(
+                success, W_step, warped, valid_mask, fb, _, _ = register_orb(
                     ref_gray,
                     g_full,
                     model=reg_cfg.get("model", "homography"),
@@ -122,7 +123,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 if fb:
                     logger.warning("ORB registration fell back to ECC at frame %d", k)
             elif method == "ORB+ECC":
-                success, W_step, _, valid_mask, _, _ = register_orb_ecc(
+                success, W_step, warped, valid_mask, _, _ = register_orb_ecc(
                     ref_gray,
                     g_full,
                     model=reg_cfg.get("model", "affine"),
@@ -136,7 +137,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     mask=global_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
             else:
-                success, W_step, _, valid_mask = register_ecc(
+                success, W_step, warped, valid_mask = register_ecc(
                     ref_gray,
                     g_full,
                     model=reg_cfg.get("model", "affine"),
@@ -144,6 +145,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     eps=float(reg_cfg.get("eps", 1e-6)),
                     mask=global_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
+            registered_frames.append(warped)
             if not success:
                 logger.warning("Registration failed at frame %d", k)
                 transforms[k] = transforms[prev_k]
