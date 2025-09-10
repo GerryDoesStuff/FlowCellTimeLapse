@@ -86,8 +86,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     step_transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
     registered_frames: Dict[int, np.ndarray] = {ref_idx: imgs_norm[ref_idx]}
-    crop_rects: Dict[int, tuple[int, int, int, int]] = {}
     prev_indices: Dict[int, int] = {ref_idx: ref_idx}
+    valid_masks: Dict[int, np.ndarray] = {}
 
     if initial_radius > 0:
         global_mask = np.zeros((H, W), dtype=np.uint8)
@@ -153,29 +153,46 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 logger.warning("Registration failed at frame %d", k)
                 step_transforms[k] = np.eye(3, dtype=np.float32)
                 prev_indices[k] = prev_k
-                crop_rects[k] = (0, 0, 0, 0)
+                valid_masks[k] = np.ones((H, W), dtype=np.uint8)
                 continue
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
             step_transforms[k] = W_h
             prev_indices[k] = prev_k
+            valid_masks[k] = valid_mask
 
-        crop_rects[k] = crop_to_overlap(valid_mask)
+    def _compose_to_ref(idx: int) -> np.ndarray:
+        M = np.eye(3, dtype=np.float32)
+        cur = idx
+        while cur != ref_idx:
+            M = step_transforms.get(cur, np.eye(3, dtype=np.float32)) @ M
+            cur = prev_indices.get(cur, ref_idx)
+            if cur == ref_idx:
+                break
+        return M
 
-        new_mask = cv2.bitwise_and(global_mask, valid_mask)
-        overlap_area = int(new_mask.sum())
-        min_overlap = int(0.01 * H * W)
-        if overlap_area < min_overlap and idx > 0:
-            logger.warning(
-                "Frame %d: overlap area %d below 1%% threshold %d; keeping previous mask",
-                k,
-                overlap_area,
-                min_overlap,
-            )
-        else:
-            global_mask = new_mask
+    final_mask = (global_mask > 0).astype(np.uint8)
+    for k in ordered_indices[1:]:
+        vm = valid_masks.get(k)
+        if vm is None:
+            continue
+        prev_k = prev_indices[k]
+        T_prev = _compose_to_ref(prev_k)
+        vm_ref = cv2.warpPerspective(vm, T_prev, (W, H))
+        final_mask = cv2.bitwise_and(final_mask, vm_ref)
 
+    crop_rect = crop_to_overlap(final_mask)
+    crop_rects: Dict[int, tuple[int, int, int, int]] = {k: crop_rect for k in ordered_indices}
+    x_f, y_f, w_f, h_f = crop_rect
+    overlap_area = w_f * h_f
+    min_overlap = int(0.01 * H * W)
+    if overlap_area < min_overlap:
+        logger.warning(
+            "Final overlap area %d below 1%% threshold %d", overlap_area, min_overlap
+        )
     if app_cfg.get("save_final_mask", False):
-        cv2.imencode('.png', global_mask)[1].tofile(str(out_dir / "final_mask.png"))
+        cv2.imencode('.png', (final_mask * 255).astype(np.uint8))[1].tofile(
+            str(out_dir / "final_mask.png")
+        )
 
     # Phase 2: segmentation using per-frame masks
     def _save_mask(idx: int, mask: np.ndarray, x_off: int, y_off: int) -> None:
@@ -207,16 +224,6 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     )
 
     ecc_mask = None
-
-    def _compose_to_ref(idx: int) -> np.ndarray:
-        M = np.eye(3, dtype=np.float32)
-        cur = idx
-        while cur != ref_idx:
-            M = step_transforms.get(cur, np.eye(3, dtype=np.float32)) @ M
-            cur = prev_indices.get(cur, ref_idx)
-            if cur == ref_idx:
-                break
-        return M
 
     for k in ordered_indices:
         logger.debug("Frame %d: segmentation phase", k)
