@@ -96,24 +96,22 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     # avoid compounding warps.
     for idx, k in enumerate(ordered_indices):
         g_full = imgs_norm[k]
-        g_norm = g_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
-        prev_bbox_w, prev_bbox_h = bbox_w, bbox_h
 
         if idx == 0:
             # Starting reference frame: no registration needed.
-            ref_gray = g_norm
+            ref_gray = g_full
             warped = ref_gray.copy()
-            valid_mask = ecc_mask.copy()[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
+            valid_mask = ecc_mask.copy()
         else:
             prev_k = ordered_indices[idx - 1]
             prev_full = imgs_norm[prev_k]
-            ref_gray = prev_full[bbox_y:bbox_y + bbox_h, bbox_x:bbox_x + bbox_w]
+            ref_gray = prev_full
 
             method = reg_cfg.get("method", "ECC").upper()
             if method == "ORB":
                 success, W_step, warped, valid_mask, fb, _, _ = register_orb(
                     ref_gray,
-                    g_norm,
+                    g_full,
                     model=reg_cfg.get("model", "homography"),
                     orb_features=int(reg_cfg.get("orb_features", 4000)),
                     match_ratio=float(reg_cfg.get("match_ratio", 0.75)),
@@ -129,7 +127,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             elif method == "ORB+ECC":
                 success, W_step, warped, valid_mask, _, _ = register_orb_ecc(
                     ref_gray,
-                    g_norm,
+                    g_full,
                     model=reg_cfg.get("model", "affine"),
                     max_iters=int(reg_cfg.get("max_iters", 1000)),
                     eps=float(reg_cfg.get("eps", 1e-6)),
@@ -146,7 +144,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             else:
                 success, W_step, warped, valid_mask = register_ecc(
                     ref_gray,
-                    g_norm,
+                    g_full,
                     model=reg_cfg.get("model", "affine"),
                     max_iters=int(reg_cfg.get("max_iters", 1000)),
                     eps=float(reg_cfg.get("eps", 1e-6)),
@@ -158,6 +156,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
             transforms[k] = transforms[prev_k] @ W_h
+
+        # Restrict valid region to the accumulated mask
+        valid_mask = cv2.bitwise_and(valid_mask, ecc_mask)
 
         # Segment the reference frame corresponding to this step.
         bw_ref = segment(ref_gray,
@@ -233,19 +234,17 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ov = overlay_outline(mov_crop, bw_mov)
             cv2.imencode('.png', ov)[1].tofile(str(overlay_dir / f"{k:04d}_overlay_mov.png"))
 
-        # Update mask and bbox for next iteration, optionally expanding
-        # the search window based on growth_factor.
-        w2 = int(min(prev_bbox_w, w * growth_factor))
-        h2 = int(min(prev_bbox_h, h * growth_factor))
+        # Update mask and bbox for next iteration, allowing the region to
+        # shrink or grow according to ``growth_factor``.
+        w2 = max(1, min(int(w * growth_factor), W))
+        h2 = max(1, min(int(h * growth_factor), H))
         x2 = max(0, x - (w2 - w) // 2)
         y2 = max(0, y - (h2 - h) // 2)
-        x2 = min(x2, prev_bbox_w - w2)
-        y2 = min(y2, prev_bbox_h - h2)
-        ecc_mask = valid_mask[y2:y2 + h2, x2:x2 + w2]
-        bbox_x += x2
-        bbox_y += y2
-        bbox_w = w2
-        bbox_h = h2
+        x2 = min(x2, W - w2)
+        y2 = min(y2, H - h2)
+        ecc_mask = np.zeros((H, W), dtype=np.uint8)
+        ecc_mask[y2:y2 + h2, x2:x2 + w2] = 255
+        bbox_x, bbox_y, bbox_w, bbox_h = x2, y2, w2, h2
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
     df.to_csv(out_dir / "summary.csv", index=False)
