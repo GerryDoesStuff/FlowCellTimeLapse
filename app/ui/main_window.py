@@ -320,6 +320,8 @@ class MainWindow(QMainWindow):
         self.seg_preview_btn.clicked.connect(self._preview_segmentation)
         seg_grid.addWidget(self.seg_preview_btn, 5, 0, 1, 4)
         controls.addWidget(seg_group)
+        self._add_help(self.rm_obj, "Remove connected components smaller than this area in pixels.")
+        self._add_help(self.rm_holes, "Fill holes smaller than this area in pixels.")
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.invert.toggled.connect(self._persist_settings)
         self.manual_t.valueChanged.connect(self._persist_settings)

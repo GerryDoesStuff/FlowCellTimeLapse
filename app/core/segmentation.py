@@ -17,7 +17,7 @@ def segment(gray: np.ndarray, method: str="otsu", invert: bool=True,
             manual_thresh: int=128, adaptive_block: int=51, adaptive_C: int=5,
             local_block: int=51,
             morph_open_radius: int=2, morph_close_radius: int=2,
-            remove_objects_smaller_px: int=64, remove_holes_smaller_px: int=64) -> np.ndarray:
+            remove_objects_smaller_px: int=0, remove_holes_smaller_px: int=0) -> np.ndarray:
     if method == "manual":
         proc = 255 - gray if invert else gray
         t = int(np.clip(manual_thresh, 0, 255))
