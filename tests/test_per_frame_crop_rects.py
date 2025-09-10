@@ -12,27 +12,27 @@ def create_blank_images(tmp_path, n=3):
     paths = []
     for i in range(n):
         img = np.zeros((100, 100), dtype=np.uint8)
-        cv2.circle(img, (50, 50), 20, 255, -1)
-        cv2.line(img, (0, 0), (99, 99), 128, 2)
-        cv2.line(img, (99, 0), (0, 99), 128, 2)
         cv2.imwrite(str(tmp_path / f"img_{i}.png"), img)
         paths.append(tmp_path / f"img_{i}.png")
     return paths
 
 
-def run(paths, radius):
+def test_per_frame_crop_rectangles(tmp_path):
+    paths = create_blank_images(tmp_path, n=3)
+
     reg_cfg = {
         "model": "translation",
         "max_iters": 10,
         "gauss_blur_sigma": 0,
         "clahe_clip": 0,
         "clahe_grid": 8,
-        "use_masked_ecc": True,
+        "use_masked_ecc": False,
         "method": "ECC",
         "eps": 1e-6,
         "growth_factor": 1.0,
-        "initial_radius": radius,
+        "initial_radius": 0,
     }
+
     seg_cfg = {
         "method": "manual",
         "manual_thresh": 0,
@@ -42,25 +42,35 @@ def run(paths, radius):
         "remove_objects_smaller_px": 0,
         "remove_holes_smaller_px": 0,
     }
+
     app_cfg = {"direction": "first-to-last", "save_intermediates": False}
-    from app.core import processing
+
+    from app.core import processing, segmentation
+
+    mask1 = np.zeros((100, 100), dtype=np.uint8)
+    mask1[20:80, 10:60] = 255  # w=50, h=60
+    mask2 = np.zeros((100, 100), dtype=np.uint8)
+    mask2[0:70, 30:100] = 255  # w=70, h=70
+    masks = [mask1, mask2]
 
     def fake_register(ref, mov, model="affine", **kwargs):
-        h, w = ref.shape
-        mask = kwargs.get("mask")
-        if mask is not None:
-            return True, np.eye(3, dtype=np.float32), mov.copy(), mask.copy()
-        return True, np.eye(3, dtype=np.float32), mov.copy(), np.ones((h, w), dtype=np.uint8)
+        valid = masks.pop(0)
+        return True, np.eye(3, dtype=np.float32), mov.copy(), valid
+
+    def fake_segment(img, **kwargs):
+        return np.ones_like(img, dtype=np.uint8)
 
     processing.register_ecc = fake_register
-    out_dir = paths[0].parent / f"out_r{radius}"
-    return analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
+    segmentation.segment = fake_segment
 
+    out_dir = tmp_path / "out"
+    df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
-def test_initial_radius_limits_window(tmp_path):
-    paths = create_blank_images(tmp_path, n=3)
-    df1 = run(paths, 50)
-    df2 = run(paths, 45)
-    w1 = int(df1.loc[df1["frame_index"] == 2, "overlap_w"].iloc[0])
-    w2 = int(df2.loc[df2["frame_index"] == 2, "overlap_w"].iloc[0])
-    assert w2 < w1
+    row1 = df[df["frame_index"] == 1].iloc[0]
+    row2 = df[df["frame_index"] == 2].iloc[0]
+
+    assert int(row1["overlap_w"]) == 50
+    assert int(row1["overlap_h"]) == 60
+    assert int(row2["overlap_w"]) == 70
+    assert int(row2["overlap_h"]) == 70
+

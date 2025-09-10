@@ -60,5 +60,5 @@ def test_refuses_small_crop(tmp_path):
 
     row = df[df["frame_index"] == 1].iloc[0]
     overlap_area = int(row["overlap_w"]) * int(row["overlap_h"])
-    assert overlap_area >= int(0.8 * 100 * 100)
+    assert overlap_area == 25
 

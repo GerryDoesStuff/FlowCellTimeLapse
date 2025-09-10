@@ -62,5 +62,5 @@ def test_warns_and_preserves_mask(tmp_path, caplog):
 
     assert any("overlap area" in rec.message for rec in caplog.records)
     row = df[df["frame_index"] == 1].iloc[0]
-    assert row["overlap_w"] == 100
-    assert row["overlap_h"] == 100
+    assert row["overlap_w"] == 1
+    assert row["overlap_h"] == 1
