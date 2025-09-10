@@ -186,9 +186,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     overlap_area = w_f * h_f
     min_overlap = int(0.01 * H * W)
     if overlap_area < min_overlap:
-        logger.warning(
-            "Final overlap area %d below 1%% threshold %d", overlap_area, min_overlap
-        )
+        msg = f"Final overlap area {overlap_area} below 1% threshold {min_overlap}"
+        logger.error(msg)
+        raise ValueError(msg)
     if app_cfg.get("save_final_mask", False):
         cv2.imencode('.png', (final_mask * 255).astype(np.uint8))[1].tofile(
             str(out_dir / "final_mask.png")

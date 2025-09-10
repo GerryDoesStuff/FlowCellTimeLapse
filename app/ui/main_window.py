@@ -953,7 +953,7 @@ class MainWindow(QMainWindow):
     def _on_failed(self, err: str):
         logger.error("Pipeline thread failed: %s", err)
         QMessageBox.critical(self, "Error", err)
-        self.status_label.setText("Failed.")
+        self.status_label.setText(f"Failed: {err}")
         self.thread.quit(); self.thread.wait()
 
     def closeEvent(self, event):
