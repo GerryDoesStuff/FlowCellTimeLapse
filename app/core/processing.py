@@ -86,7 +86,6 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     step_transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
     registered_frames: Dict[int, np.ndarray] = {ref_idx: imgs_norm[ref_idx]}
-    prev_indices: Dict[int, int] = {ref_idx: ref_idx}
     valid_masks: Dict[int, np.ndarray] = {}
 
     if initial_radius > 0:
@@ -118,11 +117,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             registered_frames[k] = g_full
         else:
             prev_k = ordered_indices[idx - 1]
-            ref_gray = registered_frames[prev_k]
+            ref_gray = imgs_norm[prev_k]
             method = reg_cfg.get("method", "ECC").upper()
             logger.debug("Frame %d: registration method %s", k, method)
             if method == "ORB":
-                success, W_step, warped, valid_mask, fb, _, _ = register_orb(
+                success, W_step, _, valid_mask, fb, _, _ = register_orb(
                     ref_gray,
                     g_full,
                     model=reg_cfg.get("model", "homography"),
@@ -135,7 +134,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 if fb:
                     logger.warning("ORB registration fell back to ECC at frame %d", k)
             elif method == "ORB+ECC":
-                success, W_step, warped, valid_mask, _, _ = register_orb_ecc(
+                success, W_step, _, valid_mask, _, _ = register_orb_ecc(
                     ref_gray,
                     g_full,
                     model=reg_cfg.get("model", "affine"),
@@ -149,7 +148,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     mask=global_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
             else:
-                success, W_step, warped, valid_mask = register_ecc(
+                success, W_step, _, valid_mask = register_ecc(
                     ref_gray,
                     g_full,
                     model=reg_cfg.get("model", "affine"),
@@ -157,35 +156,28 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     eps=float(reg_cfg.get("eps", 1e-6)),
                     mask=global_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
-            registered_frames[k] = warped
             if not success:
                 logger.warning("Registration failed at frame %d", k)
-                step_transforms[k] = np.eye(3, dtype=np.float32)
-                prev_indices[k] = prev_k
+                step_transforms[k] = step_transforms[prev_k].copy()
+                registered_frames[k] = cv2.warpPerspective(
+                    imgs_norm[k], step_transforms[k], (W, H)
+                )
                 valid_masks[k] = np.ones((H, W), dtype=np.uint8)
                 continue
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
-            step_transforms[k] = W_h
-            prev_indices[k] = prev_k
+            step_transforms[k] = step_transforms[prev_k] @ W_h
+            registered_frames[k] = cv2.warpPerspective(
+                imgs_norm[k], step_transforms[k], (W, H)
+            )
             valid_masks[k] = valid_mask
 
-    def _compose_to_ref(idx: int) -> np.ndarray:
-        M = np.eye(3, dtype=np.float32)
-        cur = idx
-        while cur != ref_idx:
-            M = step_transforms.get(cur, np.eye(3, dtype=np.float32)) @ M
-            cur = prev_indices.get(cur, ref_idx)
-            if cur == ref_idx:
-                break
-        return M
-
     final_mask = (global_mask > 0).astype(np.uint8)
-    for k in ordered_indices[1:]:
+    for idx, k in enumerate(ordered_indices[1:], start=1):
         vm = valid_masks.get(k)
         if vm is None:
             continue
-        prev_k = prev_indices[k]
-        T_prev = _compose_to_ref(prev_k)
+        prev_k = ordered_indices[idx - 1]
+        T_prev = step_transforms.get(prev_k, np.eye(3, dtype=np.float32))
         vm_ref = cv2.warpPerspective(vm, T_prev, (W, H))
         final_mask = cv2.bitwise_and(final_mask, vm_ref)
 
@@ -217,7 +209,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.rectangle(frame_color, (x_off + x_m, y_off + y_m), (x_off + x_m + w_m, y_off + y_m + h_m), (0, 255, 0), 1)
         cv2.imencode('.png', frame_color)[1].tofile(str(out_dir / f"mask_{idx:04d}_overlay.png"))
 
-    ref_gray = imgs_norm[ref_idx]
+    ref_gray = registered_frames[ref_idx]
     bw_ref = segment(
         ref_gray,
         method=seg_cfg.get("method", "otsu"),
@@ -245,8 +237,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         x_k, y_k, w_k, h_k = crop_rects.get(k, (0, 0, W, H))
         prev_crop = prev_gray[y_k:y_k + h_k, x_k:x_k + w_k]
         prev_bw_crop = prev_bw[y_k:y_k + h_k, x_k:x_k + w_k]
-        T = _compose_to_ref(k)
-        warped = cv2.warpPerspective(imgs_norm[k], T, (W, H))
+        T = step_transforms.get(k, np.eye(3, dtype=np.float32))
+        warped = registered_frames.get(k)
+        if warped is None:
+            warped = cv2.warpPerspective(imgs_norm[k], T, (W, H))
+            registered_frames[k] = warped
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
         if app_cfg.get("use_difference_for_seg", False) and idx > 0:
             seg_img = cv2.absdiff(prev_crop, mov_crop)
