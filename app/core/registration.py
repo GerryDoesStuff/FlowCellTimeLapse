@@ -17,12 +17,12 @@ ECC_MODELS = {
 def has_cuda() -> bool:
     return hasattr(cv2, "cuda") and cv2.cuda.getCudaEnabledDeviceCount() > 0
 
-def preprocess(gray: np.ndarray, gauss_sigma: float, clahe_clip: float, clahe_grid: int) -> np.ndarray:
+def preprocess(gray: np.ndarray, gauss_sigma: float, clahe_clip: float, clahe_grid: int, use_clahe: bool = True) -> np.ndarray:
     g = gray
     if gauss_sigma > 0:
         k = int(max(1, round(gauss_sigma*3))*2 + 1)
         g = cv2.GaussianBlur(g, (k,k), gauss_sigma)
-    if clahe_clip > 0:
+    if use_clahe and clahe_clip > 0:
         clahe = cv2.createCLAHE(clipLimit=clahe_clip, tileGridSize=(clahe_grid,clahe_grid))
         g = clahe.apply(g)
     return g

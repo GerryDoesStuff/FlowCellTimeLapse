@@ -15,6 +15,7 @@ class RegParams:
     max_iters: int = 1000
     eps: float = 1e-6
     gauss_blur_sigma: float = 1.0
+    use_clahe: bool = True
     clahe_clip: float = 2.0
     clahe_grid: int = 8
     initial_radius: int = 20
