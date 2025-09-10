@@ -21,3 +21,28 @@ def test_small_objects_preserved_with_defaults():
     )
 
     assert seg.sum() == 10
+
+
+def test_skip_outline_preserves_small_bright_objects():
+    img = np.zeros((20, 20), dtype=np.uint8)
+    img[5:10, 5:10] = 255  # 25 px square
+
+    seg_default = segment(
+        img,
+        method="otsu",
+        invert=False,
+        morph_open_radius=0,
+        morph_close_radius=0,
+    )
+
+    seg_skip = segment(
+        img,
+        method="otsu",
+        invert=False,
+        skip_outline=True,
+        morph_open_radius=0,
+        morph_close_radius=0,
+    )
+
+    assert seg_default.sum() == 0
+    assert seg_skip.sum() == 25

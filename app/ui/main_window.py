@@ -296,6 +296,7 @@ class MainWindow(QMainWindow):
         seg_grid = QGridLayout(seg_group)
         self.seg_method = QComboBox(); self.seg_method.addItems(["otsu","adaptive","local","manual"]); self.seg_method.setCurrentText(self.seg.method)
         self.invert = QCheckBox("Cells darker (invert)"); self.invert.setChecked(self.seg.invert)
+        self.skip_outline = QCheckBox("Skip outline prefilter"); self.skip_outline.setChecked(self.seg.skip_outline)
         self.manual_t = QSpinBox(); self.manual_t.setRange(0,255); self.manual_t.setValue(self.seg.manual_thresh)
         self.adaptive_blk = QSpinBox(); self.adaptive_blk.setRange(3,999); self.adaptive_blk.setSingleStep(2); self.adaptive_blk.setValue(self.seg.adaptive_block)
         self.adaptive_C = QSpinBox(); self.adaptive_C.setRange(-100,100); self.adaptive_C.setValue(self.seg.adaptive_C)
@@ -306,9 +307,10 @@ class MainWindow(QMainWindow):
         self.rm_holes = QSpinBox(); self.rm_holes.setRange(0,100000); self.rm_holes.setValue(self.seg.remove_holes_smaller_px)
         seg_grid.addWidget(QLabel("Method"), 0, 0); seg_grid.addWidget(self.seg_method, 0, 1)
         seg_grid.addWidget(self.invert, 1, 0, 1, 2)
-        seg_grid.addWidget(QLabel("Manual threshold"), 2, 0); seg_grid.addWidget(self.manual_t, 2, 1)
-        seg_grid.addWidget(QLabel("Adaptive block"), 3, 0); seg_grid.addWidget(self.adaptive_blk, 3, 1)
-        seg_grid.addWidget(QLabel("Adaptive C"), 4, 0); seg_grid.addWidget(self.adaptive_C, 4, 1)
+        seg_grid.addWidget(self.skip_outline, 2, 0, 1, 2)
+        seg_grid.addWidget(QLabel("Manual threshold"), 3, 0); seg_grid.addWidget(self.manual_t, 3, 1)
+        seg_grid.addWidget(QLabel("Adaptive block"), 4, 0); seg_grid.addWidget(self.adaptive_blk, 4, 1)
+        seg_grid.addWidget(QLabel("Adaptive C"), 5, 0); seg_grid.addWidget(self.adaptive_C, 5, 1)
         seg_grid.addWidget(QLabel("Local block"), 0, 2); seg_grid.addWidget(self.local_blk, 0, 3)
         seg_grid.addWidget(QLabel("Open radius"), 1, 2); seg_grid.addWidget(self.open_r, 1, 3)
         seg_grid.addWidget(QLabel("Close radius"), 2, 2); seg_grid.addWidget(self.close_r, 2, 3)
@@ -318,12 +320,14 @@ class MainWindow(QMainWindow):
         # Initially disabled until a registration preview is successfully run
         self.seg_preview_btn.setEnabled(False)
         self.seg_preview_btn.clicked.connect(self._preview_segmentation)
-        seg_grid.addWidget(self.seg_preview_btn, 5, 0, 1, 4)
+        seg_grid.addWidget(self.seg_preview_btn, 6, 0, 1, 4)
         controls.addWidget(seg_group)
         self._add_help(self.rm_obj, "Remove connected components smaller than this area in pixels.")
         self._add_help(self.rm_holes, "Fill holes smaller than this area in pixels.")
+        self._add_help(self.skip_outline, "Bypass outline enhancement for low-contrast images.")
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.invert.toggled.connect(self._persist_settings)
+        self.skip_outline.toggled.connect(self._persist_settings)
         self.manual_t.valueChanged.connect(self._persist_settings)
         self.adaptive_blk.valueChanged.connect(self._persist_settings)
         self.adaptive_C.valueChanged.connect(self._persist_settings)
@@ -334,6 +338,7 @@ class MainWindow(QMainWindow):
         self.rm_holes.valueChanged.connect(self._persist_settings)
         self.seg_method.currentTextChanged.connect(self._on_params_changed)
         self.invert.toggled.connect(self._on_params_changed)
+        self.skip_outline.toggled.connect(self._on_params_changed)
         self.manual_t.valueChanged.connect(self._on_params_changed)
         self.adaptive_blk.valueChanged.connect(self._on_params_changed)
         self.adaptive_C.valueChanged.connect(self._on_params_changed)
@@ -505,6 +510,7 @@ class MainWindow(QMainWindow):
                         use_ecc_fallback=self.use_ecc_fallback.isChecked())
         seg = SegParams(method=self.seg_method.currentText(),
                         invert=self.invert.isChecked(),
+                        skip_outline=self.skip_outline.isChecked(),
                         manual_thresh=self.manual_t.value(),
                         adaptive_block=self.adaptive_blk.value(),
                         adaptive_C=self.adaptive_C.value(),
@@ -574,6 +580,7 @@ class MainWindow(QMainWindow):
         self.min_matches.setValue(reg.min_matches)
         self.seg_method.setCurrentText(seg.method)
         self.invert.setChecked(seg.invert)
+        self.skip_outline.setChecked(seg.skip_outline)
         self.manual_t.setValue(seg.manual_thresh)
         self.adaptive_blk.setValue(seg.adaptive_block)
         self.adaptive_C.setValue(seg.adaptive_C)
@@ -870,6 +877,7 @@ class MainWindow(QMainWindow):
             bw = segment(gray,
                          method=seg.method,
                          invert=seg.invert,
+                         skip_outline=seg.skip_outline,
                          manual_thresh=seg.manual_thresh,
                          adaptive_block=seg.adaptive_block,
                          adaptive_C=seg.adaptive_C,
