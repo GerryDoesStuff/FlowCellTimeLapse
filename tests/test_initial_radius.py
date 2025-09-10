@@ -56,8 +56,8 @@ def run(paths, radius):
 
 def test_initial_radius_limits_window(tmp_path):
     paths = create_blank_images(tmp_path, n=3)
-    df1 = run(paths, 10)
-    df2 = run(paths, 5)
+    df1 = run(paths, 50)
+    df2 = run(paths, 45)
     w1 = int(df1.loc[df1["frame_index"] == 2, "overlap_w"].iloc[0])
     w2 = int(df2.loc[df2["frame_index"] == 2, "overlap_w"].iloc[0])
     assert w2 < w1
