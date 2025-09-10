@@ -228,6 +228,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     prev_bw = bw_ref
 
     ecc_mask = None
+    all_masks_empty = True
 
     for idx, k in enumerate(ordered_indices):
         logger.debug("Frame %d: segmentation phase", k)
@@ -262,6 +263,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 str(bw_dir / f"{k:04d}_bw_mov_empty.png")
             )
         else:
+            all_masks_empty = False
             ecc_mask = bw_mov.copy()
             _save_mask(k, ecc_mask, x_k, y_k)
 
@@ -311,6 +313,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         prev_gray = warped
         prev_bw = np.zeros_like(prev_bw)
         prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = bw_mov
+
+    if all_masks_empty:
+        msg = "All segmentation masks were empty"
+        logger.error(msg)
+        raise ValueError(msg)
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
     summary_path = out_dir / "summary.csv"
