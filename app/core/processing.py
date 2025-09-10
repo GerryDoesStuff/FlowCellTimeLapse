@@ -11,6 +11,8 @@ from .background import normalize_background, estimate_temporal_background
 import logging
 import re
 
+logger = logging.getLogger(__name__)
+
 def overlay_outline(gray: np.ndarray, mask: np.ndarray) -> np.ndarray:
     color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
     contours, _ = cv2.findContours((mask>0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -22,6 +24,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     scale_minmax = app_cfg.get("scale_minmax")
     imgs_gray = [imread_gray(p, normalize=norm, scale_minmax=scale_minmax) for p in paths]
     H, W = imgs_gray[0].shape[:2]
+
+    logger.info("Loaded %d images with dimensions %dx%d", len(imgs_gray), H, W)
 
     # Determine processing order and starting reference frame
     direction = app_cfg.get("direction", "last-to-first")
@@ -36,20 +40,23 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         start_num = _extract_num(paths[ordered_indices[0]])
         last_num = _extract_num(paths[-1])
         if start_num is not None and last_num is not None and start_num < last_num:
-            logging.warning(
+            logger.warning(
                 "Input paths may be unsorted: starting frame %s is lower-numbered than last path %s",
                 paths[ordered_indices[0]].name,
                 paths[-1].name,
             )
     ref_idx = ordered_indices[0]
-    logging.info(
+    logger.info(
         "Starting analysis with direction=%s reference_frame_index=%d",
         direction,
         ref_idx,
     )
 
+    subtract_bg = bool(app_cfg.get("subtract_background", False))
+    logger.info("Background subtraction %s", "enabled" if subtract_bg else "disabled")
+
     # Optionally subtract a temporal background using early frames
-    if app_cfg.get("subtract_background", False):
+    if subtract_bg:
         bg = estimate_temporal_background(imgs_gray, n_early=5)
         imgs_norm = [normalize_background(g, bg) for g in imgs_gray]
     else:
@@ -59,6 +66,14 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     clahe_grid = int(reg_cfg.get("clahe_grid", 8))
     initial_radius = int(reg_cfg.get("initial_radius", min(H, W) // 2))
     growth_factor = float(reg_cfg.get("growth_factor", 1.0))
+    logger.info(
+        "Preprocessing parameters: gauss_sigma=%.2f clahe_clip=%.2f clahe_grid=%d initial_radius=%d growth_factor=%.2f",
+        gauss_sigma,
+        clahe_clip,
+        clahe_grid,
+        initial_radius,
+        growth_factor,
+    )
     imgs_norm = [preprocess(g, gauss_sigma, clahe_clip, clahe_grid) for g in imgs_norm]
 
     # Prepare outputs
@@ -97,7 +112,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     for idx, k in enumerate(ordered_indices):
         g_full = imgs_norm[k]
 
+        logger.debug("Frame %d: processing", k)
+
         if idx == 0:
+            logger.debug("Frame %d: reference frame, no registration", k)
             # Starting reference frame: no registration needed.
             ref_gray = g_full
             warped = ref_gray.copy()
@@ -108,6 +126,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ref_gray = prev_full
 
             method = reg_cfg.get("method", "ECC").upper()
+            logger.debug("Frame %d: registration method %s", k, method)
             if method == "ORB":
                 success, W_step, warped, valid_mask, fb, _, _ = register_orb(
                     ref_gray,
@@ -120,10 +139,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     use_ecc_fallback=bool(reg_cfg.get("use_ecc_fallback", True)),
                 )
                 if fb:
-                    logging.warning("ORB registration fell back to ECC at frame %d", k)
+                    logger.warning("ORB registration fell back to ECC at frame %d", k)
                 if not success:
-                    logging.warning("Registration failed at frame %d", k)
+                    logger.warning("Registration failed at frame %d", k)
+                    logger.debug("Frame %d: registration failed", k)
                     continue
+                logger.debug("Frame %d: registration succeeded", k)
             elif method == "ORB+ECC":
                 success, W_step, warped, valid_mask, _, _ = register_orb_ecc(
                     ref_gray,
@@ -139,8 +160,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
                 if not success:
-                    logging.warning("Registration failed at frame %d", k)
+                    logger.warning("Registration failed at frame %d", k)
+                    logger.debug("Frame %d: registration failed", k)
                     continue
+                logger.debug("Frame %d: registration succeeded", k)
             else:
                 success, W_step, warped, valid_mask = register_ecc(
                     ref_gray,
@@ -151,8 +174,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     mask=ecc_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
                 if not success:
-                    logging.warning("Registration failed at frame %d", k)
+                    logger.warning("Registration failed at frame %d", k)
+                    logger.debug("Frame %d: registration failed", k)
                     continue
+                logger.debug("Frame %d: registration succeeded", k)
 
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
             transforms[k] = transforms[prev_k] @ W_h
@@ -161,6 +186,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         valid_mask = cv2.bitwise_and(valid_mask, ecc_mask)
 
         # Segment the reference frame corresponding to this step.
+        logger.debug("Frame %d: starting segmentation", k)
         bw_ref = segment(ref_gray,
                          method=seg_cfg.get("method", "otsu"),
                          invert=bool(seg_cfg.get("invert", True)),
@@ -175,6 +201,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
         x, y, w, h = crop_to_overlap(valid_mask)
         if w == 0 or h == 0:
+            logger.debug("Frame %d: empty overlap region", k)
             continue
 
         ref_crop = ref_gray[y:y + h, x:x + w]
@@ -222,6 +249,15 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "to_ref_transform": transforms.get(k, np.eye(3)).flatten().tolist(),
         }
         rows.append(row)
+        logger.debug(
+            "Frame %d: segmentation complete overlap_px=%d area_ref=%d area_mov=%d area_new=%d area_lost=%d",
+            k,
+            row["overlap_px"],
+            row["area_ref_px"],
+            row["area_mov_px"],
+            row["area_new_px"],
+            row["area_lost_px"],
+        )
 
         if app_cfg.get("save_intermediates", True):
             cv2.imencode('.png', ref_crop)[1].tofile(str(reg_dir / f"{k:04d}_ref.png"))
@@ -233,6 +269,17 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(str(diff_dir / f"{k:04d}_bw_lost.png"))
             ov = overlay_outline(mov_crop, bw_mov)
             cv2.imencode('.png', ov)[1].tofile(str(overlay_dir / f"{k:04d}_overlay_mov.png"))
+            saved_paths = [
+                reg_dir / f"{k:04d}_ref.png",
+                reg_dir / f"{k:04d}_mov.png",
+                bw_dir / f"{k:04d}_bw_mov.png",
+                bw_dir / f"{k:04d}_bw_ref.png",
+                bw_dir / f"{k:04d}_bw_overlap.png",
+                diff_dir / f"{k:04d}_bw_new.png",
+                diff_dir / f"{k:04d}_bw_lost.png",
+                overlay_dir / f"{k:04d}_overlay_mov.png",
+            ]
+            logger.debug("Frame %d: saved intermediates %s", k, [str(p) for p in saved_paths])
 
         # Update mask and bbox for next iteration, allowing the region to
         # shrink or grow according to ``growth_factor``.
@@ -245,7 +292,17 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         ecc_mask = np.zeros((H, W), dtype=np.uint8)
         ecc_mask[y2:y2 + h2, x2:x2 + w2] = 255
         bbox_x, bbox_y, bbox_w, bbox_h = x2, y2, w2, h2
+        logger.debug(
+            "Frame %d: bbox updated to x=%d y=%d w=%d h=%d",
+            k,
+            bbox_x,
+            bbox_y,
+            bbox_w,
+            bbox_h,
+        )
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
-    df.to_csv(out_dir / "summary.csv", index=False)
+    summary_path = out_dir / "summary.csv"
+    df.to_csv(summary_path, index=False)
+    logger.info("Segmentation complete; summary saved to %s", summary_path)
     return df
