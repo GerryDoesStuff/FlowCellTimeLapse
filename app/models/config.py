@@ -33,8 +33,8 @@ class SegParams:
     adaptive_block: int = 51
     adaptive_C: int = 5
     local_block: int = 51
-    remove_holes_smaller_px: int = 64
-    remove_objects_smaller_px: int = 64
+    remove_holes_smaller_px: int = 0
+    remove_objects_smaller_px: int = 0
     morph_open_radius: int = 2
     morph_close_radius: int = 2
     invert: bool = True  # cells darker
