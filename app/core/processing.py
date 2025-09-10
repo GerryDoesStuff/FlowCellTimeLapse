@@ -204,6 +204,28 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             logger.debug("Frame %d: empty overlap region", k)
             continue
 
+        # Ensure the cropped region is not excessively small. If the
+        # overlap area drops below 80% of the original frame, expand the
+        # crop to the previous bbox or ultimately the full frame.
+        min_area = int(0.8 * W * H)
+        area = w * h
+        if area < min_area:
+            logger.warning(
+                "Frame %d: overlap area %d below 80%% threshold %d; reverting to previous bbox",
+                k,
+                area,
+                min_area,
+            )
+            x, y, w, h = bbox_x, bbox_y, bbox_w, bbox_h
+            area = w * h
+            if area < min_area:
+                logger.warning(
+                    "Frame %d: previous bbox area %d still below threshold; using full frame",
+                    k,
+                    area,
+                )
+                x, y, w, h = 0, 0, W, H
+
         ref_crop = ref_gray[y:y + h, x:x + w]
         mov_crop = warped[y:y + h, x:x + w]
         bw_ref_crop = bw_ref[y:y + h, x:x + w]
