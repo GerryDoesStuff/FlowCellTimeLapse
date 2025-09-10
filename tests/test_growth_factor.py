@@ -20,7 +20,7 @@ def create_blank_images(tmp_path, n=3):
     return paths
 
 
-def run(paths, growth):
+def run(paths):
     reg_cfg = {
         "model": "translation",
         "max_iters": 10,
@@ -30,7 +30,6 @@ def run(paths, growth):
         "use_masked_ecc": False,
         "method": "ECC",
         "eps": 1e-6,
-        "growth_factor": growth,
     }
     seg_cfg = {
         "method": "manual",
@@ -49,17 +48,12 @@ def run(paths, growth):
         return True, np.eye(3, dtype=np.float32), mov.copy(), np.ones((h, w), dtype=np.uint8)
 
     processing.register_ecc = fake_register
-    out_dir = paths[0].parent / f"out_{growth}"
+    out_dir = paths[0].parent / "out"
     return analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
 
-def test_growth_factor_influences_window(tmp_path):
+def test_final_mask_consistent_across_frames(tmp_path):
     paths = create_blank_images(tmp_path, n=3)
-    df1 = run(paths, 1.0)
-    df2 = run(paths, 0.95)
-    row1 = df1.loc[df1["frame_index"] == 2].iloc[0]
-    row2 = df2.loc[df2["frame_index"] == 2].iloc[0]
-    w1, h1 = int(row1["overlap_w"]), int(row1["overlap_h"])
-    w2, h2 = int(row2["overlap_w"]), int(row2["overlap_h"])
-    assert w2 < w1
-    assert h2 < h1
+    df = run(paths)
+    assert df["overlap_w"].nunique() == 1
+    assert df["overlap_h"].nunique() == 1
