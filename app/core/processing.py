@@ -85,7 +85,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     rows: List[Dict] = []
 
     transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
-    registered_frames: List[np.ndarray] = [imgs_norm[ref_idx]]
+    registered_frames: Dict[int, np.ndarray] = {ref_idx: imgs_norm[ref_idx]}
+    crop_rects: Dict[int, tuple[int, int, int, int]] = {}
 
     if initial_radius > 0:
         global_mask = np.zeros((H, W), dtype=np.uint8)
@@ -98,15 +99,16 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     else:
         global_mask = np.ones((H, W), dtype=np.uint8) * 255
 
-    # Phase 1: register frames and accumulate global mask
+    # Phase 1: register frames and track per-frame crop rectangles
     for idx, k in enumerate(ordered_indices):
         g_full = imgs_norm[k]
         logger.debug("Frame %d: registration phase", k)
         if idx == 0:
             valid_mask = global_mask.copy()
+            registered_frames[k] = g_full
         else:
             prev_k = ordered_indices[idx - 1]
-            ref_gray = registered_frames[idx - 1]
+            ref_gray = registered_frames[prev_k]
             method = reg_cfg.get("method", "ECC").upper()
             logger.debug("Frame %d: registration method %s", k, method)
             if method == "ORB":
@@ -145,13 +147,16 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     eps=float(reg_cfg.get("eps", 1e-6)),
                     mask=global_mask if reg_cfg.get("use_masked_ecc", True) else None,
                 )
-            registered_frames.append(warped)
+            registered_frames[k] = warped
             if not success:
                 logger.warning("Registration failed at frame %d", k)
                 transforms[k] = transforms[prev_k]
+                crop_rects[k] = (0, 0, 0, 0)
                 continue
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
             transforms[k] = transforms[prev_k] @ W_h
+
+        crop_rects[k] = crop_to_overlap(valid_mask)
 
         new_mask = cv2.bitwise_and(global_mask, valid_mask)
         overlap_area = int(new_mask.sum())
@@ -166,28 +171,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         else:
             global_mask = new_mask
 
-    x, y, w, h = crop_to_overlap(global_mask)
-    if w == 0 or h == 0:
-        logger.warning("Final overlap mask is empty; using full frame")
-        x, y, w, h = 0, 0, W, H
-        global_mask[:, :] = 255
-
-    min_area = int(0.8 * W * H)
-    area = w * h
-    if area < min_area:
-        logger.warning(
-            "Final overlap area %d below 80%% threshold %d; using full frame",
-            area,
-            min_area,
-        )
-        x, y, w, h = 0, 0, W, H
-        global_mask[:, :] = 255
-
     if app_cfg.get("save_final_mask", False):
         cv2.imencode('.png', global_mask)[1].tofile(str(out_dir / "final_mask.png"))
 
-    # Phase 2: segmentation using the final mask
-    def _save_mask(idx: int, mask: np.ndarray) -> None:
+    # Phase 2: segmentation using per-frame masks
+    def _save_mask(idx: int, mask: np.ndarray, x_off: int, y_off: int) -> None:
         if not app_cfg.get("save_masks", False):
             return
         cv2.imencode('.png', (mask * 255).astype(np.uint8))[1].tofile(
@@ -197,7 +185,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         cnts, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if cnts:
             x_m, y_m, w_m, h_m = cv2.boundingRect(np.vstack(cnts))
-            cv2.rectangle(frame_color, (x + x_m, y + y_m), (x + x_m + w_m, y + y_m + h_m), (0, 255, 0), 1)
+            cv2.rectangle(frame_color, (x_off + x_m, y_off + y_m), (x_off + x_m + w_m, y_off + y_m + h_m), (0, 255, 0), 1)
         cv2.imencode('.png', frame_color)[1].tofile(str(out_dir / f"mask_{idx:04d}_overlay.png"))
 
     ref_gray = imgs_norm[ref_idx]
@@ -214,23 +202,16 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
     )
-    ref_crop = ref_gray[y:y + h, x:x + w]
-    bw_ref_crop = bw_ref[y:y + h, x:x + w]
 
     ecc_mask = None
-    if not np.any(bw_ref_crop):
-        logger.warning("Reference segmentation mask is empty; skipping ecc_mask update")
-        cv2.imencode('.png', (bw_ref_crop * 255).astype(np.uint8))[1].tofile(
-            str(bw_dir / f"{ref_idx:04d}_bw_ref_empty.png")
-        )
-    else:
-        ecc_mask = bw_ref_crop.copy()
-        _save_mask(ref_idx, ecc_mask)
 
     for k in ordered_indices:
         logger.debug("Frame %d: segmentation phase", k)
+        x_k, y_k, w_k, h_k = crop_rects.get(k, (0, 0, W, H))
+        ref_crop = ref_gray[y_k:y_k + h_k, x_k:x_k + w_k]
+        bw_ref_crop = bw_ref[y_k:y_k + h_k, x_k:x_k + w_k]
         warped = cv2.warpPerspective(imgs_norm[k], transforms[k], (W, H))
-        mov_crop = warped[y:y + h, x:x + w]
+        mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
         if app_cfg.get("use_difference_for_seg", False):
             seg_img = cv2.absdiff(ref_crop, mov_crop)
         else:
@@ -257,7 +238,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
         else:
             ecc_mask = bw_mov.copy()
-            _save_mask(k, ecc_mask)
+            _save_mask(k, ecc_mask, x_k, y_k)
 
         bw_overlap = (bw_ref_crop & bw_mov).astype(np.uint8)
         bw_union = (bw_ref_crop | bw_mov).astype(np.uint8)
@@ -268,9 +249,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "frame_index": k,
             "filename": paths[k].name,
             "is_reference": (k == ref_idx),
-            "overlap_w": w,
-            "overlap_h": h,
-            "overlap_px": int(w * h),
+            "overlap_w": w_k,
+            "overlap_h": h_k,
+            "overlap_px": int(w_k * h_k),
             "area_ref_px": int(bw_ref_crop.sum()),
             "area_mov_px": int(bw_mov.sum()),
             "area_union_px": int(bw_union.sum()),
