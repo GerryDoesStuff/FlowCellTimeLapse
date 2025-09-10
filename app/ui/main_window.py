@@ -952,7 +952,7 @@ class MainWindow(QMainWindow):
 
     def _on_failed(self, err: str):
         logger.error("Pipeline thread failed: %s", err)
-        QMessageBox.critical(self, "Error", err)
+        QMessageBox.critical(self, "Processing Error", f"{err}\nNo summary file was written.")
         self.status_label.setText(f"Failed: {err}")
         self.thread.quit(); self.thread.wait()
 

@@ -81,7 +81,7 @@ def test_last_to_first_registration_order(tmp_path, monkeypatch):
 
     monkeypatch.setattr(processing, "register_ecc", fake_register_ecc)
     monkeypatch.setattr(processing, "preprocess", lambda g, *a, **k: g)
-    monkeypatch.setattr(processing, "segment", lambda *a, **k: np.zeros_like(a[0], dtype=np.uint8))
+    monkeypatch.setattr(processing, "segment", lambda *a, **k: np.ones_like(a[0], dtype=np.uint8))
 
     reg_cfg = {
         "model": "affine",
