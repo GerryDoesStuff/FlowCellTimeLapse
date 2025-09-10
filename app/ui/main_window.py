@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
         clahe_grid_label = QLabel("CLAHE grid")
         self.clahe_grid = QSpinBox(); self.clahe_grid.setRange(1, 64); self.clahe_grid.setValue(self.reg.clahe_grid)
         self.init_radius_label = QLabel("Initial radius")
-        self.init_radius = QSpinBox(); self.init_radius.setRange(1, 1000); self.init_radius.setValue(self.reg.initial_radius)
+        self.init_radius = QSpinBox(); self.init_radius.setRange(0, 1000); self.init_radius.setValue(self.reg.initial_radius)
         self.growth_factor_label = QLabel("Growth factor")
         self.growth_factor = QDoubleSpinBox(); self.growth_factor.setRange(0.1, 10.0); self.growth_factor.setDecimals(2); self.growth_factor.setSingleStep(0.1); self.growth_factor.setValue(self.reg.growth_factor)
         self.use_masked_label = QLabel("Use masked ECC")
@@ -905,6 +905,38 @@ class MainWindow(QMainWindow):
                 f"Analysis direction must be 'first-to-last' or 'last-to-first'. Got: {app.direction}",
             )
             return
+
+        # Warn about small initial radius
+        try:
+            img0 = imread_gray(self.paths[0], normalize=False)
+            h, w = img0.shape[:2]
+            r = reg.initial_radius
+            if r > 0:
+                cx, cy = w // 2, h // 2
+                x0 = max(cx - r, 0)
+                y0 = max(cy - r, 0)
+                x1 = min(cx + r, w)
+                y1 = min(cy + r, h)
+                mask_area = (x1 - x0) * (y1 - y0)
+                if mask_area < 0.25 * h * w:
+                    msg = QMessageBox(
+                        QMessageBox.Icon.Warning,
+                        "Small Initial Radius",
+                        (
+                            f"Initial radius {r} covers only {mask_area/(h*w)*100:.1f}% of the frame.\n"
+                            "Use full frame instead?"
+                        ),
+                        parent=self,
+                    )
+                    msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
+                    msg.button(QMessageBox.StandardButton.Yes).setText("Full Frame")
+                    if msg.exec() == QMessageBox.StandardButton.Yes:
+                        self.init_radius.setValue(0)
+                        reg, seg, app = self._persist_settings()
+                    else:
+                        return
+        except Exception as e:
+            logger.warning("Could not validate initial radius: %s", e)
 
         logger.info("Run Analysis button clicked with direction=%s", app.direction)
 
