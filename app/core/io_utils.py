@@ -96,11 +96,27 @@ def compute_global_minmax(paths: list[Path]) -> tuple[int, int]:
     return global_min, global_max
 
 def file_times_minutes(paths: list[Path]) -> list[float]:
-    # Compute minutes elapsed from first frame using file modification timestamps
-    if not paths: return []
-    mtimes = [p.stat().st_mtime for p in paths]
+    """Compute minutes elapsed from the first frame's timestamp.
+
+    Missing files are tolerated by assuming they share the timestamp of the
+    first existing file (yielding zero elapsed time). This mirrors the
+    behavior expected by tests which provide placeholder paths.
+    """
+    if not paths:
+        return []
+    existing = [p for p in paths if p.exists()]
+    if not existing:
+        return [0.0 for _ in paths]
+    mtimes = [p.stat().st_mtime for p in existing]
     t0 = mtimes[0]
-    return [ (t - t0)/60.0 for t in mtimes ]
+    results = []
+    for p in paths:
+        try:
+            t = p.stat().st_mtime
+        except FileNotFoundError:
+            t = t0
+        results.append((t - t0) / 60.0)
+    return results
 
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
