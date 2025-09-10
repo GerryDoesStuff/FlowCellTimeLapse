@@ -1,8 +1,11 @@
 from __future__ import annotations
 import logging
+import time
 import numpy as np
 import cv2
 from typing import Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 ECC_MODELS = {
     'translation': cv2.MOTION_TRANSLATION,
@@ -35,8 +38,16 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
     NaN values in the resulting warp matrix. Such nearly uniform images are
     detected and handled gracefully by returning an identity transform.
     """
+    logger.info(
+        "register_ecc(model=%s, max_iters=%d, eps=%g, mask=%s)",
+        model,
+        max_iters,
+        eps,
+        mask is not None,
+    )
+    t0 = time.time()
     if mov.size == 0 or ref.size == 0:
-        logging.warning("Skipping registration: empty frame")
+        logger.warning("Skipping registration: empty frame")
         return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8)
     mode = ECC_MODELS.get(model, cv2.MOTION_AFFINE)
     if mode == cv2.MOTION_HOMOGRAPHY:
@@ -52,7 +63,7 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
     ref_var = float(np.var(ref_f))
     mov_var = float(np.var(mov_f))
     if ref_var < 1e-6 or mov_var < 1e-6:
-        logging.warning("Skipping registration: low variance (ref=%e, mov=%e)", ref_var, mov_var)
+        logger.warning("Skipping registration: low variance (ref=%e, mov=%e)", ref_var, mov_var)
         identity = np.eye(3, dtype=np.float32) if mode == cv2.MOTION_HOMOGRAPHY else np.eye(2,3, dtype=np.float32)
         return False, identity, mov, np.zeros_like(mov, dtype=np.uint8)
 
@@ -64,12 +75,12 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
             ref_mask = np.ones_like(ref, dtype=np.uint8)*255
             _, W = cv2.findTransformECC(ref_f, mov_f, W, mode, criteria)
     except cv2.error as e:
-        logging.exception("ECC registration failed: %s", e)
+        logger.exception("ECC registration failed: %s", e)
         success = False
 
     if not success or np.isnan(W).any():
         if np.isnan(W).any():
-            logging.warning("ECC produced NaN warp matrix; returning identity")
+            logger.warning("ECC produced NaN warp matrix; returning identity")
         identity = np.eye(3, dtype=np.float32) if mode == cv2.MOTION_HOMOGRAPHY else np.eye(2,3, dtype=np.float32)
         return False, identity, mov, np.zeros_like(mov, dtype=np.uint8)
 
@@ -82,6 +93,9 @@ def register_ecc(ref: np.ndarray, mov: np.ndarray, model: str="affine",
         warp_mask = cv2.warpAffine(ref_mask, W, (w,h), flags=cv2.INTER_NEAREST)
     valid_mask = cv2.bitwise_and(ref_mask, warp_mask)
     valid_mask = (valid_mask>0).astype(np.uint8)
+    det = float(abs(np.linalg.det(W[:2, :2]))) if W.shape[0] == 2 else float(abs(np.linalg.det(W)))
+    elapsed = time.time() - t0
+    logger.info("ECC success: det=%e, time=%.3fs, W=%s", det, elapsed, W.tolist())
     return True, W, warped, valid_mask
 
 def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
@@ -89,22 +103,33 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
                  fallback_model: str = "affine", *,
                  min_keypoints: int = 8, min_matches: int = 8,
                  use_ecc_fallback: bool = True) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray, bool, int, int]:
+    logger.info(
+        "register_orb(model=%s, orb_features=%d, match_ratio=%.2f, min_keypoints=%d, min_matches=%d, use_ecc_fallback=%s)",
+        model,
+        orb_features,
+        match_ratio,
+        min_keypoints,
+        min_matches,
+        use_ecc_fallback,
+    )
+    t0 = time.time()
     if mov.size == 0 or ref.size == 0:
-        logging.warning("Skipping registration: empty frame")
+        logger.warning("Skipping registration: empty frame")
         return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8), False, 0, 0
     orb = cv2.ORB_create(int(orb_features))
     k1, d1 = orb.detectAndCompute(ref, None)
     k2, d2 = orb.detectAndCompute(mov, None)
     n1, n2 = len(k1), len(k2)
+    logger.info("ORB keypoints: ref=%d, mov=%d", n1, n2)
     if d1 is None or d2 is None or n1 < min_keypoints or n2 < min_keypoints:
-        logging.warning(
-            "Insufficient ORB features (ref=%d, mov=%d)" + (
-                "; falling back to ECC registration" if use_ecc_fallback else ""
-            ),
+        logger.warning(
+            "Insufficient ORB features (ref=%d, mov=%d)%s",
             n1,
             n2,
+            "; falling back to ECC registration" if use_ecc_fallback else "",
         )
         if use_ecc_fallback:
+            logger.info("Invoking ECC fallback due to insufficient keypoints")
             success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
             return success, W, warped, valid_mask, True, n1, n2
         identity = np.eye(3, dtype=np.float32) if model == "homography" else np.eye(2, 3, dtype=np.float32)
@@ -112,13 +137,14 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
     matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
     matches = matcher.knnMatch(d1, d2, k=2)
     good = [m for m, n in matches if m.distance < match_ratio * n.distance]
+    logger.info("ORB matches: %d good out of %d", len(good), len(matches))
     if len(good) < min_matches:
-        logging.warning(
-            "Too few good ORB matches" + (
-                "; falling back to ECC registration" if use_ecc_fallback else ""
-            )
+        logger.warning(
+            "Too few good ORB matches%s",
+            "; falling back to ECC registration" if use_ecc_fallback else "",
         )
         if use_ecc_fallback:
+            logger.info("Invoking ECC fallback due to insufficient matches")
             success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
             return success, W, warped, valid_mask, True, n1, n2
         identity = np.eye(3, dtype=np.float32) if model == "homography" else np.eye(2, 3, dtype=np.float32)
@@ -129,23 +155,29 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
     if model == "homography":
         H, mask = cv2.findHomography(dst, src, cv2.RANSAC, 3.0)
         if H is None:
-            logging.warning("cv2.findHomography failed; falling back to ECC registration")
+            logger.warning("cv2.findHomography failed; falling back to ECC registration")
+            logger.info("Invoking ECC fallback due to findHomography failure")
             success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
             return success, W, warped, valid_mask, True, n1, n2
         det = float(abs(np.linalg.det(H)))
         inlier_ratio = float(mask.sum()) / float(mask.size) if mask is not None else 0.0
+        logger.info("Homography det=%e, inlier_ratio=%.3f", det, inlier_ratio)
         if det < 1e-6 or inlier_ratio < 0.5:
-            logging.warning("Homography validation failed (det=%e, inlier_ratio=%.3f); falling back to ECC", det, inlier_ratio)
+            logger.warning("Homography validation failed (det=%e, inlier_ratio=%.3f); falling back to ECC", det, inlier_ratio)
+            logger.info("Invoking ECC fallback due to invalid homography")
             success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
             return success, W, warped, valid_mask, True, n1, n2
         warped = cv2.warpPerspective(mov, H, (w,h), flags=cv2.INTER_LINEAR)
         valid_mask = cv2.warpPerspective(np.ones_like(mov, dtype=np.uint8)*255, H, (w,h), flags=cv2.INTER_NEAREST)
         valid_mask = (valid_mask>0).astype(np.uint8)
+        elapsed = time.time() - t0
+        logger.info("register_orb success in %.3fs: W=%s", elapsed, H.tolist())
         return True, H, warped, valid_mask, False, n1, n2
     else:
         M, _ = cv2.estimateAffine2D(dst, src, method=cv2.RANSAC, ransacReprojThreshold=3.0)
         if M is None:
-            logging.warning("cv2.estimateAffine2D failed; falling back to ECC registration")
+            logger.warning("cv2.estimateAffine2D failed; falling back to ECC registration")
+            logger.info("Invoking ECC fallback due to estimateAffine2D failure")
             success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
             return success, W, warped, valid_mask, True, n1, n2
         if model == "translation":
@@ -155,9 +187,13 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
             U, _, Vt = np.linalg.svd(R)
             R = U @ Vt
             M[:,:2] = R
+        det = float(abs(np.linalg.det(M[:2, :2])))
+        logger.info("Affine det=%e", det)
         warped = cv2.warpAffine(mov, M, (w,h), flags=cv2.INTER_LINEAR)
         valid_mask = cv2.warpAffine(np.ones_like(mov, dtype=np.uint8)*255, M, (w,h), flags=cv2.INTER_NEAREST)
         valid_mask = (valid_mask>0).astype(np.uint8)
+        elapsed = time.time() - t0
+        logger.info("register_orb success in %.3fs: W=%s", elapsed, M.tolist())
         return True, M, warped, valid_mask, False, n1, n2
 
 def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
@@ -168,8 +204,20 @@ def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
                      use_ecc_fallback: bool = True,
                      mask: Optional[np.ndarray] = None) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray, int, int]:
     """Register using ORB for initialization followed by ECC refinement."""
+    logger.info(
+        "register_orb_ecc(model=%s, max_iters=%d, eps=%g, orb_features=%d, match_ratio=%.2f, min_keypoints=%d, min_matches=%d, use_ecc_fallback=%s)",
+        model,
+        max_iters,
+        eps,
+        orb_features,
+        match_ratio,
+        min_keypoints,
+        min_matches,
+        use_ecc_fallback,
+    )
+    t0 = time.time()
     if mov.size == 0 or ref.size == 0:
-        logging.warning("Skipping registration: empty frame")
+        logger.warning("Skipping registration: empty frame")
         return False, np.eye(3, dtype=np.float32), mov, np.zeros_like(mov, dtype=np.uint8), 0, 0
 
     # Initial alignment via ORB keypoints
@@ -200,7 +248,7 @@ def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
             ref_mask = np.ones_like(ref, dtype=np.uint8) * 255
             _, W = cv2.findTransformECC(ref_f, mov_f, W_init, mode, criteria)
     except cv2.error as e:
-        logging.exception("ORB+ECC registration failed: %s", e)
+        logger.exception("ORB+ECC registration failed: %s", e)
         return success, W_orb, warped, valid_mask, n1, n2
 
     h, w = ref.shape
@@ -212,6 +260,9 @@ def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
         warp_mask = cv2.warpAffine(ref_mask, W, (w, h), flags=cv2.INTER_NEAREST)
     valid_mask = cv2.bitwise_and(ref_mask, warp_mask)
     valid_mask = (valid_mask > 0).astype(np.uint8)
+    det = float(abs(np.linalg.det(W[:2, :2]))) if W.shape[0] == 2 else float(abs(np.linalg.det(W)))
+    elapsed = time.time() - t0
+    logger.info("ORB+ECC success: det=%e, time=%.3fs, W=%s", det, elapsed, W.tolist())
     return True, W, warped, valid_mask, n1, n2
 
 def crop_to_overlap(mask: np.ndarray) -> tuple[int,int,int,int]:
