@@ -111,7 +111,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
             method = reg_cfg.get("method", "ECC").upper()
             if method == "ORB":
-                success, W_step, warped, valid_mask, fb = register_orb(
+                success, W_step, warped, valid_mask, fb, _, _ = register_orb(
                     ref_gray,
                     g_norm,
                     model=reg_cfg.get("model", "homography"),
@@ -127,7 +127,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     logging.warning("Registration failed at frame %d", k)
                     continue
             elif method == "ORB+ECC":
-                success, W_step, warped, valid_mask = register_orb_ecc(
+                success, W_step, warped, valid_mask, _, _ = register_orb_ecc(
                     ref_gray,
                     g_norm,
                     model=reg_cfg.get("model", "affine"),

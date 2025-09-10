@@ -13,7 +13,7 @@ def test_orb_ecc_uses_orb_init(monkeypatch):
     def fake_register_orb(ref, mov, model="affine", orb_features=4000, match_ratio=0.75,
                           fallback_model="affine", *, min_keypoints=8, min_matches=8,
                           use_ecc_fallback=True):
-        return True, W_orb.copy(), mov, np.ones_like(mov, dtype=np.uint8), False
+        return True, W_orb.copy(), mov, np.ones_like(mov, dtype=np.uint8), False, 12, 34
 
     captured = {}
 
@@ -32,7 +32,7 @@ def test_orb_ecc_uses_orb_init(monkeypatch):
     ref = np.zeros((10, 10), dtype=np.uint8)
     mov = np.zeros((10, 10), dtype=np.uint8)
 
-    success, W_refined, _, _ = reg.register_orb_ecc(ref, mov, model="homography", max_iters=10, eps=1e-4)
+    success, W_refined, _, _, n1, n2 = reg.register_orb_ecc(ref, mov, model="homography", max_iters=10, eps=1e-4)
 
     assert success
     assert np.allclose(captured["init"], W_orb)
@@ -40,3 +40,4 @@ def test_orb_ecc_uses_orb_init(monkeypatch):
     expected[0, 2] += 1
     expected[1, 2] += 1
     assert np.allclose(W_refined, expected)
+    assert n1 == 12 and n2 == 34
