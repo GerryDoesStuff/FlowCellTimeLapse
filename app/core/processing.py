@@ -84,9 +84,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     rows: List[Dict] = []
 
-    transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
+    step_transforms: Dict[int, np.ndarray] = {ref_idx: np.eye(3, dtype=np.float32)}
     registered_frames: Dict[int, np.ndarray] = {ref_idx: imgs_norm[ref_idx]}
     crop_rects: Dict[int, tuple[int, int, int, int]] = {}
+    prev_indices: Dict[int, int] = {ref_idx: ref_idx}
 
     if initial_radius > 0:
         global_mask = np.zeros((H, W), dtype=np.uint8)
@@ -150,11 +151,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             registered_frames[k] = warped
             if not success:
                 logger.warning("Registration failed at frame %d", k)
-                transforms[k] = transforms[prev_k]
+                step_transforms[k] = np.eye(3, dtype=np.float32)
+                prev_indices[k] = prev_k
                 crop_rects[k] = (0, 0, 0, 0)
                 continue
             W_h = W_step if W_step.shape == (3, 3) else np.vstack([W_step, [0, 0, 1]])
-            transforms[k] = transforms[prev_k] @ W_h
+            step_transforms[k] = W_h
+            prev_indices[k] = prev_k
 
         crop_rects[k] = crop_to_overlap(valid_mask)
 
@@ -205,12 +208,23 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     ecc_mask = None
 
+    def _compose_to_ref(idx: int) -> np.ndarray:
+        M = np.eye(3, dtype=np.float32)
+        cur = idx
+        while cur != ref_idx:
+            M = step_transforms.get(cur, np.eye(3, dtype=np.float32)) @ M
+            cur = prev_indices.get(cur, ref_idx)
+            if cur == ref_idx:
+                break
+        return M
+
     for k in ordered_indices:
         logger.debug("Frame %d: segmentation phase", k)
         x_k, y_k, w_k, h_k = crop_rects.get(k, (0, 0, W, H))
         ref_crop = ref_gray[y_k:y_k + h_k, x_k:x_k + w_k]
         bw_ref_crop = bw_ref[y_k:y_k + h_k, x_k:x_k + w_k]
-        warped = cv2.warpPerspective(imgs_norm[k], transforms[k], (W, H))
+        T = _compose_to_ref(k)
+        warped = cv2.warpPerspective(imgs_norm[k], T, (W, H))
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
         if app_cfg.get("use_difference_for_seg", False):
             seg_img = cv2.absdiff(ref_crop, mov_crop)
@@ -257,7 +271,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "area_union_px": int(bw_union.sum()),
             "area_new_px": int(bw_new.sum()),
             "area_lost_px": int(bw_lost.sum()),
-            "to_ref_transform": transforms.get(k, np.eye(3)).flatten().tolist(),
+            "to_ref_transform": T.flatten().tolist(),
         }
         rows.append(row)
 
