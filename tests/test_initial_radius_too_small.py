@@ -1,0 +1,63 @@
+import numpy as np
+import cv2
+from pathlib import Path
+import sys
+import pytest
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from app.core.processing import analyze_sequence
+
+
+def create_blank_images(tmp_path, n=2):
+    paths = []
+    for i in range(n):
+        img = np.zeros((100, 100), dtype=np.uint8)
+        cv2.imwrite(str(tmp_path / f"img_{i}.png"), img)
+        paths.append(tmp_path / f"img_{i}.png")
+    return paths
+
+
+def test_aborts_on_tiny_initial_radius(tmp_path):
+    paths = create_blank_images(tmp_path, n=2)
+
+    reg_cfg = {
+        "model": "translation",
+        "max_iters": 10,
+        "gauss_blur_sigma": 0,
+        "clahe_clip": 0,
+        "clahe_grid": 8,
+        "use_masked_ecc": True,
+        "method": "ECC",
+        "eps": 1e-6,
+        "growth_factor": 1.0,
+        "initial_radius": 5,
+    }
+
+    seg_cfg = {
+        "method": "manual",
+        "manual_thresh": 0,
+        "invert": True,
+        "morph_open_radius": 0,
+        "morph_close_radius": 0,
+        "remove_objects_smaller_px": 0,
+        "remove_holes_smaller_px": 0,
+    }
+
+    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+
+    from app.core import processing
+
+    def fake_register(ref, mov, model="affine", **kwargs):
+        h, w = ref.shape
+        mask = kwargs.get("mask")
+        if mask is not None:
+            return True, np.eye(3, dtype=np.float32), mov.copy(), mask.copy()
+        return True, np.eye(3, dtype=np.float32), mov.copy(), np.ones((h, w), dtype=np.uint8)
+
+    processing.register_ecc = fake_register
+
+    out_dir = tmp_path / "out"
+
+    with pytest.raises(ValueError, match="Initial radius"):
+        analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)

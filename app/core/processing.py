@@ -90,12 +90,21 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     valid_masks: Dict[int, np.ndarray] = {}
 
     if initial_radius > 0:
-        global_mask = np.zeros((H, W), dtype=np.uint8)
         cx, cy = W // 2, H // 2
         x0 = max(cx - initial_radius, 0)
         y0 = max(cy - initial_radius, 0)
         x1 = min(cx + initial_radius, W)
         y1 = min(cy + initial_radius, H)
+        mask_area = (x1 - x0) * (y1 - y0)
+        min_area = int(0.25 * H * W)
+        if mask_area < min_area:
+            msg = (
+                f"Initial radius {initial_radius} covers only {mask_area} "
+                f"pixels which is below 25% of the frame ({min_area})"
+            )
+            logger.error(msg)
+            raise ValueError(msg)
+        global_mask = np.zeros((H, W), dtype=np.uint8)
         global_mask[y0:y1, x0:x1] = 255
     else:
         global_mask = np.ones((H, W), dtype=np.uint8) * 255
