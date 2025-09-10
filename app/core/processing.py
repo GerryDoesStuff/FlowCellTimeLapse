@@ -64,17 +64,19 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     gauss_sigma = float(reg_cfg.get("gauss_blur_sigma", 1.0))
     clahe_clip = float(reg_cfg.get("clahe_clip", 2.0))
     clahe_grid = int(reg_cfg.get("clahe_grid", 8))
+    use_clahe = bool(reg_cfg.get("use_clahe", True))
     initial_radius = int(reg_cfg.get("initial_radius", min(H, W) // 2))
     growth_factor = float(reg_cfg.get("growth_factor", 1.0))
     logger.info(
-        "Preprocessing parameters: gauss_sigma=%.2f clahe_clip=%.2f clahe_grid=%d initial_radius=%d growth_factor=%.2f",
+        "Preprocessing parameters: gauss_sigma=%.2f use_clahe=%s clahe_clip=%.2f clahe_grid=%d initial_radius=%d growth_factor=%.2f",
         gauss_sigma,
+        use_clahe,
         clahe_clip,
         clahe_grid,
         initial_radius,
         growth_factor,
     )
-    imgs_norm = [preprocess(g, gauss_sigma, clahe_clip, clahe_grid) for g in imgs_norm]
+    imgs_norm = [preprocess(g, gauss_sigma, clahe_clip, clahe_grid, use_clahe) for g in imgs_norm]
 
     ensure_dir(out_dir)
     reg_dir = out_dir / "registered"; ensure_dir(reg_dir)

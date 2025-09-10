@@ -164,6 +164,7 @@ class MainWindow(QMainWindow):
         self.eps = QDoubleSpinBox(); self.eps.setDecimals(9); self.eps.setSingleStep(1e-6); self.eps.setValue(self.reg.eps)
         gauss_label = QLabel("Gaussian σ")
         self.gauss_sigma = QDoubleSpinBox(); self.gauss_sigma.setRange(0.0, 10.0); self.gauss_sigma.setDecimals(2); self.gauss_sigma.setSingleStep(0.1); self.gauss_sigma.setValue(self.reg.gauss_blur_sigma)
+        self.use_clahe = QCheckBox("Use CLAHE"); self.use_clahe.setChecked(self.reg.use_clahe)
         clahe_clip_label = QLabel("CLAHE clip")
         self.clahe_clip = QDoubleSpinBox(); self.clahe_clip.setRange(0.0, 40.0); self.clahe_clip.setDecimals(2); self.clahe_clip.setSingleStep(0.1); self.clahe_clip.setValue(self.reg.clahe_clip)
         clahe_grid_label = QLabel("CLAHE grid")
@@ -190,21 +191,24 @@ class MainWindow(QMainWindow):
         reg_grid.addWidget(self.max_iters_label, 2, 0); reg_grid.addWidget(self.max_iters, 2, 1)
         reg_grid.addWidget(self.eps_label, 3, 0); reg_grid.addWidget(self.eps, 3, 1)
         reg_grid.addWidget(gauss_label, 4, 0); reg_grid.addWidget(self.gauss_sigma, 4, 1)
-        reg_grid.addWidget(clahe_clip_label, 5, 0); reg_grid.addWidget(self.clahe_clip, 5, 1)
-        reg_grid.addWidget(clahe_grid_label, 0, 2); reg_grid.addWidget(self.clahe_grid, 0, 3)
+        reg_grid.addWidget(self.use_clahe, 5, 0); reg_grid.addWidget(self.clahe_clip, 5, 1)
+        reg_grid.addWidget(clahe_grid_label, 5, 2); reg_grid.addWidget(self.clahe_grid, 5, 3)
         reg_grid.addWidget(self.init_radius_label, 1, 2); reg_grid.addWidget(self.init_radius, 1, 3)
         reg_grid.addWidget(self.growth_factor_label, 2, 2); reg_grid.addWidget(self.growth_factor, 2, 3)
         reg_grid.addWidget(self.use_masked_label, 3, 2); reg_grid.addWidget(self.use_masked, 3, 3)
         reg_grid.addWidget(self.orb_features_label, 4, 2); reg_grid.addWidget(self.orb_features, 4, 3)
-        reg_grid.addWidget(self.match_ratio_label, 5, 2); reg_grid.addWidget(self.match_ratio, 5, 3)
-        reg_grid.addWidget(self.use_ecc_label, 6, 0); reg_grid.addWidget(self.use_ecc_fallback, 6, 1)
-        reg_grid.addWidget(self.min_keypoints_label, 6, 2); reg_grid.addWidget(self.min_keypoints, 6, 3)
-        reg_grid.addWidget(self.min_matches_label, 7, 2); reg_grid.addWidget(self.min_matches, 7, 3)
+        reg_grid.addWidget(self.match_ratio_label, 6, 2); reg_grid.addWidget(self.match_ratio, 6, 3)
+        reg_grid.addWidget(self.use_ecc_label, 7, 0); reg_grid.addWidget(self.use_ecc_fallback, 7, 1)
+        reg_grid.addWidget(self.min_keypoints_label, 7, 2); reg_grid.addWidget(self.min_keypoints, 7, 3)
+        reg_grid.addWidget(self.min_matches_label, 8, 2); reg_grid.addWidget(self.min_matches, 8, 3)
         reg_preview_btn = QPushButton("Preview Registration")
         reg_preview_btn.clicked.connect(self._preview_registration)
-        reg_grid.addWidget(reg_preview_btn, 8, 0, 1, 4)
+        reg_grid.addWidget(reg_preview_btn, 9, 0, 1, 4)
         self.kp_label = QLabel("Keypoints: -")
-        reg_grid.addWidget(self.kp_label, 9, 0, 1, 4)
+        reg_grid.addWidget(self.kp_label, 10, 0, 1, 4)
+        self.clahe_clip.setEnabled(self.use_clahe.isChecked())
+        self.clahe_grid.setEnabled(self.use_clahe.isChecked())
+        self.use_clahe.toggled.connect(lambda v: [self.clahe_clip.setEnabled(v), self.clahe_grid.setEnabled(v)])
         controls.addWidget(reg_group)
         self._add_help(
             self.reg_method,
@@ -231,6 +235,10 @@ class MainWindow(QMainWindow):
             self.gauss_sigma,
             "Gaussian blur σ before registration to reduce noise. 0–2 is common; "
             "higher values smooth detail (faster, less accurate)."
+        )
+        self._add_help(
+            self.use_clahe,
+            "Enable CLAHE local contrast enhancement before registration."
         )
         self._add_help(
             self.clahe_clip,
@@ -262,6 +270,7 @@ class MainWindow(QMainWindow):
         self.max_iters.valueChanged.connect(self._persist_settings)
         self.eps.valueChanged.connect(self._persist_settings)
         self.gauss_sigma.valueChanged.connect(self._persist_settings)
+        self.use_clahe.toggled.connect(self._persist_settings)
         self.clahe_clip.valueChanged.connect(self._persist_settings)
         self.clahe_grid.valueChanged.connect(self._persist_settings)
         self.init_radius.valueChanged.connect(self._persist_settings)
@@ -277,6 +286,7 @@ class MainWindow(QMainWindow):
         self.max_iters.valueChanged.connect(self._on_params_changed)
         self.eps.valueChanged.connect(self._on_params_changed)
         self.gauss_sigma.valueChanged.connect(self._on_params_changed)
+        self.use_clahe.toggled.connect(self._on_params_changed)
         self.clahe_clip.valueChanged.connect(self._on_params_changed)
         self.clahe_grid.valueChanged.connect(self._on_params_changed)
         self.init_radius.valueChanged.connect(self._on_params_changed)
@@ -498,6 +508,7 @@ class MainWindow(QMainWindow):
                         max_iters=self.max_iters.value(),
                         eps=self.eps.value(),
                         gauss_blur_sigma=self.gauss_sigma.value(),
+                        use_clahe=self.use_clahe.isChecked(),
                         clahe_clip=self.clahe_clip.value(),
                         clahe_grid=self.clahe_grid.value(),
                         initial_radius=self.init_radius.value(),
@@ -568,6 +579,7 @@ class MainWindow(QMainWindow):
         self.max_iters.setValue(reg.max_iters)
         self.eps.setValue(reg.eps)
         self.gauss_sigma.setValue(reg.gauss_blur_sigma)
+        self.use_clahe.setChecked(reg.use_clahe)
         self.clahe_clip.setValue(reg.clahe_clip)
         self.clahe_grid.setValue(reg.clahe_grid)
         self.init_radius.setValue(reg.initial_radius)
@@ -745,8 +757,8 @@ class MainWindow(QMainWindow):
                                  scale_minmax=app.scale_minmax)
             mov_img = imread_gray(self.paths[mov_idx], normalize=app.normalize,
                                  scale_minmax=app.scale_minmax)
-            ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
-            mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
+            ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
+            mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
             method = reg.method.upper()
             if method == "ORB":
                 success, _, warped, _, fb, ref_kp, mov_kp = register_orb(
@@ -829,8 +841,8 @@ class MainWindow(QMainWindow):
                                      scale_minmax=app.scale_minmax)
                 mov_img = imread_gray(self.paths[mov_idx], normalize=app.normalize,
                                      scale_minmax=app.scale_minmax)
-                ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
-                mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid)
+                ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
+                mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
                 method = reg.method.upper()
                 if method == "ORB":
                     success, _, warped, _, fb, ref_kp, mov_kp = register_orb(
