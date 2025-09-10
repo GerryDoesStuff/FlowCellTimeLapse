@@ -223,18 +223,22 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
     )
 
+    # store previous frame and mask for iterative segmentation
+    prev_gray = ref_gray
+    prev_bw = bw_ref
+
     ecc_mask = None
 
-    for k in ordered_indices:
+    for idx, k in enumerate(ordered_indices):
         logger.debug("Frame %d: segmentation phase", k)
         x_k, y_k, w_k, h_k = crop_rects.get(k, (0, 0, W, H))
-        ref_crop = ref_gray[y_k:y_k + h_k, x_k:x_k + w_k]
-        bw_ref_crop = bw_ref[y_k:y_k + h_k, x_k:x_k + w_k]
+        prev_crop = prev_gray[y_k:y_k + h_k, x_k:x_k + w_k]
+        prev_bw_crop = prev_bw[y_k:y_k + h_k, x_k:x_k + w_k]
         T = _compose_to_ref(k)
         warped = cv2.warpPerspective(imgs_norm[k], T, (W, H))
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
-        if app_cfg.get("use_difference_for_seg", False):
-            seg_img = cv2.absdiff(ref_crop, mov_crop)
+        if app_cfg.get("use_difference_for_seg", False) and idx > 0:
+            seg_img = cv2.absdiff(prev_crop, mov_crop)
         else:
             seg_img = mov_crop
         bw_mov = segment(
@@ -261,10 +265,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ecc_mask = bw_mov.copy()
             _save_mask(k, ecc_mask, x_k, y_k)
 
-        bw_overlap = (bw_ref_crop & bw_mov).astype(np.uint8)
-        bw_union = (bw_ref_crop | bw_mov).astype(np.uint8)
-        bw_new = (bw_mov & (~bw_ref_crop)).astype(np.uint8)
-        bw_lost = (bw_ref_crop & (~bw_mov)).astype(np.uint8)
+        bw_overlap = (prev_bw_crop & bw_mov).astype(np.uint8)
+        bw_union = (prev_bw_crop | bw_mov).astype(np.uint8)
+        bw_new = (bw_mov & (~prev_bw_crop)).astype(np.uint8)
+        bw_lost = (prev_bw_crop & (~bw_mov)).astype(np.uint8)
 
         row = {
             "frame_index": k,
@@ -273,7 +277,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "overlap_w": w_k,
             "overlap_h": h_k,
             "overlap_px": int(w_k * h_k),
-            "area_ref_px": int(bw_ref_crop.sum()),
+            "area_ref_px": int(prev_bw_crop.sum()),
             "area_mov_px": int(bw_mov.sum()),
             "area_union_px": int(bw_union.sum()),
             "area_new_px": int(bw_new.sum()),
@@ -283,13 +287,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         rows.append(row)
 
         if app_cfg.get("save_intermediates", True):
-            cv2.imencode('.png', ref_crop)[1].tofile(str(reg_dir / f"{k:04d}_ref.png"))
+            cv2.imencode('.png', prev_crop)[1].tofile(str(reg_dir / f"{k:04d}_prev.png"))
             cv2.imencode('.png', mov_crop)[1].tofile(str(reg_dir / f"{k:04d}_mov.png"))
             cv2.imencode('.png', (bw_mov * 255).astype(np.uint8))[1].tofile(
                 str(bw_dir / f"{k:04d}_bw_mov.png")
             )
-            cv2.imencode('.png', (bw_ref_crop * 255).astype(np.uint8))[1].tofile(
-                str(bw_dir / f"{k:04d}_bw_ref.png")
+            cv2.imencode('.png', (prev_bw_crop * 255).astype(np.uint8))[1].tofile(
+                str(bw_dir / f"{k:04d}_bw_prev.png")
             )
             cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
                 str(bw_dir / f"{k:04d}_bw_overlap.png")
@@ -302,6 +306,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
             ov = overlay_outline(mov_crop, bw_mov)
             cv2.imencode('.png', ov)[1].tofile(str(overlay_dir / f"{k:04d}_overlay_mov.png"))
+
+        # update previous frame and mask for next iteration
+        prev_gray = warped
+        prev_bw = np.zeros_like(prev_bw)
+        prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = bw_mov
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
     summary_path = out_dir / "summary.csv"
