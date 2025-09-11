@@ -54,7 +54,10 @@ def test_difference_output(tmp_path, monkeypatch):
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
     diff_dir = out_dir / "diff"
+    bw_dir = out_dir / "binary"
     assert (diff_dir / "diff" / "0001_diff.png").exists()
+    assert (diff_dir / "diff" / "0001_bw_diff.png").exists()
+    assert (bw_dir / "0001_bw_diff.png").exists()
     assert (diff_dir / "new" / "0000_bw_new.png").exists()
     assert (diff_dir / "lost" / "0000_bw_lost.png").exists()
 
@@ -64,3 +67,39 @@ def test_difference_output(tmp_path, monkeypatch):
     assert reg0 is not None and reg0.shape == (32, 32)
     assert reg1 is not None and reg1.shape == (32, 32)
     assert diff1 is not None and diff1.shape == (32, 32)
+
+
+def test_difference_output_disabled(tmp_path, monkeypatch):
+    paths = create_simple_frames(tmp_path)
+
+    def fake_register(ref, mov, model="affine", **kwargs):
+        h, w = ref.shape
+        mask = np.ones((h, w), dtype=np.uint8)
+        return True, np.eye(3, dtype=np.float32), mov, mask
+
+    monkeypatch.setattr(processing, "register_ecc", fake_register)
+    monkeypatch.setattr(processing, "segment", lambda img, **kwargs: np.ones_like(img, dtype=np.uint8))
+
+    reg_cfg = {
+        "initial_radius": 0,
+        "gauss_blur_sigma": 0,
+        "clahe_clip": 0,
+        "clahe_grid": 8,
+        "use_masked_ecc": False,
+    }
+    seg_cfg = {}
+    app_cfg = {
+        "direction": "first-to-last",
+        "use_difference_for_seg": False,
+        "save_intermediates": True,
+        "save_masks": True,
+    }
+
+    out_dir = tmp_path / "out"
+    analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
+
+    diff_dir = out_dir / "diff"
+    bw_dir = out_dir / "binary"
+    assert (diff_dir / "diff" / "0001_diff.png").exists()
+    assert (diff_dir / "diff" / "0001_bw_diff.png").exists()
+    assert (bw_dir / "0001_bw_diff.png").exists()
