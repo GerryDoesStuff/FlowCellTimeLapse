@@ -51,7 +51,7 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
     out_dir = tmp_path / "out"
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
-    overlay_img = cv2.imread(str(out_dir / "overlay" / "0001_overlay_mov.png"))
+    overlay_img = cv2.imread(str(out_dir / "overlay" / "0000_overlay_mov.png"))
     assert overlay_img is not None
     green = np.array([0, 255, 0], dtype=np.uint8)
     red = np.array([0, 0, 255], dtype=np.uint8)

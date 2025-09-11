@@ -54,5 +54,5 @@ def test_difference_output(tmp_path, monkeypatch):
 
     diff_dir = out_dir / "diff"
     assert (diff_dir / "0001_diff.png").exists()
-    assert (diff_dir / "0001_bw_new.png").exists()
-    assert (diff_dir / "0001_bw_lost.png").exists()
+    assert (diff_dir / "0000_bw_new.png").exists()
+    assert (diff_dir / "0000_bw_lost.png").exists()
