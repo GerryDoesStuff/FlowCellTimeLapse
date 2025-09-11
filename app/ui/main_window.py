@@ -392,9 +392,57 @@ class MainWindow(QMainWindow):
         self.seg_preview_btn.setEnabled(False)
         self.seg_preview_btn.clicked.connect(self._preview_segmentation)
         controls.addWidget(self.seg_preview_btn)
-        self._add_help(self.rm_obj, "Remove connected components smaller than this area in pixels.")
-        self._add_help(self.rm_holes, "Fill holes smaller than this area in pixels.")
-        self._add_help(self.skip_outline, "Bypass outline enhancement; automatically skipped for difference images or low contrast.")
+        self._add_help(
+            self.seg_method,
+            "Segmentation algorithm. Otsu chooses a global threshold; Adaptive and Local use"
+            " local statistics; Manual applies a fixed threshold."
+        )
+        self._add_help(
+            self.invert,
+            "Check when cells appear darker than background to invert intensities before"
+            " thresholding."
+        )
+        self._add_help(
+            self.skip_outline,
+            "Skip preprocessing that enhances cell outlines. Speeds up processing but may"
+            " reduce accuracy; automatically skipped for difference images or low contrast."
+        )
+        self._add_help(
+            self.manual_t,
+            "Manual global threshold (0–255) used when method is set to manual. Pixels above"
+            " become foreground."
+        )
+        self._add_help(
+            self.adaptive_blk,
+            "Odd block size for adaptive thresholding. Larger values smooth over more area,"
+            " smaller values preserve detail."
+        )
+        self._add_help(
+            self.adaptive_C,
+            "Constant subtracted in adaptive method. Positive values make segmentation more"
+            " selective."
+        )
+        self._add_help(
+            self.local_blk,
+            "Odd block size for local thresholding from scikit-image. Controls the neighborhood"
+            " used to compute thresholds."
+        )
+        self._add_help(
+            self.open_r,
+            "Radius for morphological opening to remove small bright specks."
+        )
+        self._add_help(
+            self.close_r,
+            "Radius for morphological closing to fill small dark gaps."
+        )
+        self._add_help(
+            self.rm_obj,
+            "Remove connected components smaller than this area in pixels to discard noise."
+        )
+        self._add_help(
+            self.rm_holes,
+            "Fill holes smaller than this area in pixels within segmented objects."
+        )
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.seg_method.currentTextChanged.connect(self._update_seg_controls)
         self.invert.toggled.connect(self._persist_settings)
