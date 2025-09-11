@@ -417,39 +417,39 @@ class MainWindow(QMainWindow):
         )
         self._add_help(
             self.manual_t,
-            "Manual global threshold (0–255) used when method is set to manual. Pixels above"
-            " become foreground."
+            "Manual global threshold (0–255) used when method is set to manual. Pixels above "
+            "become foreground. 100–160 typical."
         )
         self._add_help(
             self.adaptive_blk,
-            "Odd block size for adaptive thresholding. Larger values smooth over more area,"
-            " smaller values preserve detail."
+            "Odd block size for adaptive thresholding. Larger values smooth over more area," 
+            "smaller values preserve detail. 31–151 (odd) recommended."
         )
         self._add_help(
             self.adaptive_C,
-            "Constant subtracted in adaptive method. Positive values make segmentation more"
-            " selective."
+            "Constant subtracted in adaptive method. Positive values make segmentation more "
+            "selective. -10–10 typical."
         )
         self._add_help(
             self.local_blk,
-            "Odd block size for local thresholding from scikit-image. Controls the neighborhood"
-            " used to compute thresholds."
+            "Odd block size for local thresholding from scikit-image. Controls the neighborhood "
+            "used to compute thresholds. 31–151 (odd) recommended."
         )
         self._add_help(
             self.open_r,
-            "Radius for morphological opening to remove small bright specks."
+            "Radius for morphological opening to remove small bright specks. 0–5 px recommended."
         )
         self._add_help(
             self.close_r,
-            "Radius for morphological closing to fill small dark gaps."
+            "Radius for morphological closing to fill small dark gaps. 0–5 px recommended."
         )
         self._add_help(
             self.rm_obj,
-            "Remove connected components smaller than this area in pixels to discard noise."
+            "Remove connected components smaller than this area in pixels to discard noise. 0–1000 px² typical."
         )
         self._add_help(
             self.rm_holes,
-            "Fill holes smaller than this area in pixels within segmented objects."
+            "Fill holes smaller than this area in pixels within segmented objects. 0–1000 px² typical."
         )
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.seg_method.currentTextChanged.connect(self._update_seg_controls)
