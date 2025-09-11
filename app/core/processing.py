@@ -117,8 +117,18 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     ensure_dir(out_dir)
     reg_dir = out_dir / "registered"; ensure_dir(reg_dir)
+
     bw_dir = out_dir / "binary"; ensure_dir(bw_dir)
+    bw_mov_dir = bw_dir / "mov"; ensure_dir(bw_mov_dir)
+    bw_prev_dir = bw_dir / "prev"; ensure_dir(bw_prev_dir)
+    bw_overlap_dir = bw_dir / "overlap"; ensure_dir(bw_overlap_dir)
+    bw_empty_dir = bw_dir / "empty"; ensure_dir(bw_empty_dir)
+
     diff_dir = out_dir / "diff"; ensure_dir(diff_dir)
+    diff_diff_dir = diff_dir / "diff"; ensure_dir(diff_diff_dir)
+    diff_new_dir = diff_dir / "new"; ensure_dir(diff_new_dir)
+    diff_lost_dir = diff_dir / "lost"; ensure_dir(diff_lost_dir)
+
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
 
     rows: List[Dict] = []
@@ -328,7 +338,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
             if app_cfg.get("save_intermediates", True):
                 cv2.imencode(".png", seg_img)[1].tofile(
-                    str(diff_dir / f"{k:04d}_diff.png")
+                    str(diff_diff_dir / f"{k:04d}_diff.png")
                 )
         bw_reg = segment(
             mov_crop,
@@ -355,7 +365,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 "Frame %d: segmentation mask is empty; skipping ecc_mask update", k
             )
             cv2.imencode(".png", (bw_reg * 255).astype(np.uint8))[1].tofile(
-                str(bw_dir / f"{k:04d}_bw_mov_empty.png")
+                str(bw_empty_dir / f"{k:04d}_bw_mov_empty.png")
             )
         else:
             all_masks_empty = False
@@ -390,24 +400,24 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 str(reg_dir / f"{k:04d}_mov.png")
             )
             cv2.imencode('.png', (bw_reg * 255).astype(np.uint8))[1].tofile(
-                str(bw_dir / f"{k:04d}_bw_mov.png")
+                str(bw_mov_dir / f"{k:04d}_bw_mov.png")
             )
             if bw_diff is not None:
                 cv2.imencode('.png', (bw_diff * 255).astype(np.uint8))[1].tofile(
                     str(bw_dir / f"{k:04d}_bw_diff.png")
                 )
             cv2.imencode('.png', (prev_bw_crop * 255).astype(np.uint8))[1].tofile(
-                str(bw_dir / f"{prev_k:04d}_bw_prev.png")
+                str(bw_prev_dir / f"{prev_k:04d}_bw_prev.png")
             )
             cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
-                str(bw_dir / f"{prev_k:04d}_bw_overlap.png")
+                str(bw_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
             )
             if idx > 0:
                 cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(
-                    str(diff_dir / f"{prev_k:04d}_bw_new.png")
+                    str(diff_new_dir / f"{prev_k:04d}_bw_new.png")
                 )
                 cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(
-                    str(diff_dir / f"{prev_k:04d}_bw_lost.png")
+                    str(diff_lost_dir / f"{prev_k:04d}_bw_lost.png")
                 )
                 new_color = tuple(app_cfg.get("overlay_new_color", (0, 255, 0)))
                 lost_color = tuple(app_cfg.get("overlay_lost_color", (0, 0, 255)))
