@@ -44,4 +44,6 @@ class CollapsibleSection(QWidget):
         self._content.updateGeometry()
         window = self.window()
         if window is not None:
+            width = window.width()
             window.adjustSize()
+            window.resize(width, window.height())
