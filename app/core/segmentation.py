@@ -67,9 +67,9 @@ def segment(
             feat = plain
         else:
             bh = outline_focused(gray, invert=invert)
-            # If the outline-focused image contains almost no signal,
+            # If the outline-focused image lacks dynamic range,
             # it likely washed out features. Fall back to the plain image.
-            if auto_skip_outline and bh.mean() < 1:
+            if auto_skip_outline and (bh.std() < 1 or bh.max() < 2):
                 feat = plain
             else:
                 feat = bh
