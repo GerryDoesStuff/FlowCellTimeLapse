@@ -1001,19 +1001,22 @@ class MainWindow(QMainWindow):
                 gray = self._diff_gray
             else:
                 gray = self._reg_warp
-            bw = segment(gray,
-                         method=seg.method,
-                         invert=seg.invert,
-                         skip_outline=seg.skip_outline,
-                         use_diff=self.use_diff_cb.isChecked(),
-                         manual_thresh=seg.manual_thresh,
-                         adaptive_block=seg.adaptive_block,
-                         adaptive_C=seg.adaptive_C,
-                         local_block=seg.local_block,
-                         morph_open_radius=seg.morph_open_radius,
-                         morph_close_radius=seg.morph_close_radius,
-                         remove_objects_smaller_px=seg.remove_objects_smaller_px,
-                         remove_holes_smaller_px=seg.remove_holes_smaller_px)
+            gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+            bw = segment(
+                gray,
+                method=seg.method,
+                invert=seg.invert,
+                skip_outline=seg.skip_outline,
+                use_diff=self.use_diff_cb.isChecked(),
+                manual_thresh=seg.manual_thresh,
+                adaptive_block=seg.adaptive_block,
+                adaptive_C=seg.adaptive_C,
+                local_block=seg.local_block,
+                morph_open_radius=seg.morph_open_radius,
+                morph_close_radius=seg.morph_close_radius,
+                remove_objects_smaller_px=seg.remove_objects_smaller_px,
+                remove_holes_smaller_px=seg.remove_holes_smaller_px,
+            )
 
             self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
             self._seg_overlay = cv2.cvtColor(overlay_outline(gray, bw), cv2.COLOR_BGR2RGB)
