@@ -356,25 +356,27 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
         )
 
+        seg_mask = bw_diff if (bw_diff is not None) else bw_reg
+
         _save_mask(k, bw_reg, x_k, y_k, suffix="_registered")
         if bw_diff is not None:
             _save_mask(k, bw_diff, x_k, y_k, suffix="_difference", overlay=False)
 
-        if not np.any(bw_reg):
+        if not np.any(seg_mask):
             logger.warning(
                 "Frame %d: segmentation mask is empty; skipping ecc_mask update", k
             )
-            cv2.imencode(".png", (bw_reg * 255).astype(np.uint8))[1].tofile(
+            cv2.imencode(".png", (seg_mask * 255).astype(np.uint8))[1].tofile(
                 str(bw_empty_dir / f"{k:04d}_bw_mov_empty.png")
             )
         else:
             all_masks_empty = False
-            ecc_mask = bw_reg.copy()
+            ecc_mask = seg_mask.copy()
 
-        bw_overlap = (prev_bw_crop & bw_reg).astype(np.uint8)
-        bw_union = (prev_bw_crop | bw_reg).astype(np.uint8)
-        bw_new = (bw_reg & (~prev_bw_crop)).astype(np.uint8)
-        bw_lost = (prev_bw_crop & (~bw_reg)).astype(np.uint8)
+        bw_overlap = (prev_bw_crop & seg_mask).astype(np.uint8)
+        bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
+        bw_new = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
+        bw_lost = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
 
         row = {
             "frame_index": k,
@@ -384,7 +386,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "overlap_h": h_k,
             "overlap_px": int(w_k * h_k),
             "area_ref_px": int(prev_bw_crop.sum()),
-            "area_mov_px": int(bw_reg.sum()),
+            "area_mov_px": int(seg_mask.sum()),
             "area_union_px": int(bw_union.sum()),
             "area_new_px": int(bw_new.sum()),
             "area_lost_px": int(bw_lost.sum()),
@@ -399,10 +401,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', mov_crop)[1].tofile(
                 str(reg_dir / f"{k:04d}_mov.png")
             )
-            cv2.imencode('.png', (bw_reg * 255).astype(np.uint8))[1].tofile(
+            cv2.imencode('.png', (seg_mask * 255).astype(np.uint8))[1].tofile(
                 str(bw_mov_dir / f"{k:04d}_bw_mov.png")
             )
             if bw_diff is not None:
+                cv2.imencode('.png', (bw_reg * 255).astype(np.uint8))[1].tofile(
+                    str(bw_dir / f"{k:04d}_bw_reg.png")
+                )
                 cv2.imencode('.png', (bw_diff * 255).astype(np.uint8))[1].tofile(
                     str(bw_dir / f"{k:04d}_bw_diff.png")
                 )
@@ -435,7 +440,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # update previous frame and mask for next iteration
         prev_gray = warped
         prev_bw = np.zeros_like(prev_bw)
-        prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = bw_reg
+        prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = seg_mask
         prev_k = k
 
     if all_masks_empty:
