@@ -20,6 +20,8 @@ def segment(
     method: str = "otsu",
     invert: bool = True,
     skip_outline: bool = False,
+    use_diff: bool = False,
+    auto_skip_outline: bool = True,
     manual_thresh: int = 128,
     adaptive_block: int = 51,
     adaptive_C: int = 5,
@@ -42,6 +44,12 @@ def segment(
     skip_outline : bool
         If True, bypass the black-hat outline prefilter. Useful for
         low-contrast images where the prefilter may remove small features.
+    use_diff : bool
+        Input image is a frame-to-frame difference; black-hat is skipped
+        because edges are already enhanced.
+    auto_skip_outline : bool
+        If True, automatically bypass the black-hat step when it produces
+        almost no signal (heuristic based on mean intensity).
     manual_thresh, adaptive_block, adaptive_C, local_block, morph_open_radius,
     morph_close_radius, remove_objects_smaller_px, remove_holes_smaller_px :
         Parameters controlling thresholding and post-processing.
@@ -52,10 +60,17 @@ def segment(
         t = int(np.clip(manual_thresh, 0, 255))
         bw = (proc >= t).astype(np.uint8)
     else:
-        if skip_outline:
-            feat = 255 - gray if invert else gray
+        plain = 255 - gray if invert else gray
+        if skip_outline or use_diff:
+            feat = plain
         else:
-            feat = outline_focused(gray, invert=invert)
+            bh = outline_focused(gray, invert=invert)
+            # If the outline-focused image contains almost no signal,
+            # it likely washed out features. Fall back to the plain image.
+            if auto_skip_outline and bh.mean() < 1:
+                feat = plain
+            else:
+                feat = bh
         if method == "otsu":
             _, th = cv2.threshold(feat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             bw = (th > 0).astype(np.uint8)

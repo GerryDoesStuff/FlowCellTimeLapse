@@ -360,7 +360,7 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.seg_preview_btn)
         self._add_help(self.rm_obj, "Remove connected components smaller than this area in pixels.")
         self._add_help(self.rm_holes, "Fill holes smaller than this area in pixels.")
-        self._add_help(self.skip_outline, "Bypass outline enhancement for low-contrast images.")
+        self._add_help(self.skip_outline, "Bypass outline enhancement; automatically skipped for difference images or low contrast.")
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.invert.toggled.connect(self._persist_settings)
         self.skip_outline.toggled.connect(self._persist_settings)
@@ -964,6 +964,7 @@ class MainWindow(QMainWindow):
                          method=seg.method,
                          invert=seg.invert,
                          skip_outline=seg.skip_outline,
+                         use_diff=self.use_diff_cb.isChecked(),
                          manual_thresh=seg.manual_thresh,
                          adaptive_block=seg.adaptive_block,
                          adaptive_C=seg.adaptive_C,
