@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self._diff_gray = None
         self._current_preview = None
         self._build_ui()
+        self._update_seg_controls(self.seg_method.currentText())
         self._param_timer = QTimer(self)
         self._param_timer.setSingleShot(True)
         self._param_timer.setInterval(200)
@@ -107,6 +108,16 @@ class MainWindow(QMainWindow):
             w.setVisible(custom)
         self._refresh_overlay_alpha()
         logger.info("Overlay mode changed: %s", mode)
+
+    def _update_seg_controls(self, method: str) -> None:
+        """Enable/disable threshold widgets based on segmentation method."""
+        manual = method == "manual"
+        adaptive = method == "adaptive"
+        local = method == "local"
+        self.manual_t.setEnabled(manual)
+        self.adaptive_blk.setEnabled(adaptive)
+        self.adaptive_C.setEnabled(adaptive)
+        self.local_blk.setEnabled(local)
 
     def _build_ui(self):
         central = QWidget()
@@ -385,6 +396,7 @@ class MainWindow(QMainWindow):
         self._add_help(self.rm_holes, "Fill holes smaller than this area in pixels.")
         self._add_help(self.skip_outline, "Bypass outline enhancement; automatically skipped for difference images or low contrast.")
         self.seg_method.currentTextChanged.connect(self._persist_settings)
+        self.seg_method.currentTextChanged.connect(self._update_seg_controls)
         self.invert.toggled.connect(self._persist_settings)
         self.skip_outline.toggled.connect(self._persist_settings)
         self.manual_t.valueChanged.connect(self._persist_settings)
