@@ -79,14 +79,20 @@ def segment(
             bw = (th > 0).astype(np.uint8)
         elif method == "adaptive":
             blk = max(3, adaptive_block | 1)
-            if use_diff:
-                rng = int(feat.max() - feat.min())
-                if rng < 2:
+            rng = int(feat.max() - feat.min())
+            if rng < 2:
+                if use_diff:
                     bw = np.zeros_like(feat, dtype=np.uint8)
                     feat = None
                 else:
-                    feat = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
+                    feat = plain
+                    rng = int(feat.max() - feat.min())
+                    if rng < 2:
+                        bw = np.zeros_like(feat, dtype=np.uint8)
+                        feat = None
             if feat is not None:
+                if use_diff:
+                    feat = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
                 th = cv2.adaptiveThreshold(
                     feat.astype(np.uint8),
                     255,
@@ -98,8 +104,20 @@ def segment(
                 bw = (th > 0).astype(np.uint8)
         elif method == "local":
             blk = max(3, local_block|1)
-            loc = filters.threshold_local(feat, blk)
-            bw = (feat > loc).astype(np.uint8)
+            rng = int(feat.max() - feat.min())
+            if rng < 2:
+                if use_diff:
+                    bw = np.zeros_like(feat, dtype=np.uint8)
+                    feat = None
+                else:
+                    feat = plain
+                    rng = int(feat.max() - feat.min())
+                    if rng < 2:
+                        bw = np.zeros_like(feat, dtype=np.uint8)
+                        feat = None
+            if feat is not None:
+                loc = filters.threshold_local(feat, blk)
+                bw = (feat > loc).astype(np.uint8)
         else:
             t = int(np.clip(manual_thresh, 0, 255))
             bw = (feat >= t).astype(np.uint8)
