@@ -32,6 +32,8 @@ class MainWindow(QMainWindow):
         self.reg, self.seg, self.app = load_settings()
         self.ref_color = tuple(self.app.overlay_ref_color)
         self.mov_color = tuple(self.app.overlay_mov_color)
+        self.new_color = tuple(self.app.overlay_new_color)
+        self.lost_color = tuple(self.app.overlay_lost_color)
         self.paths: list[Path] = []
         # Cached preview images for alpha blending
         self._reg_ref = None
@@ -62,7 +64,13 @@ class MainWindow(QMainWindow):
 
     def _choose_color(self, which: str) -> None:
         logger.info("Color button clicked: %s", which)
-        initial = self.ref_color if which == 'ref' else self.mov_color
+        mapping = {
+            'ref': self.ref_color,
+            'mov': self.mov_color,
+            'new': self.new_color,
+            'lost': self.lost_color,
+        }
+        initial = mapping.get(which, (255, 255, 255))
         col = QColorDialog.getColor(QColor(*initial), self, "Select color")
         if col.isValid():
             color = (col.red(), col.green(), col.blue())
@@ -70,9 +78,15 @@ class MainWindow(QMainWindow):
             if which == 'ref':
                 self.ref_color = color
                 self._set_btn_color(self.ref_color_btn, color)
-            else:
+            elif which == 'mov':
                 self.mov_color = color
                 self._set_btn_color(self.mov_color_btn, color)
+            elif which == 'new':
+                self.new_color = color
+                self._set_btn_color(self.new_color_btn, color)
+            elif which == 'lost':
+                self.lost_color = color
+                self._set_btn_color(self.lost_color_btn, color)
             self._refresh_overlay_alpha()
             self._persist_settings()
         else:
@@ -80,7 +94,16 @@ class MainWindow(QMainWindow):
 
     def _on_overlay_mode_changed(self, mode: str) -> None:
         custom = mode == 'custom'
-        for w in (self.ref_color_btn, self.mov_color_btn, self.ref_color_label, self.mov_color_label):
+        for w in (
+            self.ref_color_btn,
+            self.mov_color_btn,
+            self.ref_color_label,
+            self.mov_color_label,
+            self.new_color_btn,
+            self.lost_color_btn,
+            self.new_color_label,
+            self.lost_color_label,
+        ):
             w.setVisible(custom)
         self._refresh_overlay_alpha()
         logger.info("Overlay mode changed: %s", mode)
@@ -442,10 +465,20 @@ class MainWindow(QMainWindow):
         self.mov_color_label = QLabel("Mov")
         self.mov_color_btn = QPushButton(); self.mov_color_btn.setFixedWidth(30)
         self._set_btn_color(self.mov_color_btn, self.mov_color)
+        self.new_color_label = QLabel("New")
+        self.new_color_btn = QPushButton(); self.new_color_btn.setFixedWidth(30)
+        self._set_btn_color(self.new_color_btn, self.new_color)
+        self.lost_color_label = QLabel("Lost")
+        self.lost_color_btn = QPushButton(); self.lost_color_btn.setFixedWidth(30)
+        self._set_btn_color(self.lost_color_btn, self.lost_color)
         mode_box.addWidget(self.ref_color_label)
         mode_box.addWidget(self.ref_color_btn)
         mode_box.addWidget(self.mov_color_label)
         mode_box.addWidget(self.mov_color_btn)
+        mode_box.addWidget(self.new_color_label)
+        mode_box.addWidget(self.new_color_btn)
+        mode_box.addWidget(self.lost_color_label)
+        mode_box.addWidget(self.lost_color_btn)
         right.addLayout(mode_box)
 
         # Refresh overlays when controls change
@@ -459,6 +492,8 @@ class MainWindow(QMainWindow):
         self.overlay_mode_combo.currentTextChanged.connect(self._persist_settings)
         self.ref_color_btn.clicked.connect(lambda: self._choose_color('ref'))
         self.mov_color_btn.clicked.connect(lambda: self._choose_color('mov'))
+        self.new_color_btn.clicked.connect(lambda: self._choose_color('new'))
+        self.lost_color_btn.clicked.connect(lambda: self._choose_color('lost'))
 
         self._on_overlay_mode_changed(self.overlay_mode_combo.currentText())
 
@@ -579,7 +614,9 @@ class MainWindow(QMainWindow):
                         overlay_opacity=self.alpha_slider.value(),
                         overlay_mode=self.overlay_mode_combo.currentText(),
                         overlay_ref_color=self.ref_color,
-                        overlay_mov_color=self.mov_color)
+                        overlay_mov_color=self.mov_color,
+                        overlay_new_color=self.new_color,
+                        overlay_lost_color=self.lost_color)
         app.presets_path = self.app.presets_path
         return reg, seg, app
 
@@ -656,8 +693,12 @@ class MainWindow(QMainWindow):
         self.overlay_mode_combo.setCurrentText(app.overlay_mode)
         self.ref_color = tuple(app.overlay_ref_color)
         self.mov_color = tuple(app.overlay_mov_color)
+        self.new_color = tuple(app.overlay_new_color)
+        self.lost_color = tuple(app.overlay_lost_color)
         self._set_btn_color(self.ref_color_btn, self.ref_color)
         self._set_btn_color(self.mov_color_btn, self.mov_color)
+        self._set_btn_color(self.new_color_btn, self.new_color)
+        self._set_btn_color(self.lost_color_btn, self.lost_color)
         self._on_overlay_mode_changed(app.overlay_mode)
         self.status_label.setText(f"Preset loaded: {path}")
         self._persist_settings()
