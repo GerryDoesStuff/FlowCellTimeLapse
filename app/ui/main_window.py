@@ -1061,7 +1061,12 @@ class MainWindow(QMainWindow):
                 gray = self._diff_gray
             else:
                 gray = self._reg_warp
-            gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+            # Mirror pipeline input handling: pass the raw frame to ``segment`` and
+            # only normalize when necessary. ``compute_difference`` and
+            # ``imread_gray`` already yield ``uint8`` images, so avoid double
+            # scaling unless a non-uint8 array arrives here.
+            if gray.dtype != np.uint8:
+                gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
             bw = segment(
                 gray,
                 method=seg.method,
