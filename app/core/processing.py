@@ -256,11 +256,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 )
         else:
             seg_img = mov_crop
+        use_diff = app_cfg.get("use_difference_for_seg", False) and idx > 0
         bw_mov = segment(
             seg_img,
             method=seg_cfg.get("method", "otsu"),
             invert=bool(seg_cfg.get("invert", True)),
             skip_outline=bool(seg_cfg.get("skip_outline", False)),
+            use_diff=use_diff,
             manual_thresh=int(seg_cfg.get("manual_thresh", 128)),
             adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
             adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
