@@ -18,6 +18,7 @@ from ..core.io_utils import discover_images, imread_gray, file_times_minutes, co
 from ..core.registration import register_ecc, register_orb, register_orb_ecc, preprocess
 from ..core.segmentation import segment
 from ..core.processing import overlay_outline
+from ..core.difference import compute_difference
 from ..workers.pipeline_worker import PipelineWorker
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class MainWindow(QMainWindow):
         self._reg_warp = None
         self._seg_gray = None
         self._seg_overlay = None
+        self._diff_img = None
         self._current_preview = None
         self._build_ui()
         self._param_timer = QTimer(self)
@@ -301,6 +303,20 @@ class MainWindow(QMainWindow):
         # Initialize visibility of ECC-specific controls
         self._on_reg_method_change(self.reg_method.currentText())
 
+        # Difference preview
+        diff_group = QGroupBox("Difference")
+        diff_layout = QVBoxLayout(diff_group)
+        self.diff_preview_btn = QPushButton("Preview Difference")
+        self.diff_preview_btn.setEnabled(False)
+        self.diff_preview_btn.clicked.connect(self._preview_difference)
+        diff_layout.addWidget(self.diff_preview_btn)
+        self.use_diff_cb = QCheckBox("Use difference for segmentation")
+        self.use_diff_cb.setChecked(self.app.use_difference_for_seg)
+        diff_layout.addWidget(self.use_diff_cb)
+        controls.addWidget(diff_group)
+        self.use_diff_cb.toggled.connect(self._persist_settings)
+        self.use_diff_cb.toggled.connect(self._on_params_changed)
+
         # Segmentation params
         seg_group = QGroupBox("Segmentation")
         seg_grid = QGridLayout(seg_group)
@@ -478,6 +494,7 @@ class MainWindow(QMainWindow):
             # Changing folders invalidates previous registration
             self._registration_done = False
             self.seg_preview_btn.setEnabled(False)
+            self.diff_preview_btn.setEnabled(False)
             self.paths = discover_images(Path(d))
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
@@ -539,6 +556,7 @@ class MainWindow(QMainWindow):
                         normalize=self.norm_cb.isChecked(),
                         subtract_background=self.bg_sub_cb.isChecked(),
                         scale_minmax=scale_minmax,
+                        use_difference_for_seg=self.use_diff_cb.isChecked(),
                         show_ref_overlay=self.overlay_ref_cb.isChecked(),
                         show_mov_overlay=self.overlay_mov_cb.isChecked(),
                         overlay_opacity=self.alpha_slider.value(),
@@ -678,7 +696,7 @@ class MainWindow(QMainWindow):
             logger.info("Parameter changed via %s: %s", name, val)
         if sender is not None and hasattr(sender, "isEnabled") and not sender.isEnabled():
             return
-        if self._current_preview not in ("registration", "segmentation"):
+        if self._current_preview not in ("registration", "segmentation", "difference"):
             return
         self._param_timer.start()
 
@@ -688,6 +706,8 @@ class MainWindow(QMainWindow):
             self._preview_registration()
         elif self._current_preview == "segmentation":
             self._preview_segmentation()
+        elif self._current_preview == "difference":
+            self._preview_difference()
 
     def _refresh_overlay_alpha(self):
         """Blend cached overlays according to slider and checkbox states."""
@@ -726,6 +746,8 @@ class MainWindow(QMainWindow):
             else:
                 blend = np.zeros_like(self._seg_gray)
             self.view.setImage(blend.transpose(1, 0, 2))
+        elif self._current_preview == "difference" and self._diff_img is not None:
+            self.view.setImage(self._diff_img.transpose(1, 0, 2))
 
     def _preview_registration(self):
         # Clear any previous previews so stale images aren't blended
@@ -734,9 +756,11 @@ class MainWindow(QMainWindow):
         self._reg_warp = None
         self._seg_gray = None
         self._seg_overlay = None
+        self._diff_img = None
         # Reset registration flag until this preview completes successfully
         self._registration_done = False
         self.seg_preview_btn.setEnabled(False)
+        self.diff_preview_btn.setEnabled(False)
 
         if len(self.paths) < 2:
             QMessageBox.warning(self, "Need at least two images", "Load at least two images for preview.")
@@ -808,6 +832,94 @@ class MainWindow(QMainWindow):
             # Enable segmentation preview now that registration succeeded
             self._registration_done = True
             self.seg_preview_btn.setEnabled(True)
+            self.diff_preview_btn.setEnabled(True)
+        except Exception as e:
+            self.status_label.setText(f"Preview failed: {e}")
+
+    def _preview_difference(self):
+        # Clear previous previews that might interfere
+        self._current_preview = None
+        self._seg_gray = None
+        self._seg_overlay = None
+        self._diff_img = None
+        self.seg_preview_btn.setEnabled(False)
+        self.diff_preview_btn.setEnabled(False)
+
+        if len(self.paths) < 2:
+            QMessageBox.warning(self, "Need at least two images", "Load at least two images for preview.")
+            return
+        try:
+            reg, _, app = self._persist_settings()
+            pair_idx = self.mov_idx_spin.value()
+            if pair_idx < 0 or pair_idx > len(self.paths) - 2:
+                QMessageBox.warning(self, "Invalid index", "Select a valid frame pair index.")
+                return
+            if app.direction == "first-to-last":
+                ref_idx = pair_idx
+                mov_idx = pair_idx + 1
+            else:
+                ref_idx = len(self.paths) - 1 - pair_idx
+                mov_idx = ref_idx - 1
+
+            if self._reg_ref is None or self._reg_warp is None:
+                ref_img = imread_gray(self.paths[ref_idx], normalize=app.normalize,
+                                     scale_minmax=app.scale_minmax)
+                mov_img = imread_gray(self.paths[mov_idx], normalize=app.normalize,
+                                     scale_minmax=app.scale_minmax)
+                ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
+                mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
+                method = reg.method.upper()
+                if method == "ORB":
+                    success, _, warped, _, fb, ref_kp, mov_kp = register_orb(
+                        ref_img,
+                        mov_img,
+                        model=reg.model,
+                        orb_features=reg.orb_features,
+                        match_ratio=reg.match_ratio,
+                        min_keypoints=reg.min_keypoints,
+                        min_matches=reg.min_matches,
+                        use_ecc_fallback=reg.use_ecc_fallback,
+                    )
+                    if fb:
+                        self.status_label.setText("ORB fell back to ECC for registration.")
+                elif method == "ORB+ECC":
+                    success, _, warped, _, ref_kp, mov_kp = register_orb_ecc(
+                        ref_img,
+                        mov_img,
+                        model=reg.model,
+                        max_iters=reg.max_iters,
+                        eps=reg.eps,
+                        orb_features=reg.orb_features,
+                        match_ratio=reg.match_ratio,
+                        min_keypoints=reg.min_keypoints,
+                        min_matches=reg.min_matches,
+                        use_ecc_fallback=reg.use_ecc_fallback,
+                    )
+                else:
+                    success, _, warped, _ = register_ecc(
+                        ref_img,
+                        mov_img,
+                        model=reg.model,
+                        max_iters=reg.max_iters,
+                        eps=reg.eps,
+                    )
+                    ref_kp = mov_kp = 0
+                if not success:
+                    raise RuntimeError("Registration failed")
+                self.kp_label.setText(f"Keypoints: ref={ref_kp}, mov={mov_kp}")
+                self._reg_ref = ref_img
+                self._reg_warp = warped
+
+            diff = compute_difference(self._reg_ref, self._reg_warp)
+            self._diff_img = cv2.cvtColor(diff, cv2.COLOR_GRAY2RGB)
+            self._current_preview = "difference"
+            self._registration_done = True
+
+            self._refresh_overlay_alpha()
+            self.view.setImage(self.view.imageItem.image)
+            self.status_label.setText("Difference preview successful.")
+            self.seg_preview_btn.setEnabled(True)
+            self.diff_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
@@ -885,7 +997,10 @@ class MainWindow(QMainWindow):
                 self._reg_warp = warped
                 self.kp_label.setText(f"Keypoints: ref={ref_kp}, mov={mov_kp}")
 
-            gray = self._reg_warp
+            if self.use_diff_cb.isChecked():
+                gray = compute_difference(self._reg_ref, self._reg_warp)
+            else:
+                gray = self._reg_warp
             bw = segment(gray,
                          method=seg.method,
                          invert=seg.invert,
@@ -908,6 +1023,7 @@ class MainWindow(QMainWindow):
             self._refresh_overlay_alpha()
             self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Segmentation preview successful.")
+            self.diff_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
@@ -979,7 +1095,7 @@ class MainWindow(QMainWindow):
                        morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,
                        remove_objects_smaller_px=seg.remove_objects_smaller_px, remove_holes_smaller_px=seg.remove_holes_smaller_px)
         app_cfg = dict(direction=app.direction,
-                       use_difference_for_seg=False, save_intermediates=True,
+                       use_difference_for_seg=app.use_difference_for_seg, save_intermediates=True,
                        normalize=app.normalize,
                        subtract_background=app.subtract_background,
                        scale_minmax=app.scale_minmax)
