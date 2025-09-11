@@ -370,8 +370,8 @@ class MainWindow(QMainWindow):
         self.adaptive_blk = QSpinBox(); self.adaptive_blk.setRange(3,999); self.adaptive_blk.setSingleStep(2); self.adaptive_blk.setValue(self.seg.adaptive_block)
         self.adaptive_C = QSpinBox(); self.adaptive_C.setRange(-100,100); self.adaptive_C.setValue(self.seg.adaptive_C)
         self.local_blk = QSpinBox(); self.local_blk.setRange(3,999); self.local_blk.setSingleStep(2); self.local_blk.setValue(self.seg.local_block)
-        self.open_r = QSpinBox(); self.open_r.setRange(0,50); self.open_r.setValue(self.seg.morph_open_radius)
-        self.close_r = QSpinBox(); self.close_r.setRange(0,50); self.close_r.setValue(self.seg.morph_close_radius)
+        self.open_r = QSpinBox(); self.open_r.setRange(0,50); self.open_r.setValue(self.seg.morph_open_radius or 0)
+        self.close_r = QSpinBox(); self.close_r.setRange(0,50); self.close_r.setValue(self.seg.morph_close_radius or 0)
         self.rm_obj = QSpinBox(); self.rm_obj.setRange(0,100000); self.rm_obj.setValue(self.seg.remove_objects_smaller_px)
         self.rm_holes = QSpinBox(); self.rm_holes.setRange(0,100000); self.rm_holes.setValue(self.seg.remove_holes_smaller_px)
         seg_grid.addWidget(QLabel("Method"), 0, 0); seg_grid.addWidget(self.seg_method, 0, 1)
@@ -654,8 +654,8 @@ class MainWindow(QMainWindow):
                         adaptive_block=self.adaptive_blk.value(),
                         adaptive_C=self.adaptive_C.value(),
                         local_block=self.local_blk.value(),
-                        morph_open_radius=self.open_r.value(),
-                        morph_close_radius=self.close_r.value(),
+                        morph_open_radius=self.open_r.value() or None,
+                        morph_close_radius=self.close_r.value() or None,
                         remove_objects_smaller_px=self.rm_obj.value(),
                         remove_holes_smaller_px=self.rm_holes.value())
         scale_minmax = (self.scale_min.value(), self.scale_max.value())
@@ -729,8 +729,8 @@ class MainWindow(QMainWindow):
         self.adaptive_blk.setValue(seg.adaptive_block)
         self.adaptive_C.setValue(seg.adaptive_C)
         self.local_blk.setValue(seg.local_block)
-        self.open_r.setValue(seg.morph_open_radius)
-        self.close_r.setValue(seg.morph_close_radius)
+        self.open_r.setValue(seg.morph_open_radius or 0)
+        self.close_r.setValue(seg.morph_close_radius or 0)
         self.rm_obj.setValue(seg.remove_objects_smaller_px)
         self.rm_holes.setValue(seg.remove_holes_smaller_px)
         self.dir_combo.setCurrentText(app.direction)

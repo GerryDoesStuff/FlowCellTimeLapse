@@ -36,8 +36,8 @@ class SegParams:
     local_block: int = 51
     remove_holes_smaller_px: int = 0
     remove_objects_smaller_px: int = 0
-    morph_open_radius: int = 0
-    morph_close_radius: int = 0
+    morph_open_radius: int | None = None
+    morph_close_radius: int | None = None
     invert: bool = True  # cells darker
     skip_outline: bool = False
 

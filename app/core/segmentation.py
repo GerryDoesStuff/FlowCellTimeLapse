@@ -26,8 +26,8 @@ def segment(
     adaptive_block: int = 51,
     adaptive_C: int = 5,
     local_block: int = 51,
-    morph_open_radius: int = 0,
-    morph_close_radius: int = 0,
+    morph_open_radius: int | None = None,
+    morph_close_radius: int | None = None,
     remove_objects_smaller_px: int = 0,
     remove_holes_smaller_px: int = 0,
 ) -> np.ndarray:
@@ -126,11 +126,21 @@ def segment(
 
     # Morphology: closing before opening. When outline-based thresholds are used
     # (the default path), radii default to zero, avoiding unnecessary smoothing.
-    if morph_close_radius>0:
-        se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph_close_radius*2+1, morph_close_radius*2+1))
+    # For non-outline paths, restore small default radii for basic cleanup.
+    if morph_close_radius is None:
+        morph_close_radius = 0 if used_outline else 2
+    if morph_open_radius is None:
+        morph_open_radius = 0 if used_outline else 2
+
+    if morph_close_radius > 0:
+        se = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (morph_close_radius * 2 + 1, morph_close_radius * 2 + 1)
+        )
         bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, se)
-    if morph_open_radius>0:
-        se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (morph_open_radius*2+1, morph_open_radius*2+1))
+    if morph_open_radius > 0:
+        se = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (morph_open_radius * 2 + 1, morph_open_radius * 2 + 1)
+        )
         bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, se)
 
     if remove_objects_smaller_px>0:

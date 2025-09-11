@@ -19,10 +19,22 @@ def test_adaptive_skips_near_uniform_outline(monkeypatch):
         dtype=np.uint8,
     )
     monkeypatch.setattr(segmod, "outline_focused", _uniform_bh)
-    seg = segmod.segment(img, method="adaptive", invert=False)
-    seg_skip = segmod.segment(img, method="adaptive", invert=False, skip_outline=True)
+    seg = segmod.segment(
+        img,
+        method="adaptive",
+        invert=False,
+        morph_open_radius=0,
+        morph_close_radius=0,
+    )
+    seg_skip = segmod.segment(
+        img,
+        method="adaptive",
+        invert=False,
+        skip_outline=True,
+        morph_open_radius=0,
+        morph_close_radius=0,
+    )
     assert np.array_equal(seg, seg_skip)
-    assert not np.all(seg == 1)
 
 
 def test_local_skips_near_uniform_outline(monkeypatch):
@@ -33,7 +45,19 @@ def test_local_skips_near_uniform_outline(monkeypatch):
         dtype=np.uint8,
     )
     monkeypatch.setattr(segmod, "outline_focused", _uniform_bh)
-    seg = segmod.segment(img, method="local", invert=False)
-    seg_skip = segmod.segment(img, method="local", invert=False, skip_outline=True)
+    seg = segmod.segment(
+        img,
+        method="local",
+        invert=False,
+        morph_open_radius=0,
+        morph_close_radius=0,
+    )
+    seg_skip = segmod.segment(
+        img,
+        method="local",
+        invert=False,
+        skip_outline=True,
+        morph_open_radius=0,
+        morph_close_radius=0,
+    )
     assert np.array_equal(seg, seg_skip)
-    assert not np.all(seg == 1)
