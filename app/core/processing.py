@@ -250,6 +250,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             seg_img = compute_difference(
                 prev_crop, mov_crop, method=app_cfg.get("difference_method", "abs")
             )
+            if app_cfg.get("save_intermediates", True):
+                cv2.imencode('.png', seg_img)[1].tofile(
+                    str(diff_dir / f"{k:04d}_diff.png")
+                )
         else:
             seg_img = mov_crop
         bw_mov = segment(
