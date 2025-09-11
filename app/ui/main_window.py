@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
         self._seg_gray = None
         self._seg_overlay = None
         self._diff_img = None
+        self._diff_gray = None
         self._current_preview = None
         self._build_ui()
         self._param_timer = QTimer(self)
@@ -495,6 +496,12 @@ class MainWindow(QMainWindow):
             self._registration_done = False
             self.seg_preview_btn.setEnabled(False)
             self.diff_preview_btn.setEnabled(False)
+            self._reg_ref = None
+            self._reg_warp = None
+            self._seg_gray = None
+            self._seg_overlay = None
+            self._diff_img = None
+            self._diff_gray = None
             self.paths = discover_images(Path(d))
             if not self.paths:
                 QMessageBox.warning(self, "No images", "No images found.")
@@ -757,6 +764,7 @@ class MainWindow(QMainWindow):
         self._seg_gray = None
         self._seg_overlay = None
         self._diff_img = None
+        self._diff_gray = None
         # Reset registration flag until this preview completes successfully
         self._registration_done = False
         self.seg_preview_btn.setEnabled(False)
@@ -829,9 +837,8 @@ class MainWindow(QMainWindow):
             self._refresh_overlay_alpha()
             self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Preview successful.")
-            # Enable segmentation preview now that registration succeeded
+            # Registration succeeded; difference can now be previewed
             self._registration_done = True
-            self.seg_preview_btn.setEnabled(True)
             self.diff_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
@@ -842,6 +849,7 @@ class MainWindow(QMainWindow):
         self._seg_gray = None
         self._seg_overlay = None
         self._diff_img = None
+        self._diff_gray = None
         self.seg_preview_btn.setEnabled(False)
         self.diff_preview_btn.setEnabled(False)
 
@@ -911,7 +919,8 @@ class MainWindow(QMainWindow):
                 self._reg_warp = warped
 
             diff = compute_difference(self._reg_ref, self._reg_warp)
-            self._diff_img = cv2.cvtColor(diff, cv2.COLOR_GRAY2RGB)
+            self._diff_gray = diff
+            self._diff_img = cv2.cvtColor(self._diff_gray, cv2.COLOR_GRAY2RGB)
             self._current_preview = "difference"
             self._registration_done = True
 
@@ -929,76 +938,14 @@ class MainWindow(QMainWindow):
         self._seg_gray = None
         self._seg_overlay = None
 
-        if not self.paths:
-            QMessageBox.warning(self, "No images", "Choose an image folder first.")
+        if self._diff_gray is None:
+            QMessageBox.warning(self, "Run difference preview", "Run the difference preview first.")
             return
         try:
-            reg, seg, app = self._persist_settings()
-
-            pair_idx = self.mov_idx_spin.value()
-            if pair_idx < 0 or pair_idx > len(self.paths) - 2:
-                QMessageBox.warning(self, "Invalid index", "Select a valid frame pair index.")
-                return
-
-            if app.direction == "first-to-last":
-                ref_idx = pair_idx
-                mov_idx = pair_idx + 1
-            else:
-                ref_idx = len(self.paths) - 1 - pair_idx
-                mov_idx = ref_idx - 1
-
-            # Reuse previously registered images or run a quick registration
-            if self._reg_ref is None or self._reg_warp is None:
-                ref_img = imread_gray(self.paths[ref_idx], normalize=app.normalize,
-                                     scale_minmax=app.scale_minmax)
-                mov_img = imread_gray(self.paths[mov_idx], normalize=app.normalize,
-                                     scale_minmax=app.scale_minmax)
-                ref_img = preprocess(ref_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
-                mov_img = preprocess(mov_img, reg.gauss_blur_sigma, reg.clahe_clip, reg.clahe_grid, reg.use_clahe)
-                method = reg.method.upper()
-                if method == "ORB":
-                    success, _, warped, _, fb, ref_kp, mov_kp = register_orb(
-                        ref_img,
-                        mov_img,
-                        model=reg.model,
-                        orb_features=reg.orb_features,
-                        match_ratio=reg.match_ratio,
-                        min_keypoints=reg.min_keypoints,
-                        min_matches=reg.min_matches,
-                        use_ecc_fallback=reg.use_ecc_fallback,
-                    )
-                    if fb:
-                        self.status_label.setText("ORB fell back to ECC for registration.")
-                elif method == "ORB+ECC":
-                    success, _, warped, _, ref_kp, mov_kp = register_orb_ecc(
-                        ref_img,
-                        mov_img,
-                        model=reg.model,
-                        max_iters=reg.max_iters,
-                        eps=reg.eps,
-                        orb_features=reg.orb_features,
-                        match_ratio=reg.match_ratio,
-                        min_keypoints=reg.min_keypoints,
-                        min_matches=reg.min_matches,
-                        use_ecc_fallback=reg.use_ecc_fallback,
-                    )
-                else:
-                    success, _, warped, _ = register_ecc(
-                        ref_img,
-                        mov_img,
-                        model=reg.model,
-                        max_iters=reg.max_iters,
-                        eps=reg.eps,
-                    )
-                    ref_kp = mov_kp = 0
-                if not success:
-                    raise RuntimeError("Registration failed")
-                self._reg_ref = ref_img
-                self._reg_warp = warped
-                self.kp_label.setText(f"Keypoints: ref={ref_kp}, mov={mov_kp}")
+            _, seg, _ = self._persist_settings()
 
             if self.use_diff_cb.isChecked():
-                gray = compute_difference(self._reg_ref, self._reg_warp)
+                gray = self._diff_gray
             else:
                 gray = self._reg_warp
             bw = segment(gray,
