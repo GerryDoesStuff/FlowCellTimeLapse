@@ -20,6 +20,7 @@ from ..core.segmentation import segment
 from ..core.processing import overlay_outline
 from ..core.difference import compute_difference
 from ..workers.pipeline_worker import PipelineWorker
+from .collapsible_section import CollapsibleSection
 
 logger = logging.getLogger(__name__)
 
@@ -157,8 +158,8 @@ class MainWindow(QMainWindow):
         self.bg_sub_cb.toggled.connect(self._on_params_changed)
 
         # Registration params
-        reg_group = QGroupBox("Registration")
-        reg_grid = QGridLayout(reg_group)
+        reg_section = CollapsibleSection("Registration")
+        reg_grid = QGridLayout()
         self.reg_method = QComboBox(); self.reg_method.addItems(["ECC","ORB","ORB+ECC"]); self.reg_method.setCurrentText(self.reg.method)
         self.reg_model = QComboBox(); self.reg_model.addItems(["translation","euclidean","affine","homography"]); self.reg_model.setCurrentText(self.reg.model)
         self.max_iters_label = QLabel("Max iters")
@@ -204,15 +205,16 @@ class MainWindow(QMainWindow):
         reg_grid.addWidget(self.use_ecc_label, 7, 0); reg_grid.addWidget(self.use_ecc_fallback, 7, 1)
         reg_grid.addWidget(self.min_keypoints_label, 7, 2); reg_grid.addWidget(self.min_keypoints, 7, 3)
         reg_grid.addWidget(self.min_matches_label, 8, 2); reg_grid.addWidget(self.min_matches, 8, 3)
-        reg_preview_btn = QPushButton("Preview Registration")
-        reg_preview_btn.clicked.connect(self._preview_registration)
-        reg_grid.addWidget(reg_preview_btn, 9, 0, 1, 4)
         self.kp_label = QLabel("Keypoints: -")
-        reg_grid.addWidget(self.kp_label, 10, 0, 1, 4)
+        reg_grid.addWidget(self.kp_label, 9, 0, 1, 4)
         self.clahe_clip.setEnabled(self.use_clahe.isChecked())
         self.clahe_grid.setEnabled(self.use_clahe.isChecked())
         self.use_clahe.toggled.connect(lambda v: [self.clahe_clip.setEnabled(v), self.clahe_grid.setEnabled(v)])
-        controls.addWidget(reg_group)
+        reg_section.setContentLayout(reg_grid)
+        controls.addWidget(reg_section)
+        reg_preview_btn = QPushButton("Preview Registration")
+        reg_preview_btn.clicked.connect(self._preview_registration)
+        controls.addWidget(reg_preview_btn)
         self._add_help(
             self.reg_method,
             "Registration algorithm. ECC correlates intensities for higher accuracy but "
@@ -305,22 +307,23 @@ class MainWindow(QMainWindow):
         self._on_reg_method_change(self.reg_method.currentText())
 
         # Difference preview
-        diff_group = QGroupBox("Difference")
-        diff_layout = QVBoxLayout(diff_group)
-        self.diff_preview_btn = QPushButton("Preview Difference")
-        self.diff_preview_btn.setEnabled(False)
-        self.diff_preview_btn.clicked.connect(self._preview_difference)
-        diff_layout.addWidget(self.diff_preview_btn)
+        diff_section = CollapsibleSection("Difference")
+        diff_layout = QVBoxLayout()
         self.use_diff_cb = QCheckBox("Use difference for segmentation")
         self.use_diff_cb.setChecked(self.app.use_difference_for_seg)
         diff_layout.addWidget(self.use_diff_cb)
-        controls.addWidget(diff_group)
+        diff_section.setContentLayout(diff_layout)
+        controls.addWidget(diff_section)
+        self.diff_preview_btn = QPushButton("Preview Difference")
+        self.diff_preview_btn.setEnabled(False)
+        self.diff_preview_btn.clicked.connect(self._preview_difference)
+        controls.addWidget(self.diff_preview_btn)
         self.use_diff_cb.toggled.connect(self._persist_settings)
         self.use_diff_cb.toggled.connect(self._on_params_changed)
 
         # Segmentation params
-        seg_group = QGroupBox("Segmentation")
-        seg_grid = QGridLayout(seg_group)
+        seg_section = CollapsibleSection("Segmentation")
+        seg_grid = QGridLayout()
         self.seg_method = QComboBox(); self.seg_method.addItems(["otsu","adaptive","local","manual"]); self.seg_method.setCurrentText(self.seg.method)
         self.invert = QCheckBox("Cells darker (invert)"); self.invert.setChecked(self.seg.invert)
         self.skip_outline = QCheckBox("Skip outline prefilter"); self.skip_outline.setChecked(self.seg.skip_outline)
@@ -343,12 +346,13 @@ class MainWindow(QMainWindow):
         seg_grid.addWidget(QLabel("Close radius"), 2, 2); seg_grid.addWidget(self.close_r, 2, 3)
         seg_grid.addWidget(QLabel("Remove objects < px"), 3, 2); seg_grid.addWidget(self.rm_obj, 3, 3)
         seg_grid.addWidget(QLabel("Remove holes < px"), 4, 2); seg_grid.addWidget(self.rm_holes, 4, 3)
+        seg_section.setContentLayout(seg_grid)
+        controls.addWidget(seg_section)
         self.seg_preview_btn = QPushButton("Preview Segmentation")
         # Initially disabled until a registration preview is successfully run
         self.seg_preview_btn.setEnabled(False)
         self.seg_preview_btn.clicked.connect(self._preview_segmentation)
-        seg_grid.addWidget(self.seg_preview_btn, 6, 0, 1, 4)
-        controls.addWidget(seg_group)
+        controls.addWidget(self.seg_preview_btn)
         self._add_help(self.rm_obj, "Remove connected components smaller than this area in pixels.")
         self._add_help(self.rm_holes, "Fill holes smaller than this area in pixels.")
         self._add_help(self.skip_outline, "Bypass outline enhancement for low-contrast images.")
