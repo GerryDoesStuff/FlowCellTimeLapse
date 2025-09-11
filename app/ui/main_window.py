@@ -964,6 +964,7 @@ class MainWindow(QMainWindow):
         reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters,
                        eps=reg.eps, use_masked_ecc=reg.use_masked_ecc,
                        gauss_blur_sigma=reg.gauss_blur_sigma,
+                       use_clahe=reg.use_clahe,
                        clahe_clip=reg.clahe_clip,
                        clahe_grid=reg.clahe_grid,
                        initial_radius=reg.initial_radius,
