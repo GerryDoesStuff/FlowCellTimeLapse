@@ -235,21 +235,40 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         )
 
     # Phase 2: segmentation using per-frame masks
-    def _save_mask(idx: int, mask: np.ndarray, x_off: int, y_off: int) -> None:
+    def _save_mask(
+        idx: int,
+        mask: np.ndarray,
+        x_off: int,
+        y_off: int,
+        *,
+        suffix: str = "",
+        overlay: bool = True,
+    ) -> None:
         if not app_cfg.get("save_masks", False):
             return
         h, w = mask.shape[:2]
         full_mask = np.zeros_like(imgs_gray[idx], dtype=mask.dtype)
         full_mask[y_off : y_off + h, x_off : x_off + w] = mask
         cv2.imencode(".png", (full_mask * 255).astype(np.uint8))[1].tofile(
-            str(out_dir / f"mask_{idx:04d}.png")
+            str(out_dir / f"mask_{idx:04d}{suffix}.png")
         )
-        frame_color = cv2.cvtColor(imgs_gray[idx], cv2.COLOR_GRAY2BGR)
-        cnts, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if cnts:
-            x_m, y_m, w_m, h_m = cv2.boundingRect(np.vstack(cnts))
-            cv2.rectangle(frame_color, (x_off + x_m, y_off + y_m), (x_off + x_m + w_m, y_off + y_m + h_m), (0, 255, 0), 1)
-        cv2.imencode('.png', frame_color)[1].tofile(str(out_dir / f"mask_{idx:04d}_overlay.png"))
+        if overlay:
+            frame_color = cv2.cvtColor(imgs_gray[idx], cv2.COLOR_GRAY2BGR)
+            cnts, _ = cv2.findContours(
+                mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if cnts:
+                x_m, y_m, w_m, h_m = cv2.boundingRect(np.vstack(cnts))
+                cv2.rectangle(
+                    frame_color,
+                    (x_off + x_m, y_off + y_m),
+                    (x_off + x_m + w_m, y_off + y_m + h_m),
+                    (0, 255, 0),
+                    1,
+                )
+            cv2.imencode(".png", frame_color)[1].tofile(
+                str(out_dir / f"mask_{idx:04d}_overlay{suffix}.png")
+            )
 
     ref_gray = registered_frames[ref_idx]
     bw_ref = segment(
@@ -286,23 +305,37 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             warped = cv2.warpPerspective(imgs_norm[k], T, (W, H))
             registered_frames[k] = warped
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
-        if app_cfg.get("use_difference_for_seg", False) and idx > 0:
+        use_diff = app_cfg.get("use_difference_for_seg", False) and idx > 0
+        bw_diff = None
+        if use_diff:
             seg_img = compute_difference(
                 prev_crop, mov_crop, method=app_cfg.get("difference_method", "abs")
             )
+            bw_diff = segment(
+                seg_img,
+                method=seg_cfg.get("method", "otsu"),
+                invert=bool(seg_cfg.get("invert", True)),
+                skip_outline=bool(seg_cfg.get("skip_outline", False)),
+                use_diff=True,
+                manual_thresh=int(seg_cfg.get("manual_thresh", 128)),
+                adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
+                adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
+                local_block=int(seg_cfg.get("local_block", 51)),
+                morph_open_radius=int(seg_cfg.get("morph_open_radius", 0)),
+                morph_close_radius=int(seg_cfg.get("morph_close_radius", 0)),
+                remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
+                remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
+            )
             if app_cfg.get("save_intermediates", True):
-                cv2.imencode('.png', seg_img)[1].tofile(
+                cv2.imencode(".png", seg_img)[1].tofile(
                     str(diff_dir / f"{k:04d}_diff.png")
                 )
-        else:
-            seg_img = mov_crop
-        use_diff = app_cfg.get("use_difference_for_seg", False) and idx > 0
-        bw_mov = segment(
-            seg_img,
+        bw_reg = segment(
+            mov_crop,
             method=seg_cfg.get("method", "otsu"),
             invert=bool(seg_cfg.get("invert", True)),
             skip_outline=bool(seg_cfg.get("skip_outline", False)),
-            use_diff=use_diff,
+            use_diff=False,
             manual_thresh=int(seg_cfg.get("manual_thresh", 128)),
             adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
             adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
@@ -312,22 +345,26 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
             remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
         )
-        if not np.any(bw_mov):
+
+        _save_mask(k, bw_reg, x_k, y_k, suffix="_registered")
+        if bw_diff is not None:
+            _save_mask(k, bw_diff, x_k, y_k, suffix="_difference", overlay=False)
+
+        if not np.any(bw_reg):
             logger.warning(
                 "Frame %d: segmentation mask is empty; skipping ecc_mask update", k
             )
-            cv2.imencode('.png', (bw_mov * 255).astype(np.uint8))[1].tofile(
+            cv2.imencode(".png", (bw_reg * 255).astype(np.uint8))[1].tofile(
                 str(bw_dir / f"{k:04d}_bw_mov_empty.png")
             )
         else:
             all_masks_empty = False
-            ecc_mask = bw_mov.copy()
-            _save_mask(k, ecc_mask, x_k, y_k)
+            ecc_mask = bw_reg.copy()
 
-        bw_overlap = (prev_bw_crop & bw_mov).astype(np.uint8)
-        bw_union = (prev_bw_crop | bw_mov).astype(np.uint8)
-        bw_new = (bw_mov & (~prev_bw_crop)).astype(np.uint8)
-        bw_lost = (prev_bw_crop & (~bw_mov)).astype(np.uint8)
+        bw_overlap = (prev_bw_crop & bw_reg).astype(np.uint8)
+        bw_union = (prev_bw_crop | bw_reg).astype(np.uint8)
+        bw_new = (bw_reg & (~prev_bw_crop)).astype(np.uint8)
+        bw_lost = (prev_bw_crop & (~bw_reg)).astype(np.uint8)
 
         row = {
             "frame_index": k,
@@ -337,7 +374,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "overlap_h": h_k,
             "overlap_px": int(w_k * h_k),
             "area_ref_px": int(prev_bw_crop.sum()),
-            "area_mov_px": int(bw_mov.sum()),
+            "area_mov_px": int(bw_reg.sum()),
             "area_union_px": int(bw_union.sum()),
             "area_new_px": int(bw_new.sum()),
             "area_lost_px": int(bw_lost.sum()),
@@ -352,9 +389,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', mov_crop)[1].tofile(
                 str(reg_dir / f"{k:04d}_mov.png")
             )
-            cv2.imencode('.png', (bw_mov * 255).astype(np.uint8))[1].tofile(
+            cv2.imencode('.png', (bw_reg * 255).astype(np.uint8))[1].tofile(
                 str(bw_dir / f"{k:04d}_bw_mov.png")
             )
+            if bw_diff is not None:
+                cv2.imencode('.png', (bw_diff * 255).astype(np.uint8))[1].tofile(
+                    str(bw_dir / f"{k:04d}_bw_diff.png")
+                )
             cv2.imencode('.png', (prev_bw_crop * 255).astype(np.uint8))[1].tofile(
                 str(bw_dir / f"{prev_k:04d}_bw_prev.png")
             )
@@ -384,7 +425,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # update previous frame and mask for next iteration
         prev_gray = warped
         prev_bw = np.zeros_like(prev_bw)
-        prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = bw_mov
+        prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = bw_reg
         prev_k = k
 
     if all_masks_empty:
