@@ -264,9 +264,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
     )
 
-    # store previous frame and mask for iterative segmentation
+    # store previous frame, mask, and index for iterative segmentation
     prev_gray = ref_gray
     prev_bw = bw_ref
+    prev_k = ref_idx
 
     ecc_mask = None
     all_masks_empty = True
@@ -342,40 +343,46 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         rows.append(row)
 
         if app_cfg.get("save_intermediates", True):
-            cv2.imencode('.png', prev_crop)[1].tofile(str(reg_dir / f"{k:04d}_prev.png"))
-            cv2.imencode('.png', mov_crop)[1].tofile(str(reg_dir / f"{k:04d}_mov.png"))
+            cv2.imencode('.png', prev_crop)[1].tofile(
+                str(reg_dir / f"{prev_k:04d}_prev.png")
+            )
+            cv2.imencode('.png', mov_crop)[1].tofile(
+                str(reg_dir / f"{k:04d}_mov.png")
+            )
             cv2.imencode('.png', (bw_mov * 255).astype(np.uint8))[1].tofile(
                 str(bw_dir / f"{k:04d}_bw_mov.png")
             )
             cv2.imencode('.png', (prev_bw_crop * 255).astype(np.uint8))[1].tofile(
-                str(bw_dir / f"{k:04d}_bw_prev.png")
+                str(bw_dir / f"{prev_k:04d}_bw_prev.png")
             )
             cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
-                str(bw_dir / f"{k:04d}_bw_overlap.png")
+                str(bw_dir / f"{prev_k:04d}_bw_overlap.png")
             )
-            cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(
-                str(diff_dir / f"{k:04d}_bw_new.png")
-            )
-            cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(
-                str(diff_dir / f"{k:04d}_bw_lost.png")
-            )
-            new_color = tuple(app_cfg.get("overlay_new_color", (0, 255, 0)))
-            lost_color = tuple(app_cfg.get("overlay_lost_color", (0, 0, 255)))
-            ov = overlay_outline(
-                mov_crop,
-                new_mask=bw_new,
-                lost_mask=bw_lost,
-                new_color=new_color,
-                lost_color=lost_color,
-            )
-            cv2.imencode('.png', ov)[1].tofile(
-                str(overlay_dir / f"{k:04d}_overlay_mov.png")
-            )
+            if idx > 0:
+                cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(
+                    str(diff_dir / f"{prev_k:04d}_bw_new.png")
+                )
+                cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(
+                    str(diff_dir / f"{prev_k:04d}_bw_lost.png")
+                )
+                new_color = tuple(app_cfg.get("overlay_new_color", (0, 255, 0)))
+                lost_color = tuple(app_cfg.get("overlay_lost_color", (0, 0, 255)))
+                ov = overlay_outline(
+                    mov_crop,
+                    new_mask=bw_new,
+                    lost_mask=bw_lost,
+                    new_color=new_color,
+                    lost_color=lost_color,
+                )
+                cv2.imencode('.png', ov)[1].tofile(
+                    str(overlay_dir / f"{prev_k:04d}_overlay_mov.png")
+                )
 
         # update previous frame and mask for next iteration
         prev_gray = warped
         prev_bw = np.zeros_like(prev_bw)
         prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = bw_mov
+        prev_k = k
 
     if all_masks_empty:
         msg = "All segmentation masks were empty"

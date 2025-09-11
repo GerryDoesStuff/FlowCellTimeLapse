@@ -65,10 +65,10 @@ def test_synthetic_registration_alignment(tmp_path):
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
     reg_dir = out_dir / "registered"
-    prev1 = cv2.imread(str(reg_dir / "0001_prev.png"), cv2.IMREAD_GRAYSCALE)
+    prev0 = cv2.imread(str(reg_dir / "0000_prev.png"), cv2.IMREAD_GRAYSCALE)
     mov1 = cv2.imread(str(reg_dir / "0001_mov.png"), cv2.IMREAD_GRAYSCALE)
-    assert np.array_equal(prev1, mov1)
+    assert np.array_equal(prev0, mov1)
 
-    prev2 = cv2.imread(str(reg_dir / "0002_prev.png"), cv2.IMREAD_GRAYSCALE)
+    prev1 = cv2.imread(str(reg_dir / "0001_prev.png"), cv2.IMREAD_GRAYSCALE)
     mov2 = cv2.imread(str(reg_dir / "0002_mov.png"), cv2.IMREAD_GRAYSCALE)
-    assert np.array_equal(prev2, mov2)
+    assert np.array_equal(prev1, mov2)
