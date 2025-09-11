@@ -78,9 +78,24 @@ def segment(
             _, th = cv2.threshold(feat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             bw = (th > 0).astype(np.uint8)
         elif method == "adaptive":
-            blk = max(3, adaptive_block|1)
-            th = cv2.adaptiveThreshold(feat, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, blk, adaptive_C)
-            bw = (th>0).astype(np.uint8)
+            blk = max(3, adaptive_block | 1)
+            if use_diff:
+                rng = int(feat.max() - feat.min())
+                if rng < 2:
+                    bw = np.zeros_like(feat, dtype=np.uint8)
+                    feat = None
+                else:
+                    feat = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
+            if feat is not None:
+                th = cv2.adaptiveThreshold(
+                    feat.astype(np.uint8),
+                    255,
+                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                    cv2.THRESH_BINARY,
+                    blk,
+                    adaptive_C,
+                )
+                bw = (th > 0).astype(np.uint8)
         elif method == "local":
             blk = max(3, local_block|1)
             loc = filters.threshold_local(feat, blk)
