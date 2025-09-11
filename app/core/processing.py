@@ -402,8 +402,14 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
         bw_overlap = (prev_bw_crop & seg_mask).astype(np.uint8)
         bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
-        bw_new = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
-        bw_lost = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
+        if direction == "last-to-first":
+            bw_new = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
+            bw_lost = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
+        else:
+            bw_new = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
+            bw_lost = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
+        area_new_px = int(bw_new.sum())
+        area_lost_px = int(bw_lost.sum())
 
         row = {
             "frame_index": k,
@@ -415,8 +421,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "area_ref_px": int(prev_bw_crop.sum()),
             "area_mov_px": int(seg_mask.sum()),
             "area_union_px": int(bw_union.sum()),
-            "area_new_px": int(bw_new.sum()),
-            "area_lost_px": int(bw_lost.sum()),
+            "area_new_px": area_new_px,
+            "area_lost_px": area_lost_px,
             "to_ref_transform": T.flatten().tolist(),
         }
         rows.append(row)
