@@ -66,7 +66,7 @@ def test_warns_and_skips_ecc_mask(tmp_path, caplog):
         df = analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
     assert any("segmentation mask is empty" in rec.message for rec in caplog.records)
-    empty_mask_path = out_dir / "binary" / "0001_bw_mov_empty.png"
+    empty_mask_path = out_dir / "binary" / "empty" / "0001_bw_mov_empty.png"
     assert empty_mask_path.exists()
     row = df[df["frame_index"] == 1].iloc[0]
     assert row["area_mov_px"] == 0

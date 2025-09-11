@@ -54,9 +54,9 @@ def test_difference_output(tmp_path, monkeypatch):
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
     diff_dir = out_dir / "diff"
-    assert (diff_dir / "0001_diff.png").exists()
-    assert (diff_dir / "0000_bw_new.png").exists()
-    assert (diff_dir / "0000_bw_lost.png").exists()
+    assert (diff_dir / "diff" / "0001_diff.png").exists()
+    assert (diff_dir / "new" / "0000_bw_new.png").exists()
+    assert (diff_dir / "lost" / "0000_bw_lost.png").exists()
 
     reg0 = cv2.imread(str(out_dir / "mask_0000_registered.png"), cv2.IMREAD_GRAYSCALE)
     reg1 = cv2.imread(str(out_dir / "mask_0001_registered.png"), cv2.IMREAD_GRAYSCALE)
