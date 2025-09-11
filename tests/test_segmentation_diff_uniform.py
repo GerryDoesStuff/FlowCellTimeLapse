@@ -7,7 +7,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from app.core.segmentation import segment
 
 
-def test_adaptive_diff_nearly_uniform_not_all_ones():
+def test_adaptive_diff_nearly_uniform_returns_zero():
     img = np.full((20, 20), 5, dtype=np.uint8)
     mask = segment(
         img,
@@ -15,4 +15,4 @@ def test_adaptive_diff_nearly_uniform_not_all_ones():
         invert=False,
         use_diff=True,
     )
-    assert not np.all(mask == 1)
+    assert np.count_nonzero(mask) == 0
