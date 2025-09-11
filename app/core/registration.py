@@ -109,15 +109,17 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
                  orb_features: int = 4000, match_ratio: float = 0.75,
                  fallback_model: str = "affine", *,
                  min_keypoints: int = 8, min_matches: int = 8,
-                 use_ecc_fallback: bool = True) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray, bool, int, int]:
+                 use_ecc_fallback: bool = True,
+                 translation_limit: Optional[float] = None) -> tuple[bool, np.ndarray, np.ndarray, np.ndarray, bool, int, int]:
     logger.info(
-        "register_orb(model=%s, orb_features=%d, match_ratio=%.2f, min_keypoints=%d, min_matches=%d, use_ecc_fallback=%s)",
+        "register_orb(model=%s, orb_features=%d, match_ratio=%.2f, min_keypoints=%d, min_matches=%d, use_ecc_fallback=%s, translation_limit=%s)",
         model,
         orb_features,
         match_ratio,
         min_keypoints,
         min_matches,
         use_ecc_fallback,
+        translation_limit,
     )
     t0 = time.time()
     if mov.size == 0 or ref.size == 0:
@@ -194,6 +196,22 @@ def register_orb(ref: np.ndarray, mov: np.ndarray, model: str="homography",
             U, _, Vt = np.linalg.svd(R)
             R = U @ Vt
             M[:,:2] = R
+        tvec = M[:, 2]
+        trans_mag = float(np.linalg.norm(tvec))
+        limit = float(translation_limit) if translation_limit is not None else float(max(w, h))
+        if trans_mag > limit:
+            logger.warning(
+                "Affine translation magnitude %.2f exceeds limit %.2f%s",
+                trans_mag,
+                limit,
+                "; falling back to ECC registration" if use_ecc_fallback else "",
+            )
+            if use_ecc_fallback:
+                logger.info("Invoking ECC fallback due to oversized translation")
+                success, W, warped, valid_mask = register_ecc(ref, mov, model=fallback_model)
+                return success, W, warped, valid_mask, True, n1, n2
+            identity = np.eye(2, 3, dtype=np.float32)
+            return False, identity, mov, np.zeros_like(mov, dtype=np.uint8), False, n1, n2
         det = float(abs(np.linalg.det(M[:2, :2])))
         logger.info("Affine det=%e", det)
         warped = cv2.warpAffine(mov, M, (w,h), flags=cv2.INTER_LINEAR)
