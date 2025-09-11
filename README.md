@@ -18,6 +18,11 @@ If your OpenCV is CUDA-enabled, the app will automatically use it for some ops (
 Otherwise it runs on CPU with multi-processing. To install a CUDA wheel, consider prebuilt packages from
 `opencv-python` ecosystem or build from source with CUDA. The code checks `cv2.cuda` presence.
 
+### Intermediate outputs
+When `save_intermediates` is enabled, the pipeline saves additional artifacts alongside the final results.
+Difference images are written to the `diff/` subfolder with names like `{frame}_diff.png`.
+These files are the same difference maps shown in the UI when using the **Preview Difference** button.
+
 ### Project layout
 - `app/main.py` — app entry, sets up MainWindow.
 - `app/ui/main_window.py` — PyQt UI and interactions.
