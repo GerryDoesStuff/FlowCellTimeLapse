@@ -91,5 +91,11 @@ def test_save_masks(tmp_path, monkeypatch):
     out_dir = tmp_path / "out"
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
-    assert (out_dir / "mask_0000.png").exists()
-    assert (out_dir / "mask_0001.png").exists()
+    mask0_path = out_dir / "mask_0000.png"
+    mask1_path = out_dir / "mask_0001.png"
+    assert mask0_path.exists()
+    assert mask1_path.exists()
+    mask0 = cv2.imread(str(mask0_path), cv2.IMREAD_GRAYSCALE)
+    mask1 = cv2.imread(str(mask1_path), cv2.IMREAD_GRAYSCALE)
+    assert mask0.shape == img0.shape
+    assert mask1.shape == img1.shape
