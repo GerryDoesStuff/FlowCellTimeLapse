@@ -315,9 +315,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             warped = cv2.warpPerspective(imgs_norm[k], T, (W, H))
             registered_frames[k] = warped
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
-        use_diff = app_cfg.get("use_difference_for_seg", False) and idx > 0
+        seg_img = None
         bw_diff = None
-        if use_diff:
+        if idx > 0:
             seg_img = compute_difference(
                 prev_crop, mov_crop, method=app_cfg.get("difference_method", "abs")
             )
@@ -339,6 +339,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             if app_cfg.get("save_intermediates", True):
                 cv2.imencode(".png", seg_img)[1].tofile(
                     str(diff_diff_dir / f"{k:04d}_diff.png")
+                )
+                cv2.imencode(".png", (bw_diff * 255).astype(np.uint8))[1].tofile(
+                    str(diff_diff_dir / f"{k:04d}_bw_diff.png")
                 )
         bw_reg = segment(
             mov_crop,

@@ -20,8 +20,10 @@ Otherwise it runs on CPU with multi-processing. To install a CUDA wheel, conside
 
 ### Intermediate outputs
 When `save_intermediates` is enabled, the pipeline saves additional artifacts alongside the final results.
-Difference images are written to the `diff/` subfolder with names like `{frame}_diff.png`.
-These files are the same difference maps shown in the UI when using the **Preview Difference** button.
+For every pair of frames a raw difference (`{frame}_diff.png`) and its thresholded mask
+(`{frame}_bw_diff.png`) are written to `diff/diff/`. The binary mask is also duplicated in the
+`binary/` directory. These files are the same difference maps shown in the UI when using the
+**Preview Difference** button.
 
 ### Project layout
 - `app/main.py` — app entry, sets up MainWindow.
