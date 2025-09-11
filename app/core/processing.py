@@ -222,8 +222,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
         adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
         local_block=int(seg_cfg.get("local_block", 51)),
-        morph_open_radius=int(seg_cfg.get("morph_open_radius", 2)),
-        morph_close_radius=int(seg_cfg.get("morph_close_radius", 2)),
+        morph_open_radius=int(seg_cfg.get("morph_open_radius", 0)),
+        morph_close_radius=int(seg_cfg.get("morph_close_radius", 0)),
         remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
     )
@@ -267,8 +267,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
             adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
             local_block=int(seg_cfg.get("local_block", 51)),
-            morph_open_radius=int(seg_cfg.get("morph_open_radius", 2)),
-            morph_close_radius=int(seg_cfg.get("morph_close_radius", 2)),
+            morph_open_radius=int(seg_cfg.get("morph_open_radius", 0)),
+            morph_close_radius=int(seg_cfg.get("morph_close_radius", 0)),
             remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
             remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
         )
