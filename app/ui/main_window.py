@@ -1035,7 +1035,8 @@ class MainWindow(QMainWindow):
 
         logger.info("Run Analysis button clicked with direction=%s", app.direction)
 
-        # Build slim dicts for worker
+        # Build slim dicts for worker. seg_cfg mirrors the segmentation preview
+        # parameters and is forwarded to PipelineWorker unchanged.
         reg_cfg = dict(method=reg.method, model=reg.model, max_iters=reg.max_iters,
                        eps=reg.eps, use_masked_ecc=reg.use_masked_ecc,
                        gauss_blur_sigma=reg.gauss_blur_sigma,
@@ -1049,10 +1050,17 @@ class MainWindow(QMainWindow):
                        min_keypoints=reg.min_keypoints,
                        min_matches=reg.min_matches,
                        use_ecc_fallback=reg.use_ecc_fallback)
-        seg_cfg = dict(method=seg.method, invert=seg.invert, manual_thresh=seg.manual_thresh,
-                       adaptive_block=seg.adaptive_block, adaptive_C=seg.adaptive_C, local_block=seg.local_block,
-                       morph_open_radius=seg.morph_open_radius, morph_close_radius=seg.morph_close_radius,
-                       remove_objects_smaller_px=seg.remove_objects_smaller_px, remove_holes_smaller_px=seg.remove_holes_smaller_px)
+        seg_cfg = dict(method=seg.method,
+                       invert=seg.invert,
+                       skip_outline=seg.skip_outline,
+                       manual_thresh=seg.manual_thresh,
+                       adaptive_block=seg.adaptive_block,
+                       adaptive_C=seg.adaptive_C,
+                       local_block=seg.local_block,
+                       morph_open_radius=seg.morph_open_radius,
+                       morph_close_radius=seg.morph_close_radius,
+                       remove_objects_smaller_px=seg.remove_objects_smaller_px,
+                       remove_holes_smaller_px=seg.remove_holes_smaller_px)
         app_cfg = dict(direction=app.direction,
                        use_difference_for_seg=app.use_difference_for_seg, save_intermediates=True,
                        difference_method=app.difference_method,
