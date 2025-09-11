@@ -52,6 +52,8 @@ class AppParams:
     overlay_mode: str = "magenta-green"
     overlay_ref_color: tuple[int, int, int] = (0, 255, 0)
     overlay_mov_color: tuple[int, int, int] = (255, 0, 255)
+    overlay_new_color: tuple[int, int, int] = (0, 255, 0)
+    overlay_lost_color: tuple[int, int, int] = (0, 0, 255)
     save_jpg_quality: int = 95
     save_png: bool = False
     save_intermediates: bool = True

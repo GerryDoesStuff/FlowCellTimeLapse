@@ -15,11 +15,47 @@ import re
 logger = logging.getLogger(__name__)
 
 
-def overlay_outline(gray: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-    contours, _ = cv2.findContours((mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(color, contours, -1, (0, 255, 0), 1)
-    return color
+def overlay_outline(
+    gray: np.ndarray,
+    mask: np.ndarray | None = None,
+    new_mask: np.ndarray | None = None,
+    lost_mask: np.ndarray | None = None,
+    *,
+    color: tuple[int, int, int] = (0, 255, 0),
+    new_color: tuple[int, int, int] = (0, 255, 0),
+    lost_color: tuple[int, int, int] = (0, 0, 255),
+) -> np.ndarray:
+    """Overlay segmentation outlines on a grayscale image.
+
+    Parameters
+    ----------
+    gray:
+        Base grayscale image.
+    mask:
+        Optional mask to outline in ``color``.
+    new_mask:
+        Regions present in the current frame but absent in the previous.
+    lost_mask:
+        Regions present in the previous frame but absent in the current.
+    color, new_color, lost_color:
+        BGR colors used for the respective masks.
+    """
+
+    result = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+    def _draw(m: np.ndarray | None, col: tuple[int, int, int]) -> None:
+        if m is None:
+            return
+        contours, _ = cv2.findContours(
+            (m > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if contours:
+            cv2.drawContours(result, contours, -1, col, 1)
+
+    _draw(mask, color)
+    _draw(new_mask, new_color)
+    _draw(lost_mask, lost_color)
+    return result
 
 
 def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: dict, out_dir: Path) -> pd.DataFrame:
@@ -323,8 +359,18 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(
                 str(diff_dir / f"{k:04d}_bw_lost.png")
             )
-            ov = overlay_outline(mov_crop, bw_mov)
-            cv2.imencode('.png', ov)[1].tofile(str(overlay_dir / f"{k:04d}_overlay_mov.png"))
+            new_color = tuple(app_cfg.get("overlay_new_color", (0, 255, 0)))
+            lost_color = tuple(app_cfg.get("overlay_lost_color", (0, 0, 255)))
+            ov = overlay_outline(
+                mov_crop,
+                new_mask=bw_new,
+                lost_mask=bw_lost,
+                new_color=new_color,
+                lost_color=lost_color,
+            )
+            cv2.imencode('.png', ov)[1].tofile(
+                str(overlay_dir / f"{k:04d}_overlay_mov.png")
+            )
 
         # update previous frame and mask for next iteration
         prev_gray = warped
