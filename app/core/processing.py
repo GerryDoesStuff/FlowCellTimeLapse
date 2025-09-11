@@ -383,7 +383,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
         )
 
-        seg_mask = bw_diff if (bw_diff is not None) else bw_reg
+        # Use the segmentation of the registered moving frame for subsequent
+        # new/lost calculations. The difference-based mask is still saved for
+        # debugging but should not drive "new"/"lost" detection as it only
+        # highlights changed pixels. Relying on it caused the new/lost masks to
+        # always be empty when a region disappeared because the difference mask
+        # matched the previous frame instead of the current contents.
+        seg_mask = bw_reg
 
         _save_mask(k, bw_reg, x_k, y_k, suffix="_registered")
         if bw_diff is not None:
