@@ -238,7 +238,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     def _save_mask(idx: int, mask: np.ndarray, x_off: int, y_off: int) -> None:
         if not app_cfg.get("save_masks", False):
             return
-        cv2.imencode('.png', (mask * 255).astype(np.uint8))[1].tofile(
+        h, w = mask.shape[:2]
+        full_mask = np.zeros_like(imgs_gray[idx], dtype=mask.dtype)
+        full_mask[y_off : y_off + h, x_off : x_off + w] = mask
+        cv2.imencode(".png", (full_mask * 255).astype(np.uint8))[1].tofile(
             str(out_dir / f"mask_{idx:04d}.png")
         )
         frame_color = cv2.cvtColor(imgs_gray[idx], cv2.COLOR_GRAY2BGR)
