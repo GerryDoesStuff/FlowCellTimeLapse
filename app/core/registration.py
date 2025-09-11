@@ -262,7 +262,13 @@ def register_orb_ecc(ref: np.ndarray, mov: np.ndarray, model: str = "affine",
             _, W = cv2.findTransformECC(ref_f, mov_f, W_ecc_init, mode, criteria)
     except cv2.error as e:
         logger.exception("ORB+ECC registration failed: %s", e)
+        success = False
         return success, W_orb, warped, valid_mask, n1, n2
+
+    if np.isnan(W).any():
+        logger.warning("ORB+ECC produced NaN warp matrix; returning identity")
+        identity = np.eye(3, dtype=np.float32) if mode == cv2.MOTION_HOMOGRAPHY else np.eye(2, 3, dtype=np.float32)
+        return False, identity, mov, np.zeros_like(mov, dtype=np.uint8), n1, n2
 
     # Invert to obtain moving -> reference
     if mode == cv2.MOTION_HOMOGRAPHY:
