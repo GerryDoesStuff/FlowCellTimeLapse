@@ -312,6 +312,9 @@ class MainWindow(QMainWindow):
         self.use_diff_cb = QCheckBox("Use difference for segmentation")
         self.use_diff_cb.setChecked(self.app.use_difference_for_seg)
         diff_layout.addWidget(self.use_diff_cb)
+        self.diff_method = QComboBox(); self.diff_method.addItems(["abs", "lab", "edges"])
+        self.diff_method.setCurrentText(self.app.difference_method)
+        diff_layout.addWidget(self.diff_method)
         diff_section.setContentLayout(diff_layout)
         controls.addWidget(diff_section)
         self.diff_preview_btn = QPushButton("Preview Difference")
@@ -320,6 +323,8 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.diff_preview_btn)
         self.use_diff_cb.toggled.connect(self._persist_settings)
         self.use_diff_cb.toggled.connect(self._on_params_changed)
+        self.diff_method.currentTextChanged.connect(self._persist_settings)
+        self.diff_method.currentTextChanged.connect(self._on_params_changed)
 
         # Segmentation params
         seg_section = CollapsibleSection("Segmentation")
@@ -568,6 +573,7 @@ class MainWindow(QMainWindow):
                         subtract_background=self.bg_sub_cb.isChecked(),
                         scale_minmax=scale_minmax,
                         use_difference_for_seg=self.use_diff_cb.isChecked(),
+                        difference_method=self.diff_method.currentText(),
                         show_ref_overlay=self.overlay_ref_cb.isChecked(),
                         show_mov_overlay=self.overlay_mov_cb.isChecked(),
                         overlay_opacity=self.alpha_slider.value(),
@@ -633,6 +639,8 @@ class MainWindow(QMainWindow):
         self.dir_combo.setCurrentText(app.direction)
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
+        self.use_diff_cb.setChecked(app.use_difference_for_seg)
+        self.diff_method.setCurrentText(app.difference_method)
         self.norm_cb.setChecked(app.normalize)
         if app.scale_minmax is not None:
             self.scale_min.setValue(int(app.scale_minmax[0]))
@@ -922,7 +930,7 @@ class MainWindow(QMainWindow):
                 self._reg_ref = ref_img
                 self._reg_warp = warped
 
-            diff = compute_difference(self._reg_ref, self._reg_warp)
+            diff = compute_difference(self._reg_ref, self._reg_warp, method=self.diff_method.currentText())
             self._diff_gray = diff
             self._diff_img = cv2.cvtColor(self._diff_gray, cv2.COLOR_GRAY2RGB)
             self._current_preview = "difference"
@@ -1047,6 +1055,7 @@ class MainWindow(QMainWindow):
                        remove_objects_smaller_px=seg.remove_objects_smaller_px, remove_holes_smaller_px=seg.remove_holes_smaller_px)
         app_cfg = dict(direction=app.direction,
                        use_difference_for_seg=app.use_difference_for_seg, save_intermediates=True,
+                       difference_method=app.difference_method,
                        normalize=app.normalize,
                        subtract_background=app.subtract_background,
                        scale_minmax=app.scale_minmax)

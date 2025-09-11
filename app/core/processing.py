@@ -7,6 +7,7 @@ from typing import List, Optional, Dict
 from .io_utils import imread_gray, imread_color, ensure_dir
 from .registration import register_ecc, register_orb, register_orb_ecc, crop_to_overlap, preprocess
 from .segmentation import segment
+from .difference import compute_difference
 from .background import normalize_background, estimate_temporal_background
 import logging
 import re
@@ -246,7 +247,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             registered_frames[k] = warped
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
         if app_cfg.get("use_difference_for_seg", False) and idx > 0:
-            seg_img = cv2.absdiff(prev_crop, mov_crop)
+            seg_img = compute_difference(
+                prev_crop, mov_crop, method=app_cfg.get("difference_method", "abs")
+            )
         else:
             seg_img = mov_crop
         bw_mov = segment(
