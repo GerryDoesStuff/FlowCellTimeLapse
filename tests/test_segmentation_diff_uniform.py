@@ -16,3 +16,14 @@ def test_adaptive_diff_nearly_uniform_returns_zero():
         use_diff=True,
     )
     assert np.count_nonzero(mask) == 0
+
+
+def test_local_diff_nearly_uniform_returns_zero():
+    img = np.full((20, 20), 5, dtype=np.uint8)
+    mask = segment(
+        img,
+        method="local",
+        invert=False,
+        use_diff=True,
+    )
+    assert np.count_nonzero(mask) == 0

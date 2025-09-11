@@ -116,6 +116,8 @@ def segment(
                         bw = np.zeros_like(feat, dtype=np.uint8)
                         feat = None
             if feat is not None:
+                if use_diff:
+                    feat = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
                 loc = filters.threshold_local(feat, blk)
                 bw = (feat > loc).astype(np.uint8)
         else:
