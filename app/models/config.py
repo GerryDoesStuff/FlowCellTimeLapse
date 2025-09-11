@@ -57,6 +57,7 @@ class AppParams:
     save_intermediates: bool = True
     save_masks: bool = False
     use_difference_for_seg: bool = False
+    difference_method: str = "abs"
     use_file_timestamps: bool = True
     normalize: bool = True
     subtract_background: bool = False

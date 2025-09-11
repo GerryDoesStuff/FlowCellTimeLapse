@@ -39,6 +39,7 @@ def test_settings_persist(tmp_path):
     win.seg_method.setCurrentText("manual")
     win.skip_outline.setChecked(True)
     win.dir_combo.setCurrentText("first-to-last")
+    win.diff_method.setCurrentText("lab")
     win.overlay_ref_cb.setChecked(False)
     win.overlay_mov_cb.setChecked(False)
     win.alpha_slider.setValue(75)
@@ -70,6 +71,7 @@ def test_settings_persist(tmp_path):
     assert win2.seg_method.currentText() == "manual"
     assert win2.skip_outline.isChecked()
     assert win2.dir_combo.currentText() == "first-to-last"
+    assert win2.diff_method.currentText() == "lab"
     assert not win2.overlay_ref_cb.isChecked()
     assert not win2.overlay_mov_cb.isChecked()
     assert win2.alpha_slider.value() == 75
