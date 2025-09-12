@@ -46,6 +46,7 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
         "save_intermediates": True,
         "overlay_new_color": (0, 255, 0),
         "overlay_lost_color": (255, 0, 255),
+        "component_min_overlap": 0.75,
     }
 
     out_dir = tmp_path / "out"

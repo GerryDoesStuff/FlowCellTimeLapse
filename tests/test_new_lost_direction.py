@@ -123,16 +123,15 @@ def test_intensity_gain_loss(tmp_path, monkeypatch):
     paths, obj = create_intensity_frames(tmp_path)
     reg_cfg, seg_cfg = setup(monkeypatch)
 
-    # first-to-last: intensity increases -> new region
+    # Intensity-only changes should not be classified as new or lost regions
     new_mask, lost_mask, _ = run_direction(
         paths, reg_cfg, seg_cfg, "first-to-last", tmp_path
     )
-    assert np.array_equal(new_mask, obj)
+    assert np.array_equal(new_mask, np.zeros_like(obj))
     assert np.array_equal(lost_mask, np.zeros_like(obj))
 
-    # last-to-first: intensity decreases -> lost region
     new_mask, lost_mask, _ = run_direction(
         paths, reg_cfg, seg_cfg, "last-to-first", tmp_path
     )
     assert np.array_equal(new_mask, np.zeros_like(obj))
-    assert np.array_equal(lost_mask, obj)
+    assert np.array_equal(lost_mask, np.zeros_like(obj))
