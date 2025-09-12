@@ -459,6 +459,27 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             kernel = np.ones((dilate_k, dilate_k), np.uint8)
             green_mask = cv2.dilate(green_mask, kernel)
             magenta_mask = cv2.dilate(magenta_mask, kernel)
+
+        # Intersect difference masks with segmentation and drop components
+        # that fall mostly outside segmented regions.
+        min_seg_overlap = float(app_cfg.get("component_min_seg_overlap", 0.5))
+
+        def _mask_with_seg(diff: np.ndarray, seg: np.ndarray) -> np.ndarray:
+            filtered = np.zeros_like(diff)
+            num, labels = cv2.connectedComponents(diff)
+            for lbl in range(1, num):
+                comp = (labels == lbl).astype(np.uint8)
+                area = int(comp.sum())
+                if area == 0:
+                    continue
+                overlap = int((comp & seg).sum())
+                if overlap / area >= min_seg_overlap:
+                    filtered |= comp & seg
+            return filtered
+
+        green_mask = _mask_with_seg(green_mask, prev_bw_crop)
+        magenta_mask = _mask_with_seg(magenta_mask, seg_mask)
+
         # Dilate segmentation masks slightly before classifying regions as
         # "new" or "lost" to tolerate small registration errors.
         class_dilate_k = int(app_cfg.get("class_dilate_kernel", 0))
