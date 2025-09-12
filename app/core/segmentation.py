@@ -38,7 +38,7 @@ def segment(
     gray : np.ndarray
         Grayscale image.
     method : str
-        Thresholding method: "otsu", "adaptive", "local", or "manual".
+        Thresholding method: "otsu", "li", "adaptive", "local", or "manual".
     invert : bool
         Treat cells as darker than background.
     skip_outline : bool
@@ -53,6 +53,14 @@ def segment(
     manual_thresh, adaptive_block, adaptive_C, local_block, morph_open_radius,
     morph_close_radius, remove_objects_smaller_px, remove_holes_smaller_px :
         Parameters controlling thresholding and post-processing.
+
+    Examples
+    --------
+    Segment a low-contrast image using Li's threshold::
+
+        >>> gray = np.full((5, 5), 120, dtype=np.uint8)
+        >>> gray[2:, 2:] = 130  # low-contrast foreground
+        >>> mask = segment(gray, method="li", invert=False, skip_outline=True)
     """
 
     used_outline = False
@@ -120,6 +128,9 @@ def segment(
                     feat = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
                 loc = filters.threshold_local(feat, blk)
                 bw = (feat > loc).astype(np.uint8)
+        elif method == "li":
+            t = filters.threshold_li(feat)
+            bw = (feat >= t).astype(np.uint8)
         else:
             t = int(np.clip(manual_thresh, 0, 255))
             bw = (feat >= t).astype(np.uint8)
