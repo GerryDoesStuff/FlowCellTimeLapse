@@ -31,7 +31,7 @@ thresholded mask (`{frame}_bw_diff.png`) to `diff/bw/`. The binary mask is also 
 - `app/models/config.py` — dataclasses for parameters; JSON presets; QSettings persistence.
 - `app/core/io_utils.py` — file discovery, timestamp spacing, safe I/O.
 - `app/core/registration.py` — ECC / ORB(+RANSAC) on CPU; CUDA path when available. ECC assumes sufficient texture; nearly uniform frames can cause the optimizer to diverge, yielding NaN transforms that are handled by falling back to the identity matrix.
-- `app/core/segmentation.py` — outline-focused segmentation (black-hat + Otsu/adaptive), morphology; `skip_outline` option bypasses the prefilter for low-contrast images.
+- `app/core/segmentation.py` — outline-focused segmentation (black-hat + Otsu, Multi-Otsu, Li, Yen, adaptive, local, or manual thresholding), morphology; `skip_outline` option bypasses the prefilter for low-contrast images.
 - `app/core/background.py` — on-the-fly background estimation (temporal median of early frames, fallback to blur).
 - `app/core/processing.py` — end-to-end per-frame pipeline; overlap cropping; metrics aggregation.
 - `app/core/multiproc.py` — ProcessPool execution with chunking; CPU core detection.

@@ -42,6 +42,14 @@ def test_segmentation_method_enables_expected_widgets(tmp_path):
     assert not win.adaptive_C.isEnabled()
     assert win.local_blk.isEnabled()
 
+    # Global threshold methods
+    for method in ("otsu", "multi_otsu", "li", "yen"):
+        win.seg_method.setCurrentText(method)
+        assert not win.manual_t.isEnabled()
+        assert not win.adaptive_blk.isEnabled()
+        assert not win.adaptive_C.isEnabled()
+        assert not win.local_blk.isEnabled()
+
     # Morphological/removal controls remain enabled
     for w in (win.open_r, win.close_r, win.rm_obj, win.rm_holes):
         assert w.isEnabled()

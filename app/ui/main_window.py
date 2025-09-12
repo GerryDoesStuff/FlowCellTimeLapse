@@ -363,7 +363,17 @@ class MainWindow(QMainWindow):
         # Segmentation params
         seg_section = CollapsibleSection("Segmentation")
         seg_grid = QGridLayout()
-        self.seg_method = QComboBox(); self.seg_method.addItems(["otsu","adaptive","local","manual"]); self.seg_method.setCurrentText(self.seg.method)
+        self.seg_method = QComboBox()
+        self.seg_method.addItems([
+            "otsu",
+            "multi_otsu",
+            "li",
+            "yen",
+            "adaptive",
+            "local",
+            "manual",
+        ])
+        self.seg_method.setCurrentText(self.seg.method)
         self.invert = QCheckBox("Cells darker (invert)"); self.invert.setChecked(self.seg.invert)
         self.skip_outline = QCheckBox("Skip outline prefilter"); self.skip_outline.setChecked(self.seg.skip_outline)
         self.manual_t = QSpinBox(); self.manual_t.setRange(0,255); self.manual_t.setValue(self.seg.manual_thresh)
