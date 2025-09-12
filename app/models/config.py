@@ -69,7 +69,10 @@ class AppParams:
     save_masks: bool = False
     use_difference_for_seg: bool = False  # diff masks saved regardless
     difference_method: str = "abs"
-    gm_morph_kernel: int = 0  # closing kernel for new/lost masks; 0 disables
+    gm_thresh_method: str = "otsu"  # "otsu" | "percentile"
+    gm_thresh_percentile: float = 99.0
+    gm_close_kernel: int = 3  # closing kernel size; 0 disables
+    gm_dilate_kernel: int = 0  # dilation kernel size; 0 disables
     use_file_timestamps: bool = True
     normalize: bool = True
     subtract_background: bool = False
