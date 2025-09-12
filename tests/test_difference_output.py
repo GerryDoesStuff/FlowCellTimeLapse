@@ -55,8 +55,8 @@ def test_difference_output(tmp_path, monkeypatch):
 
     diff_dir = out_dir / "diff"
     bw_dir = out_dir / "binary"
-    assert (diff_dir / "diff" / "0001_diff.png").exists()
-    assert (diff_dir / "diff" / "0001_bw_diff.png").exists()
+    assert (diff_dir / "raw" / "0001_diff.png").exists()
+    assert (diff_dir / "bw" / "0001_bw_diff.png").exists()
     assert (bw_dir / "0001_bw_diff.png").exists()
     assert (diff_dir / "new" / "0000_bw_new.png").exists()
     assert (diff_dir / "lost" / "0000_bw_lost.png").exists()
@@ -100,6 +100,6 @@ def test_difference_output_disabled(tmp_path, monkeypatch):
 
     diff_dir = out_dir / "diff"
     bw_dir = out_dir / "binary"
-    assert (diff_dir / "diff" / "0001_diff.png").exists()
-    assert (diff_dir / "diff" / "0001_bw_diff.png").exists()
+    assert (diff_dir / "raw" / "0001_diff.png").exists()
+    assert (diff_dir / "bw" / "0001_bw_diff.png").exists()
     assert (bw_dir / "0001_bw_diff.png").exists()
