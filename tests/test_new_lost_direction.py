@@ -94,29 +94,19 @@ def test_new_lost_direction(tmp_path, monkeypatch):
     reg_cfg, seg_cfg = setup(monkeypatch)
     obj_boundary = boundary_from(obj)
 
-    # first-to-last: object is lost
-    new_mask, lost_mask, overlay = run_direction(paths, reg_cfg, seg_cfg, "first-to-last", tmp_path)
-    assert np.array_equal(new_mask, np.zeros_like(obj))
-    assert np.array_equal(lost_mask, obj)
-    magenta_mask = (
-        overlay == np.array([255, 0, 255], dtype=np.uint8)
-    ).all(axis=2).astype(np.uint8) * 255
-    assert np.array_equal(magenta_mask, obj_boundary)
-    assert not (
-        overlay == np.array([0, 255, 0], dtype=np.uint8)
-    ).all(axis=2).any()
-
-    # last-to-first: object is new
-    new_mask, lost_mask, overlay = run_direction(paths, reg_cfg, seg_cfg, "last-to-first", tmp_path)
-    assert np.array_equal(new_mask, obj)
-    assert np.array_equal(lost_mask, np.zeros_like(obj))
-    green_mask = (
-        overlay == np.array([0, 255, 0], dtype=np.uint8)
-    ).all(axis=2).astype(np.uint8) * 255
-    assert np.array_equal(green_mask, obj_boundary)
-    assert not (
-        overlay == np.array([255, 0, 255], dtype=np.uint8)
-    ).all(axis=2).any()
+    for direction in ["first-to-last", "last-to-first"]:
+        new_mask, lost_mask, overlay = run_direction(
+            paths, reg_cfg, seg_cfg, direction, tmp_path
+        )
+        assert np.array_equal(new_mask, np.zeros_like(obj))
+        assert np.array_equal(lost_mask, obj)
+        magenta_mask = (
+            overlay == np.array([255, 0, 255], dtype=np.uint8)
+        ).all(axis=2).astype(np.uint8) * 255
+        assert np.array_equal(magenta_mask, obj_boundary)
+        assert not (
+            overlay == np.array([0, 255, 0], dtype=np.uint8)
+        ).all(axis=2).any()
 
 
 def test_intensity_gain_loss(tmp_path, monkeypatch):
