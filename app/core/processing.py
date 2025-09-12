@@ -58,6 +58,93 @@ def overlay_outline(
     return result
 
 
+def _detect_green_magenta(
+    gm_composite: np.ndarray,
+    prev_seg: np.ndarray,
+    curr_seg: np.ndarray,
+    app_cfg: dict,
+    *,
+    direction: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Detect green and magenta difference masks.
+
+    The ``gm_composite`` image encodes the previous frame in the green channel
+    and the current frame in red/blue (magenta).  Depending on ``direction`` the
+    roles of these colors are swapped so that ``green`` always represents the
+    frame that is considered "lost" and ``magenta`` the frame considered "new".
+
+    Parameters
+    ----------
+    gm_composite:
+        BGR image containing the green–magenta composite.
+    prev_seg, curr_seg:
+        Segmentation masks of the previous and current frame respectively.
+    app_cfg:
+        Application configuration dictionary providing thresholding and
+        morphology parameters.
+    direction:
+        Either ``"first-to-last"`` or ``"last-to-first"``.  When running in
+        reverse the mask roles are swapped so that the classification is
+        consistent regardless of processing order.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        ``green_mask`` and ``magenta_mask`` after segmentation filtering.
+    """
+
+    lab = cv2.cvtColor(gm_composite, cv2.COLOR_BGR2LAB)
+    a_channel = lab[..., 1].astype(np.int16) - 128  # center at 0
+    abs_a = np.abs(a_channel).astype(np.uint8)
+
+    thresh_method = str(app_cfg.get("gm_thresh_method", "otsu")).lower()
+    if thresh_method == "percentile":
+        perc = float(app_cfg.get("gm_thresh_percentile", 99.0))
+        gm_thresh = int(np.percentile(abs_a, perc))
+    else:
+        gm_thresh = int(
+            cv2.threshold(abs_a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0]
+        )
+
+    green_mask = (a_channel < -gm_thresh).astype(np.uint8)
+    magenta_mask = (a_channel > gm_thresh).astype(np.uint8)
+
+    close_k = int(app_cfg.get("gm_close_kernel", 0))
+    if close_k > 0:
+        kernel = np.ones((close_k, close_k), np.uint8)
+        green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
+        magenta_mask = cv2.morphologyEx(magenta_mask, cv2.MORPH_CLOSE, kernel)
+
+    dilate_k = int(app_cfg.get("gm_dilate_kernel", 0))
+    if dilate_k > 0:
+        kernel = np.ones((dilate_k, dilate_k), np.uint8)
+        green_mask = cv2.dilate(green_mask, kernel)
+        magenta_mask = cv2.dilate(magenta_mask, kernel)
+
+    min_seg_overlap = float(app_cfg.get("component_min_seg_overlap", 0.5))
+
+    def _mask_with_seg(diff: np.ndarray, seg: np.ndarray) -> np.ndarray:
+        filtered = np.zeros_like(diff)
+        num, labels = cv2.connectedComponents(diff)
+        for lbl in range(1, num):
+            comp = (labels == lbl).astype(np.uint8)
+            area = int(comp.sum())
+            if area == 0:
+                continue
+            overlap = int((comp & seg).sum())
+            if overlap / area >= min_seg_overlap:
+                filtered |= comp & seg
+        return filtered
+
+    green_mask = _mask_with_seg(green_mask, prev_seg)
+    magenta_mask = _mask_with_seg(magenta_mask, curr_seg)
+
+    if direction == "last-to-first":
+        green_mask, magenta_mask = magenta_mask, green_mask
+
+    return green_mask, magenta_mask
+
+
 def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: dict, out_dir: Path) -> pd.DataFrame:
     norm = bool(app_cfg.get("normalize", True))
     scale_minmax = app_cfg.get("scale_minmax")
@@ -427,58 +514,19 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         bw_overlap = (prev_bw_crop & seg_mask).astype(np.uint8)
         bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
 
-        # Convert the composite to LAB color space where the "a" channel encodes
-        # green (negative) to magenta (positive) intensity.  Threshold this
-        # channel adaptively to obtain masks highlighting regions unique to the
-        # previous (green) or current (magenta) frame.
-        lab = cv2.cvtColor(gm_composite, cv2.COLOR_BGR2LAB)
-        a_channel = lab[..., 1].astype(np.int16) - 128  # center at 0
-        abs_a = np.abs(a_channel).astype(np.uint8)
+        # Obtain masks highlighting regions unique to the previous (green) and
+        # current (magenta) frame.  When processing in reverse the roles are
+        # swapped so that new/lost classification is independent of direction.
+        green_mask, magenta_mask = _detect_green_magenta(
+            gm_composite,
+            prev_bw_crop,
+            seg_mask,
+            app_cfg,
+            direction=direction,
+        )
 
-        thresh_method = str(app_cfg.get("gm_thresh_method", "otsu")).lower()
-        if thresh_method == "percentile":
-            perc = float(app_cfg.get("gm_thresh_percentile", 99.0))
-            gm_thresh = int(np.percentile(abs_a, perc))
-        else:
-            gm_thresh = int(
-                cv2.threshold(abs_a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0]
-            )
-
-        green_mask = (a_channel < -gm_thresh).astype(np.uint8)
-        magenta_mask = (a_channel > gm_thresh).astype(np.uint8)
-
-        # Apply morphology to clean up speckles and capture contiguous regions
-        close_k = int(app_cfg.get("gm_close_kernel", 0))
-        if close_k > 0:
-            kernel = np.ones((close_k, close_k), np.uint8)
-            green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
-            magenta_mask = cv2.morphologyEx(magenta_mask, cv2.MORPH_CLOSE, kernel)
-
-        dilate_k = int(app_cfg.get("gm_dilate_kernel", 0))
-        if dilate_k > 0:
-            kernel = np.ones((dilate_k, dilate_k), np.uint8)
-            green_mask = cv2.dilate(green_mask, kernel)
-            magenta_mask = cv2.dilate(magenta_mask, kernel)
-
-        # Intersect difference masks with segmentation and drop components
-        # that fall mostly outside segmented regions.
-        min_seg_overlap = float(app_cfg.get("component_min_seg_overlap", 0.5))
-
-        def _mask_with_seg(diff: np.ndarray, seg: np.ndarray) -> np.ndarray:
-            filtered = np.zeros_like(diff)
-            num, labels = cv2.connectedComponents(diff)
-            for lbl in range(1, num):
-                comp = (labels == lbl).astype(np.uint8)
-                area = int(comp.sum())
-                if area == 0:
-                    continue
-                overlap = int((comp & seg).sum())
-                if overlap / area >= min_seg_overlap:
-                    filtered |= comp & seg
-            return filtered
-
-        green_mask = _mask_with_seg(green_mask, prev_bw_crop)
-        magenta_mask = _mask_with_seg(magenta_mask, seg_mask)
+        if direction == "last-to-first":
+            prev_bw_crop, seg_mask = seg_mask, prev_bw_crop
 
         # Dilate segmentation masks slightly before classifying regions as
         # "new" or "lost" to tolerate small registration errors.
