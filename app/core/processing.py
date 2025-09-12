@@ -432,9 +432,20 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # previous frame (green), negative differences highlight pixels unique
         # to the current frame (magenta).
         diff_int = gm_composite[..., 1].astype(np.int16) - gm_composite[..., 0].astype(np.int16)
-        gm_thresh = int(app_cfg.get("gm_threshold", 20))
+
+        # Derive a threshold from the histogram of the difference using Otsu's method
+        abs_diff = np.abs(diff_int).astype(np.uint8)
+        gm_thresh = int(cv2.threshold(abs_diff, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0])
+
         green_mask = (diff_int > gm_thresh).astype(np.uint8)
         magenta_mask = (-diff_int > gm_thresh).astype(np.uint8)
+
+        # Optionally grow contiguous regions in the difference masks
+        morph_k = int(app_cfg.get("gm_morph_kernel", 0))
+        if morph_k > 0:
+            kernel = np.ones((morph_k, morph_k), np.uint8)
+            green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
+            magenta_mask = cv2.morphologyEx(magenta_mask, cv2.MORPH_CLOSE, kernel)
 
         bw_lost = (prev_bw_crop & green_mask).astype(np.uint8)
         bw_new = (seg_mask & magenta_mask).astype(np.uint8)

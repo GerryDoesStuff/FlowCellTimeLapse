@@ -28,6 +28,11 @@ thresholded mask (`{frame}_bw_diff.png`) to `diff/bw/`. The binary mask is also 
 - `diff/new/` — binary masks highlighting regions that newly appear, used for evaluation.
 - `diff/lost/` — binary masks highlighting regions that disappear, used for evaluation.
 
+The separation between the magenta and green channels is determined by an
+adaptive Otsu threshold on the channel difference.  To reduce noise or grow
+contiguous regions in these masks, set `gm_morph_kernel` in the application
+config to a kernel size (>0) for morphological closing.
+
 ### Project layout
 - `app/main.py` — app entry, sets up MainWindow.
 - `app/ui/main_window.py` — PyQt UI and interactions.

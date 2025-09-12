@@ -69,6 +69,7 @@ class AppParams:
     save_masks: bool = False
     use_difference_for_seg: bool = False  # diff masks saved regardless
     difference_method: str = "abs"
+    gm_morph_kernel: int = 0  # closing kernel for new/lost masks; 0 disables
     use_file_timestamps: bool = True
     normalize: bool = True
     subtract_background: bool = False
