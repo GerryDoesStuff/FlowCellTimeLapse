@@ -427,25 +427,38 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         bw_overlap = (prev_bw_crop & seg_mask).astype(np.uint8)
         bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
 
-        # Threshold the green‑magenta composite to isolate regions present only
-        # in one frame. Positive differences indicate pixels unique to the
-        # previous frame (green), negative differences highlight pixels unique
-        # to the current frame (magenta).
-        diff_int = gm_composite[..., 1].astype(np.int16) - gm_composite[..., 0].astype(np.int16)
+        # Convert the composite to LAB color space where the "a" channel encodes
+        # green (negative) to magenta (positive) intensity.  Threshold this
+        # channel adaptively to obtain masks highlighting regions unique to the
+        # previous (green) or current (magenta) frame.
+        lab = cv2.cvtColor(gm_composite, cv2.COLOR_BGR2LAB)
+        a_channel = lab[..., 1].astype(np.int16) - 128  # center at 0
+        abs_a = np.abs(a_channel).astype(np.uint8)
 
-        # Derive a threshold from the histogram of the difference using Otsu's method
-        abs_diff = np.abs(diff_int).astype(np.uint8)
-        gm_thresh = int(cv2.threshold(abs_diff, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0])
+        thresh_method = str(app_cfg.get("gm_thresh_method", "otsu")).lower()
+        if thresh_method == "percentile":
+            perc = float(app_cfg.get("gm_thresh_percentile", 99.0))
+            gm_thresh = int(np.percentile(abs_a, perc))
+        else:
+            gm_thresh = int(
+                cv2.threshold(abs_a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0]
+            )
 
-        green_mask = (diff_int > gm_thresh).astype(np.uint8)
-        magenta_mask = (-diff_int > gm_thresh).astype(np.uint8)
+        green_mask = (a_channel < -gm_thresh).astype(np.uint8)
+        magenta_mask = (a_channel > gm_thresh).astype(np.uint8)
 
-        # Optionally grow contiguous regions in the difference masks
-        morph_k = int(app_cfg.get("gm_morph_kernel", 0))
-        if morph_k > 0:
-            kernel = np.ones((morph_k, morph_k), np.uint8)
+        # Apply morphology to clean up speckles and capture contiguous regions
+        close_k = int(app_cfg.get("gm_close_kernel", 0))
+        if close_k > 0:
+            kernel = np.ones((close_k, close_k), np.uint8)
             green_mask = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
             magenta_mask = cv2.morphologyEx(magenta_mask, cv2.MORPH_CLOSE, kernel)
+
+        dilate_k = int(app_cfg.get("gm_dilate_kernel", 0))
+        if dilate_k > 0:
+            kernel = np.ones((dilate_k, dilate_k), np.uint8)
+            green_mask = cv2.dilate(green_mask, kernel)
+            magenta_mask = cv2.dilate(magenta_mask, kernel)
 
         bw_lost = (prev_bw_crop & green_mask).astype(np.uint8)
         bw_new = (seg_mask & magenta_mask).astype(np.uint8)
