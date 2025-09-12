@@ -31,6 +31,7 @@ def test_segmentation_preview_matches_segment_adaptive(tmp_path, monkeypatch):
     win.close_r.setValue(0)
     win.rm_obj.setValue(0)
     win.rm_holes.setValue(0)
+    win.use_clahe.setChecked(False)
     win.use_diff_cb.setChecked(False)
 
     img = np.array(
