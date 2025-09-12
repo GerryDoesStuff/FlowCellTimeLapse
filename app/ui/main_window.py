@@ -665,7 +665,8 @@ class MainWindow(QMainWindow):
                         morph_open_radius=int(self.open_r.text()) if self.open_r.text() else None,
                         morph_close_radius=int(self.close_r.text()) if self.close_r.text() else None,
                         remove_objects_smaller_px=self.rm_obj.value(),
-                        remove_holes_smaller_px=self.rm_holes.value())
+                        remove_holes_smaller_px=self.rm_holes.value(),
+                        use_clahe=self.use_clahe.isChecked())
         scale_minmax = (self.scale_min.value(), self.scale_max.value())
         if scale_minmax[1] <= scale_minmax[0]:
             scale_minmax = None
@@ -719,7 +720,7 @@ class MainWindow(QMainWindow):
         self.max_iters.setValue(reg.max_iters)
         self.eps.setValue(reg.eps)
         self.gauss_sigma.setValue(reg.gauss_blur_sigma)
-        self.use_clahe.setChecked(reg.use_clahe)
+        self.use_clahe.setChecked(reg.use_clahe or seg.use_clahe)
         self.clahe_clip.setValue(reg.clahe_clip)
         self.clahe_grid.setValue(reg.clahe_grid)
         self.init_radius.setValue(reg.initial_radius)
@@ -1095,6 +1096,7 @@ class MainWindow(QMainWindow):
                 morph_close_radius=seg.morph_close_radius,
                 remove_objects_smaller_px=seg.remove_objects_smaller_px,
                 remove_holes_smaller_px=seg.remove_holes_smaller_px,
+                use_clahe=seg.use_clahe,
             )
 
             self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)

@@ -40,6 +40,7 @@ class SegParams:
     morph_close_radius: int | None = None
     invert: bool = True  # cells darker
     skip_outline: bool = False
+    use_clahe: bool = False
 
 @dataclass
 class AppParams:

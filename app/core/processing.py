@@ -303,6 +303,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         ),
         remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
         remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
+        use_clahe=bool(seg_cfg.get("use_clahe", False)),
     )
 
     # store previous frame, mask, and index for iterative segmentation
@@ -352,6 +353,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 ),
                 remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
                 remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
+                use_clahe=bool(seg_cfg.get("use_clahe", False)),
             )
             if app_cfg.get("save_intermediates", True):
                 cv2.imencode(".png", seg_img)[1].tofile(
@@ -382,6 +384,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             ),
             remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
             remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
+            use_clahe=bool(seg_cfg.get("use_clahe", False)),
         )
 
         # Use the segmentation of the registered moving frame for subsequent

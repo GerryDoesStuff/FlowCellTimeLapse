@@ -37,3 +37,18 @@ thresholded mask (`{frame}_bw_diff.png`) to `diff/bw/`. The binary mask is also 
 - `app/core/multiproc.py` — ProcessPool execution with chunking; CPU core detection.
 - `app/workers/pipeline_worker.py` — background worker orchestration.
 - `requirements.txt` — dependencies.
+
+### Low-contrast frames
+The `segment` function accepts a `use_clahe` flag that applies Contrast Limited Adaptive
+Histogram Equalization before thresholding. This can recover features in nearly
+uniform frames where default segmentation yields an empty mask.
+
+```python
+from app.core.segmentation import segment
+
+mask_plain = segment(low_contrast_frame)
+mask_clahe = segment(low_contrast_frame, use_clahe=True)
+```
+
+With CLAHE enabled (`mask_clahe`), faint cell boundaries become visible compared to the
+plain result (`mask_plain`).

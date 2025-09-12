@@ -30,6 +30,7 @@ def segment(
     morph_close_radius: int | None = None,
     remove_objects_smaller_px: int = 0,
     remove_holes_smaller_px: int = 0,
+    use_clahe: bool = False,
 ) -> np.ndarray:
     """Segment a grayscale image.
 
@@ -53,7 +54,8 @@ def segment(
     manual_thresh, adaptive_block, adaptive_C, local_block, morph_open_radius,
     morph_close_radius, remove_objects_smaller_px, remove_holes_smaller_px :
         Parameters controlling thresholding and post-processing.
-
+    use_clahe : bool
+        Apply CLAHE before thresholding to boost local contrast.
     Examples
     --------
     Segment a low-contrast image using Li's threshold::
@@ -64,9 +66,12 @@ def segment(
     """
 
     used_outline = False
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) if use_clahe else None
 
     if method == "manual":
         proc = 255 - gray if invert else gray
+        if clahe is not None:
+            proc = clahe.apply(proc)
         t = int(np.clip(manual_thresh, 0, 255))
         bw = (proc >= t).astype(np.uint8)
     else:
@@ -82,27 +87,32 @@ def segment(
             else:
                 feat = bh
                 used_outline = True
+        proc = feat
+        if clahe is not None:
+            proc = clahe.apply(proc)
         if method == "otsu":
-            _, th = cv2.threshold(feat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            _, th = cv2.threshold(proc, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             bw = (th > 0).astype(np.uint8)
         elif method == "adaptive":
             blk = max(3, adaptive_block | 1)
-            rng = int(feat.max() - feat.min())
+            rng = int(proc.max() - proc.min())
             if rng < 2:
                 if use_diff:
-                    bw = np.zeros_like(feat, dtype=np.uint8)
-                    feat = None
+                    bw = np.zeros_like(proc, dtype=np.uint8)
+                    proc = None
                 else:
-                    feat = plain
-                    rng = int(feat.max() - feat.min())
+                    proc = plain
+                    if clahe is not None:
+                        proc = clahe.apply(proc)
+                    rng = int(proc.max() - proc.min())
                     if rng < 2:
-                        bw = np.zeros_like(feat, dtype=np.uint8)
-                        feat = None
-            if feat is not None:
+                        bw = np.zeros_like(proc, dtype=np.uint8)
+                        proc = None
+            if proc is not None:
                 if use_diff:
-                    feat = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
+                    proc = cv2.normalize(proc, None, 0, 255, cv2.NORM_MINMAX)
                 th = cv2.adaptiveThreshold(
-                    feat.astype(np.uint8),
+                    proc.astype(np.uint8),
                     255,
                     cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                     cv2.THRESH_BINARY,
@@ -111,29 +121,31 @@ def segment(
                 )
                 bw = (th > 0).astype(np.uint8)
         elif method == "local":
-            blk = max(3, local_block|1)
-            rng = int(feat.max() - feat.min())
+            blk = max(3, local_block | 1)
+            rng = int(proc.max() - proc.min())
             if rng < 2:
                 if use_diff:
-                    bw = np.zeros_like(feat, dtype=np.uint8)
-                    feat = None
+                    bw = np.zeros_like(proc, dtype=np.uint8)
+                    proc = None
                 else:
-                    feat = plain
-                    rng = int(feat.max() - feat.min())
+                    proc = plain
+                    if clahe is not None:
+                        proc = clahe.apply(proc)
+                    rng = int(proc.max() - proc.min())
                     if rng < 2:
-                        bw = np.zeros_like(feat, dtype=np.uint8)
-                        feat = None
-            if feat is not None:
+                        bw = np.zeros_like(proc, dtype=np.uint8)
+                        proc = None
+            if proc is not None:
                 if use_diff:
-                    feat = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
-                loc = filters.threshold_local(feat, blk)
-                bw = (feat > loc).astype(np.uint8)
-        elif method == "li":
-            t = filters.threshold_li(feat)
-            bw = (feat >= t).astype(np.uint8)
+                    proc = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
+                    loc = filters.threshold_local(proc, blk)
+                    bw = (feat > loc).astype(np.uint8)
+            elif method == "li":
+                t = filters.threshold_li(feat)
+                bw = (proc >= t).astype(np.uint8)
         else:
             t = int(np.clip(manual_thresh, 0, 255))
-            bw = (feat >= t).astype(np.uint8)
+            bw = (proc >= t).astype(np.uint8)
 
     # Morphology: closing before opening. When outline-based thresholds are used
     # (the default path), radii default to zero, avoiding unnecessary smoothing.
