@@ -39,7 +39,7 @@ def segment(
     gray : np.ndarray
         Grayscale image.
     method : str
-        Thresholding method: "otsu", "li", "adaptive", "local", or "manual".
+        Thresholding method: "otsu", "li", "yen", "adaptive", "local", or "manual".
     invert : bool
         Treat cells as darker than background.
     skip_outline : bool
@@ -63,6 +63,10 @@ def segment(
         >>> gray = np.full((5, 5), 120, dtype=np.uint8)
         >>> gray[2:, 2:] = 130  # low-contrast foreground
         >>> mask = segment(gray, method="li", invert=False, skip_outline=True)
+
+    Apply Yen's threshold on the same image::
+
+        >>> mask = segment(gray, method="yen", invert=False, skip_outline=True)
     """
 
     used_outline = False
@@ -137,12 +141,18 @@ def segment(
                         proc = None
             if proc is not None:
                 if use_diff:
-                    proc = cv2.normalize(feat, None, 0, 255, cv2.NORM_MINMAX)
+                    norm = cv2.normalize(proc, None, 0, 255, cv2.NORM_MINMAX)
+                    loc = filters.threshold_local(norm, blk)
+                    bw = (norm > loc).astype(np.uint8)
+                else:
                     loc = filters.threshold_local(proc, blk)
-                    bw = (feat > loc).astype(np.uint8)
-            elif method == "li":
-                t = filters.threshold_li(feat)
-                bw = (proc >= t).astype(np.uint8)
+                    bw = (proc > loc).astype(np.uint8)
+        elif method == "li":
+            t = filters.threshold_li(feat)
+            bw = (proc >= t).astype(np.uint8)
+        elif method == "yen":
+            t = filters.threshold_yen(feat)
+            bw = (proc >= t).astype(np.uint8)
         else:
             t = int(np.clip(manual_thresh, 0, 255))
             bw = (proc >= t).astype(np.uint8)
