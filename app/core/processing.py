@@ -459,9 +459,43 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             kernel = np.ones((dilate_k, dilate_k), np.uint8)
             green_mask = cv2.dilate(green_mask, kernel)
             magenta_mask = cv2.dilate(magenta_mask, kernel)
+        # Dilate segmentation masks slightly before classifying regions as
+        # "new" or "lost" to tolerate small registration errors.
+        class_dilate_k = int(app_cfg.get("class_dilate_kernel", 0))
+        if class_dilate_k > 0:
+            kernel = np.ones((class_dilate_k, class_dilate_k), np.uint8)
+            prev_dilated = cv2.dilate(prev_bw_crop, kernel)
+            seg_dilated = cv2.dilate(seg_mask, kernel)
+        else:
+            prev_dilated = prev_bw_crop
+            seg_dilated = seg_mask
 
-        bw_lost = (prev_bw_crop & green_mask).astype(np.uint8)
-        bw_new = (seg_mask & magenta_mask).astype(np.uint8)
+        # Classify connected components based on their overlap with the
+        # opposite frame. A component is only considered gained or lost if the
+        # overlap ratio falls below a configurable threshold.
+        min_overlap = float(app_cfg.get("component_min_overlap", 0.5))
+
+        bw_lost = np.zeros_like(prev_bw_crop)
+        num_prev, labels_prev = cv2.connectedComponents(prev_bw_crop)
+        for lbl in range(1, num_prev):
+            comp = (labels_prev == lbl).astype(np.uint8)
+            area = int(comp.sum())
+            if area == 0:
+                continue
+            overlap = int((comp & seg_dilated).sum())
+            if overlap / area < min_overlap:
+                bw_lost |= comp & green_mask
+
+        bw_new = np.zeros_like(seg_mask)
+        num_curr, labels_curr = cv2.connectedComponents(seg_mask)
+        for lbl in range(1, num_curr):
+            comp = (labels_curr == lbl).astype(np.uint8)
+            area = int(comp.sum())
+            if area == 0:
+                continue
+            overlap = int((comp & prev_dilated).sum())
+            if overlap / area < min_overlap:
+                bw_new |= comp & magenta_mask
 
         area_new_px = int(bw_new.sum())
         area_lost_px = int(bw_lost.sum())
