@@ -9,6 +9,7 @@ from app.core.segmentation import segment
 
 
 def test_yen_segmentation_low_contrast():
+    """Yen thresholding on a low-contrast image."""
     img = np.full((5, 5), 120, dtype=np.uint8)
     img[2:, 2:] = 130
 
