@@ -125,7 +125,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     bw_empty_dir = bw_dir / "empty"; ensure_dir(bw_empty_dir)
 
     diff_dir = out_dir / "diff"; ensure_dir(diff_dir)
-    diff_diff_dir = diff_dir / "diff"; ensure_dir(diff_diff_dir)
+    diff_raw_dir = diff_dir / "raw"; ensure_dir(diff_raw_dir)
+    diff_bw_dir = diff_dir / "bw"; ensure_dir(diff_bw_dir)
     diff_new_dir = diff_dir / "new"; ensure_dir(diff_new_dir)
     diff_lost_dir = diff_dir / "lost"; ensure_dir(diff_lost_dir)
 
@@ -354,10 +355,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
             if app_cfg.get("save_intermediates", True):
                 cv2.imencode(".png", seg_img)[1].tofile(
-                    str(diff_diff_dir / f"{k:04d}_diff.png")
+                    str(diff_raw_dir / f"{k:04d}_diff.png")
                 )
                 cv2.imencode(".png", (bw_diff * 255).astype(np.uint8))[1].tofile(
-                    str(diff_diff_dir / f"{k:04d}_bw_diff.png")
+                    str(diff_bw_dir / f"{k:04d}_bw_diff.png")
                 )
         bw_reg = segment(
             mov_crop,
@@ -408,12 +409,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
         bw_overlap = (prev_bw_crop & seg_mask).astype(np.uint8)
         bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
-        if direction == "last-to-first":
-            bw_new = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
-            bw_lost = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
-        else:
-            bw_new = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
-            bw_lost = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
+        bw_new = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
+        bw_lost = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
         area_new_px = int(bw_new.sum())
         area_lost_px = int(bw_lost.sum())
 
