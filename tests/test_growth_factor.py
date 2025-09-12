@@ -57,3 +57,6 @@ def test_final_mask_consistent_across_frames(tmp_path):
     df = run(paths)
     assert df["overlap_w"].nunique() == 1
     assert df["overlap_h"].nunique() == 1
+    assert (df["segmentation_method"] == "manual").all()
+    assert (df["difference_method"] == "abs").all()
+    assert (df["area_overlap_px"] == df["overlap_px"]).all()
