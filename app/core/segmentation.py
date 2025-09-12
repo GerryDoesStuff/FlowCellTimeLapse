@@ -39,7 +39,8 @@ def segment(
     gray : np.ndarray
         Grayscale image.
     method : str
-        Thresholding method: "otsu", "li", "yen", "adaptive", "local", or "manual".
+        Thresholding method: "otsu", "multi_otsu", "li", "yen", "adaptive",
+        "local", or "manual".
     invert : bool
         Treat cells as darker than background.
     skip_outline : bool
@@ -67,6 +68,24 @@ def segment(
     Apply Yen's threshold on the same image::
 
         >>> mask = segment(gray, method="yen", invert=False, skip_outline=True)
+
+    Use Multi-Otsu on an image with two intensity classes::
+
+        >>> gray = np.concatenate(
+        ...     (np.full((5, 5), 50, dtype=np.uint8),
+        ...      np.full((5, 5), 200, dtype=np.uint8)),
+        ...     axis=1)
+        >>> mask = segment(gray, method="multi_otsu", invert=False, skip_outline=True)
+
+    Multi-level segmentation with scikit-image's Multi-Otsu::
+
+        >>> from skimage import filters
+        >>> img = np.array(
+        ...     [[0, 0, 0],
+        ...      [128, 128, 128],
+        ...      [255, 255, 255]], dtype=np.uint8)
+        >>> thresholds = filters.threshold_multiotsu(img, classes=3)
+        >>> regions = np.digitize(img, bins=thresholds)
     """
 
     used_outline = False
@@ -147,6 +166,9 @@ def segment(
                 else:
                     loc = filters.threshold_local(proc, blk)
                     bw = (proc > loc).astype(np.uint8)
+        elif method == "multi_otsu":
+            t = filters.threshold_multiotsu(feat, classes=2)
+            bw = (feat >= t[0]).astype(np.uint8)
         elif method == "li":
             t = filters.threshold_li(feat)
             bw = (proc >= t).astype(np.uint8)
