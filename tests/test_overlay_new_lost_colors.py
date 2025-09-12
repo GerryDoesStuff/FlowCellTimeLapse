@@ -45,7 +45,7 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
         "direction": "first-to-last",
         "save_intermediates": True,
         "overlay_new_color": (0, 255, 0),
-        "overlay_lost_color": (0, 0, 255),
+        "overlay_lost_color": (255, 0, 255),
     }
 
     out_dir = tmp_path / "out"
@@ -54,6 +54,19 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
     overlay_img = cv2.imread(str(out_dir / "overlay" / "0000_overlay_mov.png"))
     assert overlay_img is not None
     green = np.array([0, 255, 0], dtype=np.uint8)
-    red = np.array([0, 0, 255], dtype=np.uint8)
+    magenta = np.array([255, 0, 255], dtype=np.uint8)
     assert (overlay_img == green).all(axis=2).any()
-    assert (overlay_img == red).all(axis=2).any()
+    assert (overlay_img == magenta).all(axis=2).any()
+
+    bw_new = cv2.imread(str(out_dir / "diff" / "new" / "0000_bw_new.png"), cv2.IMREAD_GRAYSCALE)
+    bw_lost = cv2.imread(str(out_dir / "diff" / "lost" / "0000_bw_lost.png"), cv2.IMREAD_GRAYSCALE)
+
+    mask0 = cv2.imread(str(paths[0]), cv2.IMREAD_GRAYSCALE)
+    mask1 = cv2.imread(str(paths[1]), cv2.IMREAD_GRAYSCALE)
+    mask0 = (mask0 > 127).astype(np.uint8) * 255
+    mask1 = (mask1 > 127).astype(np.uint8) * 255
+    expected_new = ((mask1 == 255) & (mask0 == 0)).astype(np.uint8) * 255
+    expected_lost = ((mask0 == 255) & (mask1 == 0)).astype(np.uint8) * 255
+
+    assert np.array_equal(bw_new, expected_new)
+    assert np.array_equal(bw_lost, expected_lost)
