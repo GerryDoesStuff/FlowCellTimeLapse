@@ -65,19 +65,26 @@ def segment(
         >>> gray[2:, 2:] = 130  # low-contrast foreground
         >>> mask = segment(gray, method="li", invert=False, skip_outline=True)
 
-    Apply Yen's threshold on the same image::
+    Apply Yen's threshold on the same image; this method handles
+    low-contrast backgrounds well::
 
         >>> mask = segment(gray, method="yen", invert=False, skip_outline=True)
 
-    Use Multi-Otsu on an image with two intensity classes::
+    Use Multi-Otsu on an image with three intensity phases; it excels on
+    multi-phase images with distinct peaks in their histograms::
 
         >>> gray = np.concatenate(
-        ...     (np.full((5, 5), 50, dtype=np.uint8),
-        ...      np.full((5, 5), 200, dtype=np.uint8)),
-        ...     axis=1)
+        ...     (
+        ...         np.full((5, 5), 50, dtype=np.uint8),
+        ...         np.full((5, 5), 128, dtype=np.uint8),
+        ...         np.full((5, 5), 200, dtype=np.uint8),
+        ...     ),
+        ...     axis=1,
+        ... )
         >>> mask = segment(gray, method="multi_otsu", invert=False, skip_outline=True)
 
-    Multi-level segmentation with scikit-image's Multi-Otsu::
+    For full multi-phase segmentation into more than two regions, use
+    scikit-image's Multi-Otsu directly::
 
         >>> from skimage import filters
         >>> img = np.array(
