@@ -416,6 +416,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         bw_lost = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
         area_new_px = int(bw_new.sum())
         area_lost_px = int(bw_lost.sum())
+        area_overlap_px = int(bw_overlap.sum())
 
         row = {
             "frame_index": k,
@@ -429,6 +430,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "area_union_px": int(bw_union.sum()),
             "area_new_px": area_new_px,
             "area_lost_px": area_lost_px,
+            "area_overlap_px": area_overlap_px,
+            "segmentation_method": seg_cfg.get("method"),
+            "difference_method": app_cfg.get("difference_method", "abs"),
             "to_ref_transform": T.flatten().tolist(),
         }
         rows.append(row)

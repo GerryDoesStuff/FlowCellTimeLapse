@@ -73,4 +73,8 @@ def test_per_frame_crop_rectangles(tmp_path):
     assert int(row1["overlap_h"]) == 50
     assert int(row2["overlap_w"]) == 30
     assert int(row2["overlap_h"]) == 50
+    assert row1["segmentation_method"] == seg_cfg["method"]
+    assert row2["difference_method"] == app_cfg.get("difference_method", "abs")
+    assert int(row1["area_overlap_px"]) == int(row1["overlap_px"])
+    assert int(row2["area_overlap_px"]) == int(row2["overlap_px"])
 
