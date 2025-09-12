@@ -6,7 +6,15 @@ from PyQt6.QtCore import QSettings
 
 RegistrationModel = Literal["translation","euclidean","affine","homography"]
 RegMethod = Literal["ECC", "ORB", "ORB+ECC"]
-SegMethod = Literal["otsu","adaptive","local","manual"]
+SegMethod = Literal[
+    "otsu",
+    "multi_otsu",
+    "li",
+    "yen",
+    "adaptive",
+    "local",
+    "manual",
+]
 
 @dataclass
 class RegParams:

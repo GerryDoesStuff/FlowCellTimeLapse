@@ -5,10 +5,12 @@ from pathlib import Path
 
 import numpy as np
 import cv2
+import pytest
 from PyQt6.QtWidgets import QApplication
 
 
-def test_run_pipeline_passes_segmentation_params(tmp_path, monkeypatch):
+@pytest.mark.parametrize("method", ["otsu", "multi_otsu", "li", "yen"])
+def test_run_pipeline_passes_segmentation_params(tmp_path, monkeypatch, method):
     """Ensure seg_cfg includes all preview params and is passed unchanged."""
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -18,6 +20,7 @@ def test_run_pipeline_passes_segmentation_params(tmp_path, monkeypatch):
     from app.ui.main_window import MainWindow
 
     win = MainWindow()
+    win.seg_method.setCurrentText(method)
 
     # Create a dummy image path so _run_pipeline has something to process
     img = np.zeros((10, 10), dtype=np.uint8)
