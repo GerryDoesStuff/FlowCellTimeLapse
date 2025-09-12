@@ -167,8 +167,20 @@ def segment(
                     loc = filters.threshold_local(proc, blk)
                     bw = (proc > loc).astype(np.uint8)
         elif method == "multi_otsu":
-            t = filters.threshold_multiotsu(feat, classes=2)
-            bw = (feat >= t[0]).astype(np.uint8)
+            # ``threshold_multiotsu`` raises a ValueError when the histogram
+            # cannot be divided into the requested number of classes (e.g., a
+            # uniform image). Other branches of ``segment`` handle such low
+            # dynamic range images by returning an empty mask, so mirror that
+            # behaviour here instead of letting the exception propagate.
+            if np.unique(feat).size < 2:
+                bw = np.zeros_like(feat, dtype=np.uint8)
+            else:
+                try:
+                    t = filters.threshold_multiotsu(feat, classes=2)
+                except ValueError:
+                    bw = np.zeros_like(feat, dtype=np.uint8)
+                else:
+                    bw = (feat >= t[0]).astype(np.uint8)
         elif method == "li":
             t = filters.threshold_li(feat)
             bw = (proc >= t).astype(np.uint8)
