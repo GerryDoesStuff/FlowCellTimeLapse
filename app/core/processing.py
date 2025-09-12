@@ -325,6 +325,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             warped = cv2.warpPerspective(imgs_norm[k], T, (W, H))
             registered_frames[k] = warped
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
+
+        # Create a green‑magenta composite to highlight differences.
+        gm_composite = np.zeros((h_k, w_k, 3), dtype=np.uint8)
+        gm_composite[..., 1] = prev_crop  # previous frame in green
+        gm_composite[..., 0] = mov_crop   # current frame in blue
+        gm_composite[..., 2] = mov_crop   # current frame in red (magenta)
+
         seg_img = None
         bw_diff = None
         if idx > 0:
@@ -388,11 +395,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         )
 
         # Use the segmentation of the registered moving frame for subsequent
-        # new/lost calculations. The difference-based mask is still saved for
-        # debugging but should not drive "new"/"lost" detection as it only
-        # highlights changed pixels. Relying on it caused the new/lost masks to
-        # always be empty when a region disappeared because the difference mask
-        # matched the previous frame instead of the current contents.
+        # green/magenta difference calculations. The raw difference mask is
+        # still saved for debugging but does not directly control "new"/"lost"
+        # detection. Relying solely on pixel-wise differences caused empty
+        # masks when regions vanished; the composite approach below resolves
+        # this by comparing full-frame intensities.
         seg_mask = bw_reg
 
         _save_mask(k, bw_reg, x_k, y_k, suffix="_registered")
@@ -412,8 +419,19 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
         bw_overlap = (prev_bw_crop & seg_mask).astype(np.uint8)
         bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
-        bw_new = (seg_mask & (~prev_bw_crop)).astype(np.uint8)
-        bw_lost = (prev_bw_crop & (~seg_mask)).astype(np.uint8)
+
+        # Threshold the green‑magenta composite to isolate regions present only
+        # in one frame. Positive differences indicate pixels unique to the
+        # previous frame (green), negative differences highlight pixels unique
+        # to the current frame (magenta).
+        diff_int = gm_composite[..., 1].astype(np.int16) - gm_composite[..., 0].astype(np.int16)
+        gm_thresh = int(app_cfg.get("gm_threshold", 20))
+        green_mask = (diff_int > gm_thresh).astype(np.uint8)
+        magenta_mask = (-diff_int > gm_thresh).astype(np.uint8)
+
+        bw_lost = (prev_bw_crop & green_mask).astype(np.uint8)
+        bw_new = (seg_mask & magenta_mask).astype(np.uint8)
+
         area_new_px = int(bw_new.sum())
         area_lost_px = int(bw_lost.sum())
         area_overlap_px = int(bw_overlap.sum())
