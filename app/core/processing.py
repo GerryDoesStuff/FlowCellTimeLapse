@@ -221,7 +221,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
             valid_masks[k] = valid_mask
 
-    final_mask = (global_mask > 0).astype(np.uint8)
+    expanded_mask = (global_mask > 0).astype(np.uint8)
+    dilate_radius = int(reg_cfg.get("mask_dilate_radius", 0))
+    kernel = None
+    if dilate_radius > 0:
+        ksize = 2 * dilate_radius + 1
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
     for idx, k in enumerate(ordered_indices[1:], start=1):
         vm = valid_masks.get(k)
         if vm is None:
@@ -229,9 +234,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         prev_k = ordered_indices[idx - 1]
         T_prev = step_transforms.get(prev_k, np.eye(3, dtype=np.float32))
         vm_ref = cv2.warpPerspective(vm, T_prev, (W, H))
-        final_mask = cv2.bitwise_and(final_mask, vm_ref)
+        if kernel is not None:
+            vm_ref = cv2.dilate(vm_ref, kernel)
+        expanded_mask = cv2.bitwise_and(expanded_mask, vm_ref)
 
-    crop_rect = crop_to_overlap(final_mask)
+    crop_rect = crop_to_overlap(expanded_mask)
     crop_rects: Dict[int, tuple[int, int, int, int]] = {k: crop_rect for k in ordered_indices}
     x_f, y_f, w_f, h_f = crop_rect
     overlap_area = w_f * h_f
@@ -241,7 +248,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         logger.error(msg)
         raise ValueError(msg)
     if app_cfg.get("save_final_mask", False):
-        cv2.imencode('.png', (final_mask * 255).astype(np.uint8))[1].tofile(
+        cv2.imencode('.png', (expanded_mask * 255).astype(np.uint8))[1].tofile(
             str(out_dir / "final_mask.png")
         )
 
