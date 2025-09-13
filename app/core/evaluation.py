@@ -40,14 +40,15 @@ def evaluate_diff_masks(
 ) -> pd.DataFrame:
     """Evaluate binary difference masks.
 
-    This function scans ``diff_dir`` for ``bw``, ``new`` and ``lost`` subfolders
-    produced by :func:`app.core.processing.analyze_sequence`. For each frame
+    This function scans ``diff_dir`` for ``bw``, ``gain`` and ``loss`` subfolders
+    produced by :func:`app.core.processing.analyze_sequence`. When the older
+    ``new``/``lost`` folders are present they are used instead. For each frame
     interval it loads the corresponding masks and computes simple area metrics.
 
     Parameters
     ----------
     diff_dir : Path
-        Directory containing ``bw``, ``new`` and ``lost`` subdirectories.
+        Directory containing ``bw`` and ``gain``/``loss`` subdirectories.
     csv_path : Path | str | None, optional
         When provided, the resulting :class:`pandas.DataFrame` is written to this
         CSV file. Relative paths are resolved inside ``diff_dir``.
@@ -62,6 +63,8 @@ def evaluate_diff_masks(
     bw_dir = diff_dir / "bw"
     new_dir = diff_dir / "new"
     lost_dir = diff_dir / "lost"
+    gain_dir = diff_dir / "gain"
+    loss_dir = diff_dir / "loss"
 
     bw_map: Dict[int, Path] = {}
     new_map: Dict[int, Path] = {}
@@ -70,10 +73,18 @@ def evaluate_diff_masks(
     if bw_dir.exists():
         for p in bw_dir.glob("*.png"):
             bw_map[_index_from_name(p)] = p
-    if new_dir.exists():
+
+    if gain_dir.exists():
+        for p in gain_dir.glob("*.png"):
+            new_map[_index_from_name(p)] = p
+    elif new_dir.exists():
         for p in new_dir.glob("*.png"):
             new_map[_index_from_name(p)] = p
-    if lost_dir.exists():
+
+    if loss_dir.exists():
+        for p in loss_dir.glob("*.png"):
+            lost_map[_index_from_name(p)] = p
+    elif lost_dir.exists():
         for p in lost_dir.glob("*.png"):
             lost_map[_index_from_name(p)] = p
 

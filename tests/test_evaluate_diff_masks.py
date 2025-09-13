@@ -14,6 +14,8 @@ def create_masks(tmp_path: Path) -> Path:
     (diff_dir / "bw").mkdir(parents=True)
     (diff_dir / "new").mkdir(parents=True)
     (diff_dir / "lost").mkdir(parents=True)
+    (diff_dir / "gain").mkdir(parents=True)
+    (diff_dir / "loss").mkdir(parents=True)
 
     new_mask = np.zeros((4, 4), dtype=np.uint8)
     new_mask[0, 0] = 255
@@ -30,6 +32,8 @@ def create_masks(tmp_path: Path) -> Path:
     cv2.imwrite(str(diff_dir / "new" / "0000_bw_new.png"), new_mask)
     cv2.imwrite(str(diff_dir / "lost" / "0000_bw_lost.png"), lost_mask)
     cv2.imwrite(str(diff_dir / "bw" / "0001_bw_diff.png"), diff_mask)
+    cv2.imwrite(str(diff_dir / "gain" / "0000_bw_gain.png"), cv2.bitwise_and(new_mask, diff_mask))
+    cv2.imwrite(str(diff_dir / "loss" / "0000_bw_loss.png"), cv2.bitwise_and(lost_mask, diff_mask))
     return diff_dir
 
 

@@ -63,12 +63,13 @@ def test_misregistration_tolerance(tmp_path, monkeypatch, dx, dy, dilate):
     app_cfg = {
         "direction": "first-to-last",
         "save_intermediates": True,
+        "save_masks": True,
         "class_dilate_kernel": dilate,
         "component_min_overlap": 0.5,
     }
     out_dir = tmp_path / "out"
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
-    new_mask = cv2.imread(str(out_dir / "diff" / "new" / "0000_bw_new.png"), cv2.IMREAD_GRAYSCALE)
-    lost_mask = cv2.imread(str(out_dir / "diff" / "lost" / "0000_bw_lost.png"), cv2.IMREAD_GRAYSCALE)
+    new_mask = cv2.imread(str(out_dir / "diff" / "gain" / "0000_bw_gain.png"), cv2.IMREAD_GRAYSCALE)
+    lost_mask = cv2.imread(str(out_dir / "diff" / "loss" / "0000_bw_loss.png"), cv2.IMREAD_GRAYSCALE)
     assert new_mask is not None and not np.any(new_mask)
     assert lost_mask is not None and not np.any(lost_mask)

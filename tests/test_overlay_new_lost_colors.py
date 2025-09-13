@@ -44,6 +44,7 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
     app_cfg = {
         "direction": "first-to-last",
         "save_intermediates": True,
+        "save_masks": True,
         "overlay_new_color": (0, 255, 0),
         "overlay_lost_color": (255, 0, 255),
         "component_min_overlap": 0.75,
@@ -59,8 +60,8 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
     assert (overlay_img == green).all(axis=2).any()
     assert (overlay_img == magenta).all(axis=2).any()
 
-    bw_new = cv2.imread(str(out_dir / "diff" / "new" / "0000_bw_new.png"), cv2.IMREAD_GRAYSCALE)
-    bw_lost = cv2.imread(str(out_dir / "diff" / "lost" / "0000_bw_lost.png"), cv2.IMREAD_GRAYSCALE)
+    bw_new = cv2.imread(str(out_dir / "diff" / "gain" / "0000_bw_gain.png"), cv2.IMREAD_GRAYSCALE)
+    bw_lost = cv2.imread(str(out_dir / "diff" / "loss" / "0000_bw_loss.png"), cv2.IMREAD_GRAYSCALE)
 
     mask0 = cv2.imread(str(paths[0]), cv2.IMREAD_GRAYSCALE)
     mask1 = cv2.imread(str(paths[1]), cv2.IMREAD_GRAYSCALE)

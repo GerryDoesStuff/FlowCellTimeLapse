@@ -71,6 +71,7 @@ def run_direction(paths, reg_cfg, seg_cfg, direction, tmp_path):
     app_cfg = {
         "direction": direction,
         "save_intermediates": True,
+        "save_masks": True,
         "overlay_new_color": (0, 255, 0),
         "overlay_lost_color": (255, 0, 255),
     }
@@ -78,11 +79,11 @@ def run_direction(paths, reg_cfg, seg_cfg, direction, tmp_path):
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
     prev_idx = 0 if direction == "first-to-last" else 1
     new_mask = cv2.imread(
-        str(out_dir / "diff" / "new" / f"{prev_idx:04d}_bw_new.png"),
+        str(out_dir / "diff" / "gain" / f"{prev_idx:04d}_bw_gain.png"),
         cv2.IMREAD_GRAYSCALE,
     )
     lost_mask = cv2.imread(
-        str(out_dir / "diff" / "lost" / f"{prev_idx:04d}_bw_lost.png"),
+        str(out_dir / "diff" / "loss" / f"{prev_idx:04d}_bw_loss.png"),
         cv2.IMREAD_GRAYSCALE,
     )
     overlay = cv2.imread(str(out_dir / "overlay" / f"{prev_idx:04d}_overlay_mov.png"))
