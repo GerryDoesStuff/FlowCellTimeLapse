@@ -456,7 +456,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
                 use_clahe=bool(seg_cfg.get("use_clahe", False)),
             )
-            if app_cfg.get("save_intermediates", True):
+            if app_cfg.get("save_intermediates", False):
                 cv2.imencode(".png", seg_img)[1].tofile(
                     str(diff_raw_dir / f"{k:04d}_diff.png")
                 )
@@ -589,7 +589,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         }
         rows.append(row)
 
-        if app_cfg.get("save_intermediates", True):
+        if app_cfg.get("save_intermediates", False):
             cv2.imencode('.png', prev_crop)[1].tofile(
                 str(reg_dir / f"{prev_k:04d}_prev.png")
             )

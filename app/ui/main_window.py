@@ -632,6 +632,11 @@ class MainWindow(QMainWindow):
         run_box.addWidget(self.mov_idx_spin)
         controls.addLayout(run_box)
 
+        self.save_intermediates = QCheckBox("Save intermediate images")
+        self.save_intermediates.setChecked(self.app.save_intermediates)
+        controls.addWidget(self.save_intermediates)
+        self.save_intermediates.toggled.connect(self._persist_settings)
+
         controls.addStretch(1)
 
         # Right: viewer
@@ -848,6 +853,7 @@ class MainWindow(QMainWindow):
             overlay_mov_color=self.mov_color,
             overlay_new_color=self.new_color,
             overlay_lost_color=self.lost_color,
+            save_intermediates=self.save_intermediates.isChecked(),
         )
         app.presets_path = self.app.presets_path
         return reg, seg, app
@@ -939,6 +945,7 @@ class MainWindow(QMainWindow):
         self.overlay_mov_cb.setChecked(app.show_mov_overlay)
         self.alpha_slider.setValue(app.overlay_opacity)
         self.overlay_mode_combo.setCurrentText(app.overlay_mode)
+        self.save_intermediates.setChecked(app.save_intermediates)
         self.ref_color = tuple(app.overlay_ref_color)
         self.mov_color = tuple(app.overlay_mov_color)
         self.new_color = tuple(app.overlay_new_color)
@@ -1441,7 +1448,7 @@ class MainWindow(QMainWindow):
         app_cfg = dict(
             direction=app.direction,
             use_difference_for_seg=app.use_difference_for_seg,
-            save_intermediates=True,
+            save_intermediates=app.save_intermediates,
             difference_method=app.difference_method,
             normalize=app.normalize,
             subtract_background=app.subtract_background,

@@ -32,7 +32,7 @@ def test_pipeline_logs_direction(tmp_path, monkeypatch, caplog, direction):
 
     reg = RegParams()
     seg = SegParams()
-    app_params = AppParams(direction=direction)
+    app_params = AppParams(direction=direction, save_intermediates=False)
     monkeypatch.setattr(win, "_persist_settings", lambda *a, **k: (reg, seg, app_params))
     monkeypatch.setattr(QThread, "start", lambda self: None)
 
