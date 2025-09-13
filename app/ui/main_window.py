@@ -440,9 +440,6 @@ class MainWindow(QMainWindow):
         # Difference preview
         diff_section = CollapsibleSection("Difference")
         diff_layout = QVBoxLayout()
-        self.use_diff_cb = QCheckBox("Use difference for segmentation")
-        self.use_diff_cb.setChecked(self.app.use_difference_for_seg)
-        diff_layout.addWidget(self.use_diff_cb)
         self.diff_method = QComboBox()
         self.diff_method.addItems(["abs", "lab", "edges"])
         self.diff_method.setCurrentText(self.app.difference_method)
@@ -453,8 +450,6 @@ class MainWindow(QMainWindow):
         self.diff_preview_btn.setEnabled(False)
         self.diff_preview_btn.clicked.connect(self._preview_difference)
         controls.addWidget(self.diff_preview_btn)
-        self.use_diff_cb.toggled.connect(self._persist_settings)
-        self.use_diff_cb.toggled.connect(self._on_params_changed)
         self.diff_method.currentTextChanged.connect(self._persist_settings)
         self.diff_method.currentTextChanged.connect(self._on_params_changed)
 
@@ -843,7 +838,7 @@ class MainWindow(QMainWindow):
             normalize=self.norm_cb.isChecked(),
             subtract_background=self.bg_sub_cb.isChecked(),
             scale_minmax=scale_minmax,
-            use_difference_for_seg=self.use_diff_cb.isChecked(),
+            use_difference_for_seg=True,
             difference_method=self.diff_method.currentText(),
             show_ref_overlay=self.overlay_ref_cb.isChecked(),
             show_mov_overlay=self.overlay_mov_cb.isChecked(),
@@ -930,7 +925,6 @@ class MainWindow(QMainWindow):
         self.dir_combo.setCurrentText(app.direction)
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
-        self.use_diff_cb.setChecked(app.use_difference_for_seg)
         self.diff_method.setCurrentText(app.difference_method)
         self.norm_cb.setChecked(app.normalize)
         if app.scale_minmax is not None:
@@ -1318,11 +1312,7 @@ class MainWindow(QMainWindow):
             return
         try:
             _, seg, _ = self._persist_settings()
-
-            if self.use_diff_cb.isChecked():
-                gray = self._diff_gray
-            else:
-                gray = self._reg_warp
+            gray = self._diff_gray
             # Mirror pipeline input handling: pass the raw frame to ``segment`` and
             # only normalize when necessary. ``compute_difference`` and
             # ``imread_gray`` already yield ``uint8`` images, so avoid double
@@ -1336,7 +1326,7 @@ class MainWindow(QMainWindow):
                 method=seg.method,
                 invert=seg.invert,
                 skip_outline=seg.skip_outline,
-                use_diff=self.use_diff_cb.isChecked(),
+                use_diff=True,
                 manual_thresh=seg.manual_thresh,
                 adaptive_block=seg.adaptive_block,
                 adaptive_C=seg.adaptive_C,
