@@ -18,6 +18,15 @@ If your OpenCV is CUDA-enabled, the app will automatically use it for some ops (
 Otherwise it runs on CPU with multi-processing. To install a CUDA wheel, consider prebuilt packages from
 `opencv-python` ecosystem or build from source with CUDA. The code checks `cv2.cuda` presence.
 
+### Run Analysis
+After selecting an image folder and setting parameters, click **Run Analysis** to process the
+time-lapse sequence. Output controls provide several options:
+
+- **Save intermediate images** – store registration and segmentation artifacts.
+- **Archive/delete intermediate images after run** – zip and remove intermediate images when finished.
+- **Save difference masks** – write thresholded difference masks for each frame pair.
+- **Save GM composites** – save green/magenta composite images alongside the outputs.
+
 ### Intermediate outputs
 When `save_intermediates` is enabled, the pipeline saves additional artifacts alongside the final results.
 For every pair of frames a raw difference (`{frame}_diff.png`) is written to `diff/raw/` and its

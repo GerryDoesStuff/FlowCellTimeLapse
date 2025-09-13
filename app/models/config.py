@@ -67,8 +67,8 @@ class AppParams:
     save_png: bool = False
     save_intermediates: bool = False
     archive_intermediates: bool = False
-    save_masks: bool = False
-    save_gm_composite: bool = False
+    save_masks: bool = False  # save difference masks
+    save_gm_composite: bool = False  # save green/magenta composites
     use_difference_for_seg: bool = False  # diff masks saved regardless
     difference_method: str = "abs"
     gm_thresh_method: str = "otsu"  # "otsu" | "percentile"
