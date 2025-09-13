@@ -57,7 +57,7 @@ class AppParams:
     direction: str = "last-to-first"  # "last-to-first" | "first-to-last"
     show_ref_overlay: bool = True
     show_mov_overlay: bool = True
-    overlay_opacity: int = 50
+    overlay_opacity: int = 50  # 0-100 weight of current frame in green/magenta overlays
     overlay_mode: str = "magenta-green"
     overlay_ref_color: tuple[int, int, int] = (0, 255, 0)
     overlay_mov_color: tuple[int, int, int] = (255, 0, 255)
