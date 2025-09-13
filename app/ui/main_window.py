@@ -40,7 +40,6 @@ from ..models.config import (
 from ..core.io_utils import (
     discover_images,
     imread_gray,
-    file_times_minutes,
     compute_global_minmax,
 )
 from ..core.registration import register_ecc, register_orb, register_orb_ecc, preprocess
@@ -1454,11 +1453,6 @@ class MainWindow(QMainWindow):
             subtract_background=app.subtract_background,
             scale_minmax=app.scale_minmax,
         )
-
-        # timestamps if requested
-        if app.use_file_timestamps:
-            _ = file_times_minutes(self.paths)
-            # (currently minutes not directly used in processing; kept for CSV in future patch)
 
         out_dir = Path(self.folder_edit.text()) / "_processed_pyqt"
         self.thread = QThread()
