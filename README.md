@@ -32,8 +32,10 @@ PNGs removed once processing finishes.
 - `diff/lost/` — binary masks highlighting regions that disappear, used for evaluation.
 
 The separation between the magenta and green channels is determined in LAB
-color space using an adaptive threshold on the "a" channel.  By default an
-Otsu threshold (`gm_thresh_method="otsu"`) is used, but a percentile
+color space using an adaptive threshold on the "a" channel. The composite
+itself blends the current frame with the previous according to
+`overlay_opacity` (percentage of the current frame, default `50`).  By default
+an Otsu threshold (`gm_thresh_method="otsu"`) is used, but a percentile
 (`gm_thresh_percentile`, default `99.0`) can be selected instead.  To remove
 speckles and recover full structures the masks are optionally processed with
 morphological closing (`gm_close_kernel`, default `3`) and dilation

@@ -10,3 +10,6 @@ All notable changes to this project will be documented in this file.
   - `tests/test_segmentation_li.py` verifies Li thresholding.
 - Usage notes: Yen excels on low-contrast backgrounds, while Multi-Otsu is suited for images with distinct histogram peaks.
 
+### Changed
+- Green–magenta composite now blends frames using `overlay_opacity` to weight the current frame.
+
