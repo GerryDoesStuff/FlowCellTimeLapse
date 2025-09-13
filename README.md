@@ -25,6 +25,9 @@ thresholded mask (`{frame}_bw_diff.png`) to `diff/bw/`. The binary mask is also 
 `binary/` directory. These files are the same difference maps shown in the UI when using the
 **Preview Difference** button.
 
+If `archive_intermediates` is enabled, these folders are zipped and the original
+PNGs removed once processing finishes.
+
 - `diff/new/` — binary masks highlighting regions that newly appear, used for evaluation.
 - `diff/lost/` — binary masks highlighting regions that disappear, used for evaluation.
 
