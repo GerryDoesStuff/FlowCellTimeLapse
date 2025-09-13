@@ -216,6 +216,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     diff_bw_dir = diff_dir / "bw"; ensure_dir(diff_bw_dir)
     diff_new_dir = diff_dir / "new"; ensure_dir(diff_new_dir)
     diff_lost_dir = diff_dir / "lost"; ensure_dir(diff_lost_dir)
+    diff_gm_dir = diff_dir / "gm"; ensure_dir(diff_gm_dir)
 
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
 
@@ -425,6 +426,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         gm_composite[..., 1] = prev_crop  # previous frame in green
         gm_composite[..., 0] = mov_crop   # current frame in blue
         gm_composite[..., 2] = mov_crop   # current frame in red (magenta)
+
+        if app_cfg.get("save_gm_composite", False):
+            cv2.imencode(".png", gm_composite)[1].tofile(
+                str(diff_gm_dir / f"{k:04d}_gm.png")
+            )
 
         seg_img = None
         bw_diff = None
