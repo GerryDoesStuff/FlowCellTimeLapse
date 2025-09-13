@@ -116,7 +116,7 @@ def test_presets_path_persist(tmp_path, monkeypatch):
     preset_dir2 = tmp_path / "presets2"
     preset_dir2.mkdir()
     preset_file2 = preset_dir2 / "preset2.json"
-    save_preset(str(preset_file2), RegParams(), SegParams(), AppParams())
+    save_preset(str(preset_file2), RegParams(), SegParams(), AppParams(save_intermediates=False))
 
     def fake_open(parent, caption, dir, filter):
         assert dir == str(preset_dir1)
