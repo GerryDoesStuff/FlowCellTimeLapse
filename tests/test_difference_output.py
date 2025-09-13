@@ -60,6 +60,8 @@ def test_difference_output(tmp_path, monkeypatch):
     assert (bw_dir / "0001_bw_diff.png").exists()
     assert (diff_dir / "new" / "0000_bw_new.png").exists()
     assert (diff_dir / "lost" / "0000_bw_lost.png").exists()
+    assert (diff_dir / "gain" / "0000_bw_gain.png").exists()
+    assert (diff_dir / "loss" / "0000_bw_loss.png").exists()
 
     reg0 = cv2.imread(str(out_dir / "mask_0000_registered.png"), cv2.IMREAD_GRAYSCALE)
     reg1 = cv2.imread(str(out_dir / "mask_0001_registered.png"), cv2.IMREAD_GRAYSCALE)

@@ -53,6 +53,7 @@ def test_overlay_frame_alignment(tmp_path, monkeypatch):
     app_cfg = {
         "direction": "first-to-last",
         "save_intermediates": True,
+        "save_masks": True,
     }
 
     out_dir = tmp_path / "out"
@@ -63,10 +64,12 @@ def test_overlay_frame_alignment(tmp_path, monkeypatch):
 
     # Appearance between frame0 and frame1 should be attributed to frame0
     assert (overlay_dir / "0000_overlay_mov.png").exists()
-    bw_new = cv2.imread(str(diff_dir / "new" / "0000_bw_new.png"), cv2.IMREAD_GRAYSCALE)
+    assert (diff_dir / "new" / "0000_bw_new.png").exists()
+    bw_new = cv2.imread(str(diff_dir / "gain" / "0000_bw_gain.png"), cv2.IMREAD_GRAYSCALE)
     assert bw_new is not None and np.any(bw_new)
 
     # Disappearance between frame1 and frame2 should be attributed to frame1
     assert (overlay_dir / "0001_overlay_mov.png").exists()
-    bw_lost = cv2.imread(str(diff_dir / "lost" / "0001_bw_lost.png"), cv2.IMREAD_GRAYSCALE)
+    assert (diff_dir / "lost" / "0001_bw_lost.png").exists()
+    bw_lost = cv2.imread(str(diff_dir / "loss" / "0001_bw_loss.png"), cv2.IMREAD_GRAYSCALE)
     assert bw_lost is not None and np.any(bw_lost)

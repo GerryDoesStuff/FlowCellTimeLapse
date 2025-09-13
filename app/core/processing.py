@@ -216,6 +216,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     diff_bw_dir = diff_dir / "bw"; ensure_dir(diff_bw_dir)
     diff_new_dir = diff_dir / "new"; ensure_dir(diff_new_dir)
     diff_lost_dir = diff_dir / "lost"; ensure_dir(diff_lost_dir)
+    diff_gain_dir = diff_dir / "gain"; ensure_dir(diff_gain_dir)
+    diff_loss_dir = diff_dir / "loss"; ensure_dir(diff_loss_dir)
 
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
 
@@ -566,8 +568,15 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             if overlap / area < min_overlap:
                 bw_new |= comp & magenta_mask
 
-        area_new_px = int(bw_new.sum())
-        area_lost_px = int(bw_lost.sum())
+        if bw_diff is not None:
+            gain_mask = (bw_diff & bw_new).astype(np.uint8)
+            loss_mask = (bw_diff & bw_lost).astype(np.uint8)
+        else:
+            gain_mask = np.zeros_like(bw_new)
+            loss_mask = np.zeros_like(bw_lost)
+
+        area_new_px = int(gain_mask.sum())
+        area_lost_px = int(loss_mask.sum())
         area_overlap_px = int(bw_overlap.sum())
 
         row = {
@@ -588,6 +597,20 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "to_ref_transform": T.flatten().tolist(),
         }
         rows.append(row)
+
+        if idx > 0 and app_cfg.get("save_masks", False):
+            cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(
+                str(diff_new_dir / f"{prev_k:04d}_bw_new.png")
+            )
+            cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(
+                str(diff_lost_dir / f"{prev_k:04d}_bw_lost.png")
+            )
+            cv2.imencode('.png', (gain_mask * 255).astype(np.uint8))[1].tofile(
+                str(diff_gain_dir / f"{prev_k:04d}_bw_gain.png")
+            )
+            cv2.imencode('.png', (loss_mask * 255).astype(np.uint8))[1].tofile(
+                str(diff_loss_dir / f"{prev_k:04d}_bw_loss.png")
+            )
 
         if app_cfg.get("save_intermediates", False):
             cv2.imencode('.png', prev_crop)[1].tofile(
@@ -613,18 +636,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 str(bw_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
             )
             if idx > 0:
-                cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(
-                    str(diff_new_dir / f"{prev_k:04d}_bw_new.png")
-                )
-                cv2.imencode('.png', (bw_lost * 255).astype(np.uint8))[1].tofile(
-                    str(diff_lost_dir / f"{prev_k:04d}_bw_lost.png")
-                )
                 new_color = tuple(app_cfg.get("overlay_new_color", (0, 255, 0)))
                 lost_color = tuple(app_cfg.get("overlay_lost_color", (0, 0, 255)))
                 ov = overlay_outline(
                     mov_crop,
-                    new_mask=bw_new,
-                    lost_mask=bw_lost,
+                    new_mask=gain_mask,
+                    lost_mask=loss_mask,
                     new_color=new_color,
                     lost_color=lost_color,
                 )
