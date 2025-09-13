@@ -641,6 +641,16 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.archive_intermediates)
         self.archive_intermediates.toggled.connect(self._persist_settings)
 
+        self.save_masks_checkbox = QCheckBox("Save difference masks")
+        self.save_masks_checkbox.setChecked(self.app.save_masks)
+        controls.addWidget(self.save_masks_checkbox)
+        self.save_masks_checkbox.toggled.connect(self._persist_settings)
+
+        self.save_gm_checkbox = QCheckBox("Save GM composites")
+        self.save_gm_checkbox.setChecked(self.app.save_gm_composite)
+        controls.addWidget(self.save_gm_checkbox)
+        self.save_gm_checkbox.toggled.connect(self._persist_settings)
+
         controls.addStretch(1)
 
         # Right: viewer
@@ -859,6 +869,8 @@ class MainWindow(QMainWindow):
             overlay_lost_color=self.lost_color,
             save_intermediates=self.save_intermediates.isChecked(),
             archive_intermediates=self.archive_intermediates.isChecked(),
+            save_masks=self.save_masks_checkbox.isChecked(),
+            save_gm_composite=self.save_gm_checkbox.isChecked(),
         )
         app.presets_path = self.app.presets_path
         return reg, seg, app
@@ -1456,6 +1468,8 @@ class MainWindow(QMainWindow):
             use_difference_for_seg=app.use_difference_for_seg,
             save_intermediates=app.save_intermediates,
             archive_intermediates=app.archive_intermediates,
+            save_masks=self.save_masks_checkbox.isChecked(),
+            save_gm_composite=self.save_gm_checkbox.isChecked(),
             difference_method=app.difference_method,
             normalize=app.normalize,
             subtract_background=app.subtract_background,
