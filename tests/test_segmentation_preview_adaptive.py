@@ -32,7 +32,6 @@ def test_segmentation_preview_matches_segment_adaptive(tmp_path, monkeypatch):
     win.rm_obj.setValue(0)
     win.rm_holes.setValue(0)
     win.use_clahe.setChecked(False)
-    win.use_diff_cb.setChecked(False)
 
     img = np.array(
         [[10, 11, 12],
@@ -41,7 +40,6 @@ def test_segmentation_preview_matches_segment_adaptive(tmp_path, monkeypatch):
         dtype=np.uint8,
     )
 
-    win._reg_warp = img
     win._diff_gray = img
 
     captured = {}
@@ -60,13 +58,13 @@ def test_segmentation_preview_matches_segment_adaptive(tmp_path, monkeypatch):
         method="adaptive",
         invert=win.invert.isChecked(),
         skip_outline=win.skip_outline.isChecked(),
-        use_diff=win.use_diff_cb.isChecked(),
+        use_diff=True,
         manual_thresh=win.manual_t.value(),
         adaptive_block=win.adaptive_blk.value(),
         adaptive_C=win.adaptive_C.value(),
         local_block=win.local_blk.value(),
-        morph_open_radius=win.open_r.value() or None,
-        morph_close_radius=win.close_r.value() or None,
+        morph_open_radius=win.open_r.value(),
+        morph_close_radius=win.close_r.value(),
         remove_objects_smaller_px=win.rm_obj.value(),
         remove_holes_smaller_px=win.rm_holes.value(),
     )
