@@ -66,6 +66,7 @@ class AppParams:
     save_jpg_quality: int = 95
     save_png: bool = False
     save_intermediates: bool = False
+    archive_intermediates: bool = False
     save_masks: bool = False
     use_difference_for_seg: bool = False  # diff masks saved regardless
     difference_method: str = "abs"
