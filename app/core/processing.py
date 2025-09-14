@@ -71,7 +71,7 @@ def _detect_green_magenta(
     The ``gm_composite`` image encodes a weighted blend of the previous frame
     in the green channel and the current frame in red/blue (magenta).  The
     blending weight ``alpha`` is derived from
-    ``app_cfg['overlay_opacity']`` (percentage of the current frame, default
+    ``app_cfg['gm_opacity']`` (percentage of the current frame, default
     ``50``) such that the previous frame contributes ``1 - alpha``. Depending on
     ``direction`` the roles of these colors are swapped so that ``green`` always
     represents the frame that is considered "lost" and ``magenta`` the frame
@@ -222,7 +222,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
 
-    overlay_opacity = int(app_cfg.get("overlay_opacity", 50))
+    gm_opacity = int(app_cfg.get("gm_opacity", 50))
 
     rows: List[Dict] = []
 
@@ -422,8 +422,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
 
         # Create a green‑magenta composite to highlight differences, blending
-        # the frames according to ``overlay_opacity``.
-        alpha = overlay_opacity / 100.0
+        # the frames according to ``gm_opacity``.
+        alpha = gm_opacity / 100.0
         gm_composite = np.zeros((h_k, w_k, 3), dtype=np.uint8)
         gm_composite[..., 1] = (prev_crop * (1 - alpha)).astype(np.uint8)
         gm_composite[..., 0] = gm_composite[..., 2] = (

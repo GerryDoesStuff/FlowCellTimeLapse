@@ -57,12 +57,13 @@ class AppParams:
     direction: str = "last-to-first"  # "last-to-first" | "first-to-last"
     show_ref_overlay: bool = True
     show_mov_overlay: bool = True
-    overlay_opacity: int = 50  # 0-100 weight of current frame in green/magenta overlays
+    overlay_opacity: int = 50  # 0-100 weight of moving frame in registration overlay
     overlay_mode: str = "magenta-green"
     overlay_ref_color: tuple[int, int, int] = (0, 255, 0)
     overlay_mov_color: tuple[int, int, int] = (255, 0, 255)
     overlay_new_color: tuple[int, int, int] = (0, 255, 0)
     overlay_lost_color: tuple[int, int, int] = (0, 0, 255)
+    gm_opacity: int = 50  # 0-100 weight of current frame in green/magenta composites
     save_jpg_quality: int = 95
     save_png: bool = False
     save_intermediates: bool = False
@@ -93,6 +94,7 @@ def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
         data = json.load(f)
     app_data = data["app"]
     app_data.setdefault("gm_saturation", 1.0)
+    app_data.setdefault("gm_opacity", app_data.get("overlay_opacity", 50))
     return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**app_data)
 
 def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
@@ -112,6 +114,7 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
             data = json.loads(v)
             if cls is AppParams:
                 data.setdefault("gm_saturation", 1.0)
+                data.setdefault("gm_opacity", data.get("overlay_opacity", 50))
             return cls(**data)
         except Exception:
             return default
