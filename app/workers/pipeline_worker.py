@@ -12,6 +12,11 @@ from ..core.io_utils import ensure_dir
 
 logger = logging.getLogger(__name__)
 
+# Intermediate subdirectories that should be archived after a run.
+# The previous "binary" output has been removed, so it is omitted here.
+ARCHIVE_SUBDIRS = ("registered", "diff", "overlay")
+
+
 class PipelineWorker(QObject):
     progressed = pyqtSignal(int, int)  # current, total (reserved for future granular progress)
     finished = pyqtSignal(str)         # output dir
@@ -26,8 +31,7 @@ class PipelineWorker(QObject):
         self.out_dir = out_dir
 
     def _archive_intermediates(self) -> None:
-        subdirs = ["registered", "diff", "overlay"]
-        for name in subdirs:
+        for name in ARCHIVE_SUBDIRS:
             p = self.out_dir / name
             if not p.exists():
                 continue
