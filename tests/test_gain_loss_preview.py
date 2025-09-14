@@ -129,3 +129,54 @@ def test_gain_loss_preview_matches_detection(tmp_path, monkeypatch):
 
     win.close()
     app.quit()
+
+def test_gain_loss_controls_remain_enabled_after_param_change(tmp_path):
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+
+    win.seg_method.setCurrentText("manual")
+    win.invert.setChecked(False)
+    win.skip_outline.setChecked(True)
+    win.manual_t.setValue(5)
+    win.open_r.setValue(0)
+    win.close_r.setValue(0)
+    win.rm_obj.setValue(0)
+    win.rm_holes.setValue(0)
+    win.use_clahe.setChecked(False)
+    win.alpha_slider.setValue(60)
+    win.gm_sat_slider.setValue(15)
+
+    win._reg_ref = np.array(
+        [[10, 0, 0],
+         [0, 0, 0],
+         [0, 0, 0]],
+        dtype=np.uint8,
+    )
+    win._reg_warp = np.array(
+        [[0, 0, 0],
+         [0, 10, 0],
+         [0, 0, 0]],
+        dtype=np.uint8,
+    )
+
+    win._diff_gray = np.zeros((3, 3), dtype=np.uint8)
+    win._preview_segmentation()
+    win._preview_gain_loss()
+
+    assert win.gm_section.isEnabled()
+    assert win.gm_preview_btn.isEnabled()
+
+    win.gm_close_k.setValue(win.gm_close_k.value() + 1)
+    from PyQt6.QtTest import QTest
+    QTest.qWait(250)
+
+    assert win.gm_section.isEnabled()
+    assert win.gm_preview_btn.isEnabled()
+
+    win.close()
+    app.processEvents()
+    app.quit()
