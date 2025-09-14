@@ -6,7 +6,7 @@ import pyqtgraph as pg
 pg.setConfigOptions(useOpenGL=False)
 
 from app.ui.main_window import MainWindow
-from app.models.config import save_preset, RegParams, SegParams, AppParams
+from app.models.config import save_preset, load_preset, RegParams, SegParams, AppParams
 
 
 def test_settings_persist(tmp_path):
@@ -50,6 +50,7 @@ def test_settings_persist(tmp_path):
     win.bg_sub_cb.setChecked(True)
     win.save_intermediates.setChecked(True)
     win.archive_intermediates.setChecked(True)
+    win.gm_sat_slider.setValue(15)
     win.close()
     app.processEvents()
 
@@ -84,6 +85,7 @@ def test_settings_persist(tmp_path):
     assert win2.bg_sub_cb.isChecked()
     assert win2.save_intermediates.isChecked()
     assert win2.archive_intermediates.isChecked()
+    assert win2.gm_sat_slider.value() == 15
     win2.close()
     app.quit()
 
@@ -136,3 +138,16 @@ def test_presets_path_persist(tmp_path, monkeypatch):
     assert win3.app.presets_path == str(preset_dir2)
     win3.close()
     app.quit()
+
+
+def test_preset_gm_params(tmp_path):
+    preset = tmp_path / "preset.json"
+    save_preset(
+        str(preset),
+        RegParams(),
+        SegParams(),
+        AppParams(gm_opacity=67, gm_saturation=1.5),
+    )
+    _, _, app = load_preset(str(preset))
+    assert app.gm_opacity == 67
+    assert app.gm_saturation == 1.5
