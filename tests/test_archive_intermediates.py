@@ -23,7 +23,7 @@ def test_archive_intermediate_dirs(monkeypatch, tmp_path):
 
     # Stub analyze_sequence to write out intermediate dirs
     def fake_analyze(paths, reg_cfg, seg_cfg, app_cfg, out_dir):
-        for name in ["registered", "binary", "diff", "overlay"]:
+        for name in ["registered", "diff", "overlay"]:
             d = out_dir / name
             d.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(d / "dummy.png"), img)
@@ -38,7 +38,7 @@ def test_archive_intermediate_dirs(monkeypatch, tmp_path):
     worker = PipelineWorker(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
     worker.run()
 
-    for name in ["registered", "binary", "diff", "overlay"]:
+    for name in ["registered", "diff", "overlay"]:
         assert not (out_dir / name).exists()
         zpath = out_dir / f"{name}.zip"
         assert zpath.exists()
