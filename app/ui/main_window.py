@@ -1583,7 +1583,9 @@ class MainWindow(QMainWindow):
                 if contours:
                     cv2.drawContours(overlay, contours, -1, color, 1)
             self._current_preview = "gain_loss"
-            self.view.setImage(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+            self.view.setImage(
+                cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB).transpose(1, 0, 2)
+            )
             self.status_label.setText("Gain/Loss preview successful.")
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
