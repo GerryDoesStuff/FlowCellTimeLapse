@@ -63,6 +63,8 @@ def test_gain_loss_preview_matches_detection(tmp_path, monkeypatch):
 
     monkeypatch.setattr("app.ui.main_window._detect_green_magenta", capture_detect)
 
+    win._diff_gray = np.zeros((3, 3), dtype=np.uint8)
+    win._preview_segmentation()
     win._preview_gain_loss()
 
     alpha = win.alpha_slider.value() / 100.0
