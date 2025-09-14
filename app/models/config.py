@@ -75,6 +75,7 @@ class AppParams:
     gm_thresh_percentile: float = 99.0
     gm_close_kernel: int = 3  # closing kernel size; 0 disables
     gm_dilate_kernel: int = 0  # dilation kernel size; 0 disables
+    gm_saturation: float = 1.0  # scale factor for a-channel before thresholding
     use_file_timestamps: bool = True
     normalize: bool = True
     subtract_background: bool = False
@@ -90,7 +91,9 @@ def save_preset(path: str, reg: RegParams, seg: SegParams, app: AppParams) -> No
 def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**data["app"])
+    app_data = data["app"]
+    app_data.setdefault("gm_saturation", 1.0)
+    return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**app_data)
 
 def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
     s = QSettings("YeastLab", "FlowcellPyQt")
@@ -103,9 +106,15 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
     s = QSettings("YeastLab", "FlowcellPyQt")
     reg = s.value("reg"); seg = s.value("seg"); app = s.value("app")
     def parse(v, cls, default):
-        if v is None: return default
-        try: return cls(**json.loads(v))
-        except Exception: return default
+        if v is None:
+            return default
+        try:
+            data = json.loads(v)
+            if cls is AppParams:
+                data.setdefault("gm_saturation", 1.0)
+            return cls(**data)
+        except Exception:
+            return default
     return (
         parse(reg, RegParams, RegParams()),
         parse(seg, SegParams, SegParams()),
