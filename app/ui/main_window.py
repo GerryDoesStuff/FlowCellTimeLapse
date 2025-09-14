@@ -548,15 +548,21 @@ class MainWindow(QMainWindow):
         self.gm_dilate_k = QSpinBox()
         self.gm_dilate_k.setRange(0, 50)
         self.gm_dilate_k.setValue(self.app.gm_dilate_kernel)
-        self.gm_saturation = QDoubleSpinBox()
-        self.gm_saturation.setRange(0.1, 10.0)
-        self.gm_saturation.setSingleStep(0.1)
-        self.gm_saturation.setValue(getattr(self.app, "gm_saturation", 1.0))
+        self.gm_sat_slider = QSlider(Qt.Orientation.Horizontal)
+        self.gm_sat_slider.setRange(1, 100)
+        self.gm_sat_slider.setValue(int(getattr(self.app, "gm_saturation", 1.0) * 10))
+        self.gm_sat_label = QLabel(f"{getattr(self.app, 'gm_saturation', 1.0):.1f}")
+        self.gm_sat_slider.valueChanged.connect(
+            lambda v: self.gm_sat_label.setText(f"{v/10:.1f}")
+        )
+        gm_sat_layout = QHBoxLayout()
+        gm_sat_layout.addWidget(self.gm_sat_slider)
+        gm_sat_layout.addWidget(self.gm_sat_label)
         gm_form.addRow("Threshold method", self.gm_thresh_method)
         gm_form.addRow("Percentile", self.gm_thresh_percentile)
         gm_form.addRow("Close kernel", self.gm_close_k)
         gm_form.addRow("Dilate kernel", self.gm_dilate_k)
-        gm_form.addRow("Saturation", self.gm_saturation)
+        gm_form.addRow("Saturation", gm_sat_layout)
         seg_layout.addWidget(gm_group)
 
         seg_section.setContentLayout(seg_layout)
@@ -641,7 +647,7 @@ class MainWindow(QMainWindow):
             "Kernel size for dilation applied to difference masks—0 disables.",
         )
         self._add_help(
-            self.gm_saturation,
+            self.gm_sat_slider,
             "Multiplier for green/magenta channel prior to thresholding to adjust saturation.",
         )
         self.seg_method.currentTextChanged.connect(self._persist_settings)
@@ -661,7 +667,7 @@ class MainWindow(QMainWindow):
         self.gm_thresh_percentile.valueChanged.connect(self._persist_settings)
         self.gm_close_k.valueChanged.connect(self._persist_settings)
         self.gm_dilate_k.valueChanged.connect(self._persist_settings)
-        self.gm_saturation.valueChanged.connect(self._persist_settings)
+        self.gm_sat_slider.valueChanged.connect(self._persist_settings)
         self.seg_method.currentTextChanged.connect(self._on_params_changed)
         self.invert.toggled.connect(self._on_params_changed)
         self.skip_outline.toggled.connect(self._on_params_changed)
@@ -677,7 +683,7 @@ class MainWindow(QMainWindow):
         self.gm_thresh_percentile.valueChanged.connect(self._on_params_changed)
         self.gm_close_k.valueChanged.connect(self._on_params_changed)
         self.gm_dilate_k.valueChanged.connect(self._on_params_changed)
-        self.gm_saturation.valueChanged.connect(self._on_params_changed)
+        self.gm_sat_slider.valueChanged.connect(self._on_params_changed)
 
         # Presets
         preset_box = QHBoxLayout()
@@ -962,7 +968,7 @@ class MainWindow(QMainWindow):
             gm_thresh_percentile=self.gm_thresh_percentile.value(),
             gm_close_kernel=self.gm_close_k.value(),
             gm_dilate_kernel=self.gm_dilate_k.value(),
-            gm_saturation=self.gm_saturation.value(),
+            gm_saturation=self.gm_sat_slider.value() / 10.0,
         )
         app.presets_path = self.app.presets_path
         return reg, seg, app
@@ -1041,7 +1047,9 @@ class MainWindow(QMainWindow):
         self.gm_thresh_percentile.setValue(app.gm_thresh_percentile)
         self.gm_close_k.setValue(app.gm_close_kernel)
         self.gm_dilate_k.setValue(app.gm_dilate_kernel)
-        self.gm_saturation.setValue(getattr(app, "gm_saturation", 1.0))
+        sat_val = getattr(app, "gm_saturation", 1.0)
+        self.gm_sat_slider.setValue(int(sat_val * 10))
+        self.gm_sat_label.setText(f"{sat_val:.1f}")
         self.dir_combo.setCurrentText(app.direction)
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
@@ -1534,7 +1542,15 @@ class MainWindow(QMainWindow):
             green_mask, magenta_mask = _detect_green_magenta(
                 gm_comp, prev_bw, curr_bw, app_cfg, direction=app.direction
             )
-            overlay = gm_comp.copy()
+            disp_comp = gm_comp.copy()
+            sat = getattr(app, "gm_saturation", 1.0)
+            if sat != 1.0:
+                lab = cv2.cvtColor(disp_comp, cv2.COLOR_BGR2LAB).astype(np.int16)
+                a = lab[..., 1].astype(np.int16) - 128
+                a = np.clip(a * sat, -255, 255) + 128
+                lab[..., 1] = a.astype(np.uint8)
+                disp_comp = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+            overlay = disp_comp.copy()
             for mask, color in ((green_mask, self.lost_color), (magenta_mask, self.new_color)):
                 contours, _ = cv2.findContours(
                     (mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
