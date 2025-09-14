@@ -218,6 +218,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
     ensure_dir(out_dir)
     reg_dir = out_dir / "registered"; ensure_dir(reg_dir)
+    prev_dir = reg_dir / "prev"; ensure_dir(prev_dir)
+    mov_dir = reg_dir / "mov"; ensure_dir(mov_dir)
 
     diff_dir = out_dir / "diff"; ensure_dir(diff_dir)
     diff_raw_dir = diff_dir / "raw"; ensure_dir(diff_raw_dir)
@@ -645,10 +647,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
         if app_cfg.get("save_intermediates", False):
             cv2.imencode('.png', prev_crop)[1].tofile(
-                str(reg_dir / f"{prev_k:04d}_prev.png")
+                str(prev_dir / f"{prev_k:04d}_prev.png")
             )
             cv2.imencode('.png', mov_crop)[1].tofile(
-                str(reg_dir / f"{k:04d}_mov.png")
+                str(mov_dir / f"{k:04d}_mov.png")
             )
             overlay_color = tuple(app_cfg.get("overlay_mov_color", (255, 0, 255)))
             ov = overlay_outline(mov_crop, mask=seg_mask, color=overlay_color)
