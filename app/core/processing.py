@@ -106,11 +106,19 @@ def _detect_green_magenta(
     thresh_method = str(app_cfg.get("gm_thresh_method", "otsu")).lower()
     if thresh_method == "percentile":
         perc = float(app_cfg.get("gm_thresh_percentile", 99.0))
-        gm_thresh = int(np.percentile(abs_a, perc))
+        abs_nonzero = abs_a[abs_a > 0]
+        if abs_nonzero.size > 0:
+            gm_thresh = int(np.percentile(abs_nonzero, perc))
+        else:
+            gm_thresh = int(
+                cv2.threshold(abs_a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0]
+            )
     else:
         gm_thresh = int(
             cv2.threshold(abs_a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0]
         )
+
+    gm_thresh = max(gm_thresh, 1)
 
     green_mask = (a_channel < -gm_thresh).astype(np.uint8)
     magenta_mask = (a_channel > gm_thresh).astype(np.uint8)
