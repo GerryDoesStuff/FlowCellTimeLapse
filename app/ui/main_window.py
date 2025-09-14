@@ -1153,7 +1153,15 @@ class MainWindow(QMainWindow):
                 val = None
             name = sender.objectName() or sender.__class__.__name__
             logger.info("Parameter changed via %s: %s", name, val)
-        self._reset_gain_loss_preview()
+        gm_widgets = {
+            self.gm_thresh_method,
+            self.gm_thresh_percentile,
+            self.gm_close_k,
+            self.gm_dilate_k,
+            self.gm_sat_slider,
+        }
+        if sender not in gm_widgets:
+            self._reset_gain_loss_preview()
         if (
             sender is not None
             and hasattr(sender, "isEnabled")
