@@ -1,7 +1,10 @@
 import os
 import sys
 from pathlib import Path
-import pyqtgraph as pg
+import pytest
+
+pg = pytest.importorskip("pyqtgraph")
+pytest.importorskip("PyQt6")
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QSettings
 

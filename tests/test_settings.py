@@ -1,7 +1,10 @@
 import os
+import pytest
+
+pytest.importorskip("PyQt6")
+pg = pytest.importorskip("pyqtgraph")
 from PyQt6.QtWidgets import QApplication, QFileDialog
 from PyQt6.QtCore import QSettings
-import pyqtgraph as pg
 
 pg.setConfigOptions(useOpenGL=False)
 

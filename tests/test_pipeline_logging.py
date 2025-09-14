@@ -1,11 +1,14 @@
 import os
+import os
 from pathlib import Path
 import sys
 import logging
 import pytest
+
+pytest.importorskip("PyQt6")
+pg = pytest.importorskip("pyqtgraph")
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QSettings, QThread
-import pyqtgraph as pg
 
 pg.setConfigOptions(useOpenGL=False)
 

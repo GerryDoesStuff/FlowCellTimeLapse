@@ -4,6 +4,9 @@ import cv2
 from pathlib import Path
 import sys
 import pytest
+import os
+
+pytest.importorskip("PyQt6.QtWidgets")
 from PyQt6.QtWidgets import QApplication
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))

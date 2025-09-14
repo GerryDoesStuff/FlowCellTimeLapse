@@ -1,9 +1,12 @@
 import os
 import sys
+import os
 from pathlib import Path
 import numpy as np
 import cv2
 import pytest
+
+pytest.importorskip("PyQt6.QtWidgets")
 from PyQt6.QtWidgets import QApplication
 
 # Ensure app modules can be imported
