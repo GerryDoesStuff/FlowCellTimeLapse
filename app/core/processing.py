@@ -233,6 +233,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     diff_union_dir = diff_dir / "union"; ensure_dir(diff_union_dir)
 
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
+    seg_dir = out_dir / "seg"; ensure_dir(seg_dir)
 
     gm_opacity = int(app_cfg.get("gm_opacity", 50))
 
@@ -528,6 +529,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # masks when regions vanished; the composite approach below resolves
         # this by comparing full-frame intensities.
         seg_mask = bw_reg
+        _save_mask(k, seg_mask, x_k, y_k, target_dir=seg_dir)
 
         if bw_diff is not None:
             _save_mask(
