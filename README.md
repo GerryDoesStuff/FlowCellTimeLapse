@@ -39,6 +39,15 @@ PNGs removed once processing finishes.
 - `diff/new/` — binary masks highlighting regions that newly appear, used for evaluation.
 - `diff/lost/` — binary masks highlighting regions that disappear, used for evaluation.
 
+### Gain/Loss Detection
+
+After a successful segmentation preview, a collapsible **Gain/Loss Detection**
+section becomes available below the segmentation controls. It exposes the
+thresholding, morphology and saturation settings for detecting newly appeared
+(magenta) or disappeared (green) regions and includes a preview button. The
+section and its preview button remain disabled until segmentation completes, and
+any new folder selection or parameter tweak collapses and disables it again.
+
 The separation between the magenta and green channels is determined in LAB
 color space using an adaptive threshold on the "a" channel. The composite
 itself blends the current frame with the previous according to

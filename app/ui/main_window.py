@@ -81,6 +81,8 @@ class MainWindow(QMainWindow):
         # Track whether registration has been run so segmentation preview can
         # be gated until then.
         self._registration_done = False
+        # Track whether segmentation has been run so gain/loss preview can be gated.
+        self._segmentation_done = False
 
     def _add_help(self, widget, text: str) -> None:
         widget.setToolTip(text)
@@ -151,6 +153,19 @@ class MainWindow(QMainWindow):
     def _update_gm_controls(self, method: str) -> None:
         """Enable percentile spin when using percentile threshold."""
         self.gm_thresh_percentile.setEnabled(method == "percentile")
+
+    def _reset_gain_loss_preview(self, collapse: bool = True) -> None:
+        """Disable gain/loss UI and reset segmentation flag."""
+        self._segmentation_done = False
+        if hasattr(self, "gm_section"):
+            self.gm_section.setEnabled(False)
+            if collapse:
+                btn = getattr(self.gm_section, "_button", None)
+                if btn is not None:
+                    btn.setChecked(False)
+                    self.gm_section._on_toggled()
+        if hasattr(self, "gm_preview_btn"):
+            self.gm_preview_btn.setEnabled(False)
 
     def _build_ui(self):
         central = QWidget()
@@ -533,8 +548,18 @@ class MainWindow(QMainWindow):
 
         seg_layout.addLayout(seg_grid)
 
-        gm_group = QGroupBox("Gain/Loss Detection")
-        gm_form = QFormLayout(gm_group)
+        seg_section.setContentLayout(seg_layout)
+        controls.addWidget(seg_section)
+        self.seg_preview_btn = QPushButton("Preview Segmentation")
+        # Initially disabled until a registration preview is successfully run
+        self.seg_preview_btn.setEnabled(False)
+        self.seg_preview_btn.clicked.connect(self._preview_segmentation)
+        controls.addWidget(self.seg_preview_btn)
+
+        # Gain/Loss controls
+        self.gm_section = CollapsibleSection("Gain/Loss Detection", collapsed=True)
+        gm_layout = QVBoxLayout()
+        gm_form = QFormLayout()
         self.gm_thresh_method = QComboBox()
         self.gm_thresh_method.addItems(["otsu", "percentile"])
         self.gm_thresh_method.setCurrentText(self.app.gm_thresh_method)
@@ -563,20 +588,14 @@ class MainWindow(QMainWindow):
         gm_form.addRow("Close kernel", self.gm_close_k)
         gm_form.addRow("Dilate kernel", self.gm_dilate_k)
         gm_form.addRow("Saturation", gm_sat_layout)
-        seg_layout.addWidget(gm_group)
-
-        seg_section.setContentLayout(seg_layout)
-        controls.addWidget(seg_section)
-        self.seg_preview_btn = QPushButton("Preview Segmentation")
-        # Initially disabled until a registration preview is successfully run
-        self.seg_preview_btn.setEnabled(False)
-        self.seg_preview_btn.clicked.connect(self._preview_segmentation)
-        controls.addWidget(self.seg_preview_btn)
-
+        gm_layout.addLayout(gm_form)
         self.gm_preview_btn = QPushButton("Preview Gain/Loss")
         self.gm_preview_btn.setEnabled(False)
         self.gm_preview_btn.clicked.connect(self._preview_gain_loss)
-        controls.addWidget(self.gm_preview_btn)
+        gm_layout.addWidget(self.gm_preview_btn)
+        self.gm_section.setContentLayout(gm_layout)
+        self.gm_section.setEnabled(False)
+        controls.addWidget(self.gm_section)
         self._add_help(
             self.seg_method,
             "Segmentation algorithm. Otsu chooses a global threshold; Adaptive and Local use"
@@ -873,6 +892,7 @@ class MainWindow(QMainWindow):
             self._registration_done = False
             self.seg_preview_btn.setEnabled(False)
             self.diff_preview_btn.setEnabled(False)
+            self._reset_gain_loss_preview()
             self._reg_ref = None
             self._reg_warp = None
             self._seg_gray = None
@@ -1133,6 +1153,7 @@ class MainWindow(QMainWindow):
                 val = None
             name = sender.objectName() or sender.__class__.__name__
             logger.info("Parameter changed via %s: %s", name, val)
+        self._reset_gain_loss_preview()
         if (
             sender is not None
             and hasattr(sender, "isEnabled")
@@ -1217,6 +1238,7 @@ class MainWindow(QMainWindow):
         self._registration_done = False
         self.seg_preview_btn.setEnabled(False)
         self.diff_preview_btn.setEnabled(False)
+        self._reset_gain_loss_preview()
 
         if len(self.paths) < 2:
             QMessageBox.warning(
@@ -1324,6 +1346,7 @@ class MainWindow(QMainWindow):
         self._diff_gray = None
         self.seg_preview_btn.setEnabled(False)
         self.diff_preview_btn.setEnabled(False)
+        self._reset_gain_loss_preview()
 
         if len(self.paths) < 2:
             QMessageBox.warning(
@@ -1429,7 +1452,6 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Difference preview successful.")
             self.seg_preview_btn.setEnabled(True)
             self.diff_preview_btn.setEnabled(True)
-            self.gm_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
@@ -1438,6 +1460,7 @@ class MainWindow(QMainWindow):
         self._current_preview = None
         self._seg_gray = None
         self._seg_overlay = None
+        self._reset_gain_loss_preview(collapse=False)
 
         if self._diff_gray is None:
             QMessageBox.warning(
@@ -1478,12 +1501,14 @@ class MainWindow(QMainWindow):
             )
             self._current_preview = "segmentation"
             self._registration_done = True
+            self._segmentation_done = True
 
             # Blend and push the new image to the viewer
             self._refresh_overlay_alpha()
             self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Segmentation preview successful.")
             self.diff_preview_btn.setEnabled(True)
+            self.gm_section.setEnabled(True)
             self.gm_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
