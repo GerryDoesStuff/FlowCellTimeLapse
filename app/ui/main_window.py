@@ -229,7 +229,7 @@ class MainWindow(QMainWindow):
         self.bg_sub_cb.toggled.connect(self._on_params_changed)
 
         # Registration params
-        reg_section = CollapsibleSection("Registration")
+        reg_section = CollapsibleSection("Registration", collapsed=True)
         reg_grid = QGridLayout()
         self.reg_method = QComboBox()
         self.reg_method.addItems(["ECC", "ORB", "ORB+ECC"])
@@ -437,7 +437,7 @@ class MainWindow(QMainWindow):
         self._on_reg_method_change(self.reg_method.currentText())
 
         # Difference preview
-        diff_section = CollapsibleSection("Difference")
+        diff_section = CollapsibleSection("Difference", collapsed=True)
         diff_layout = QVBoxLayout()
         self.diff_method = QComboBox()
         self.diff_method.addItems(["abs", "lab", "edges"])
@@ -453,7 +453,7 @@ class MainWindow(QMainWindow):
         self.diff_method.currentTextChanged.connect(self._on_params_changed)
 
         # Segmentation params
-        seg_section = CollapsibleSection("Segmentation")
+        seg_section = CollapsibleSection("Segmentation", collapsed=True)
         seg_grid = QGridLayout()
         self.seg_method = QComboBox()
         self.seg_method.addItems(

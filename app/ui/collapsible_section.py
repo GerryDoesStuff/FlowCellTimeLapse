@@ -7,20 +7,26 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QToolButton, QLayout
 class CollapsibleSection(QWidget):
     """A simple collapsible container with a toggle header."""
 
-    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, title: str, parent: QWidget | None = None, collapsed: bool = False
+    ) -> None:
         super().__init__(parent)
         self._button = QToolButton(self)
         self._button.setText(title)
         self._button.setCheckable(True)
-        self._button.setChecked(True)
+        self._button.setChecked(not collapsed)
         self._button.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
-        self._button.setArrowType(Qt.ArrowType.DownArrow)
+        self._button.setArrowType(
+            Qt.ArrowType.DownArrow
+            if not collapsed
+            else Qt.ArrowType.RightArrow
+        )
         self._button.clicked.connect(self._on_toggled)
 
         self._content = QWidget(self)
-        self._content.setVisible(True)
+        self._content.setVisible(not collapsed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
