@@ -86,28 +86,19 @@ def run_direction(paths, reg_cfg, seg_cfg, direction, tmp_path):
         str(out_dir / "diff" / "loss" / f"{prev_idx:04d}_bw_loss.png"),
         cv2.IMREAD_GRAYSCALE,
     )
-    overlay = cv2.imread(str(out_dir / "overlay" / f"{prev_idx:04d}_overlay_mov.png"))
-    return new_mask, lost_mask, overlay
+    return new_mask, lost_mask
 
 
 def test_new_lost_direction(tmp_path, monkeypatch):
     paths, obj = create_frames(tmp_path)
     reg_cfg, seg_cfg = setup(monkeypatch)
-    obj_boundary = boundary_from(obj)
 
     for direction in ["first-to-last", "last-to-first"]:
-        new_mask, lost_mask, overlay = run_direction(
+        new_mask, lost_mask = run_direction(
             paths, reg_cfg, seg_cfg, direction, tmp_path
         )
         assert np.array_equal(new_mask, np.zeros_like(obj))
         assert np.array_equal(lost_mask, obj)
-        magenta_mask = (
-            overlay == np.array([255, 0, 255], dtype=np.uint8)
-        ).all(axis=2).astype(np.uint8) * 255
-        assert np.array_equal(magenta_mask, obj_boundary)
-        assert not (
-            overlay == np.array([0, 255, 0], dtype=np.uint8)
-        ).all(axis=2).any()
 
 
 def test_intensity_gain_loss(tmp_path, monkeypatch):
@@ -115,13 +106,13 @@ def test_intensity_gain_loss(tmp_path, monkeypatch):
     reg_cfg, seg_cfg = setup(monkeypatch)
 
     # Intensity-only changes should not be classified as new or lost regions
-    new_mask, lost_mask, _ = run_direction(
+    new_mask, lost_mask = run_direction(
         paths, reg_cfg, seg_cfg, "first-to-last", tmp_path
     )
     assert np.array_equal(new_mask, np.zeros_like(obj))
     assert np.array_equal(lost_mask, np.zeros_like(obj))
 
-    new_mask, lost_mask, _ = run_direction(
+    new_mask, lost_mask = run_direction(
         paths, reg_cfg, seg_cfg, "last-to-first", tmp_path
     )
     assert np.array_equal(new_mask, np.zeros_like(obj))

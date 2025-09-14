@@ -47,18 +47,21 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
         "save_masks": True,
         "overlay_new_color": (0, 255, 0),
         "overlay_lost_color": (255, 0, 255),
+        "overlay_mov_color": (255, 255, 0),
         "component_min_overlap": 0.75,
     }
 
     out_dir = tmp_path / "out"
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
-    overlay_img = cv2.imread(str(out_dir / "overlay" / "0000_overlay_mov.png"))
+    overlay_img = cv2.imread(str(out_dir / "overlay" / "0001_overlay_mov.png"))
     assert overlay_img is not None
+    overlay_color = np.array([255, 255, 0], dtype=np.uint8)
     green = np.array([0, 255, 0], dtype=np.uint8)
     magenta = np.array([255, 0, 255], dtype=np.uint8)
-    assert (overlay_img == green).all(axis=2).any()
-    assert (overlay_img == magenta).all(axis=2).any()
+    assert (overlay_img == overlay_color).all(axis=2).any()
+    assert not (overlay_img == green).all(axis=2).any()
+    assert not (overlay_img == magenta).all(axis=2).any()
 
     bw_new = cv2.imread(str(out_dir / "diff" / "gain" / "0000_bw_gain.png"), cv2.IMREAD_GRAYSCALE)
     bw_lost = cv2.imread(str(out_dir / "diff" / "loss" / "0000_bw_loss.png"), cv2.IMREAD_GRAYSCALE)
@@ -70,5 +73,11 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
     expected_new = ((mask1 == 255) & (mask0 == 0)).astype(np.uint8) * 255
     expected_lost = ((mask0 == 255) & (mask1 == 0)).astype(np.uint8) * 255
 
+    contours, _ = cv2.findContours((mask1 > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    boundary = np.zeros_like(mask1)
+    cv2.drawContours(boundary, contours, -1, 255, 1)
+    overlay_boundary = (overlay_img == overlay_color).all(axis=2).astype(np.uint8) * 255
+
+    assert np.array_equal(overlay_boundary, boundary)
     assert np.array_equal(bw_new, expected_new)
     assert np.array_equal(bw_lost, expected_lost)

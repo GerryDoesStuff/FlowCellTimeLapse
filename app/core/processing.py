@@ -337,11 +337,6 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         msg = f"Final overlap area {overlap_area} below 1% threshold {min_overlap}"
         logger.error(msg)
         raise ValueError(msg)
-    if app_cfg.get("save_final_mask", False):
-        cv2.imencode('.png', (expanded_mask * 255).astype(np.uint8))[1].tofile(
-            str(out_dir / "final_mask.png")
-        )
-
     # Phase 2: segmentation using per-frame masks
     def _save_mask(
         idx: int,
@@ -508,7 +503,6 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # this by comparing full-frame intensities.
         seg_mask = bw_reg
 
-        _save_mask(k, bw_reg, x_k, y_k, target_dir=out_dir, suffix="_registered")
         if bw_diff is not None:
             _save_mask(
                 k,
@@ -634,19 +628,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', mov_crop)[1].tofile(
                 str(reg_dir / f"{k:04d}_mov.png")
             )
-            if idx > 0:
-                new_color = tuple(app_cfg.get("overlay_new_color", (0, 255, 0)))
-                lost_color = tuple(app_cfg.get("overlay_lost_color", (0, 0, 255)))
-                ov = overlay_outline(
-                    mov_crop,
-                    new_mask=gain_mask,
-                    lost_mask=loss_mask,
-                    new_color=new_color,
-                    lost_color=lost_color,
-                )
-                cv2.imencode('.png', ov)[1].tofile(
-                    str(overlay_dir / f"{prev_k:04d}_overlay_mov.png")
-                )
+            overlay_color = tuple(app_cfg.get("overlay_mov_color", (255, 0, 255)))
+            ov = overlay_outline(mov_crop, mask=seg_mask, color=overlay_color)
+            cv2.imencode('.png', ov)[1].tofile(
+                str(overlay_dir / f"{k:04d}_overlay_mov.png")
+            )
 
         # update previous frame and mask for next iteration
         prev_gray = warped
