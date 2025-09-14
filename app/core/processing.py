@@ -229,6 +229,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     diff_gm_dir = diff_dir / "gm"; ensure_dir(diff_gm_dir)
     diff_green_dir = diff_dir / "green"; ensure_dir(diff_green_dir)
     diff_magenta_dir = diff_dir / "magenta"; ensure_dir(diff_magenta_dir)
+    diff_overlap_dir = diff_dir / "overlap"; ensure_dir(diff_overlap_dir)
+    diff_union_dir = diff_dir / "union"; ensure_dir(diff_union_dir)
 
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
 
@@ -566,6 +568,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
             cv2.imencode('.png', (magenta_mask * 255).astype(np.uint8))[1].tofile(
                 str(diff_magenta_dir / f"{prev_k:04d}_bw_magenta.png")
+            )
+            cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
+                str(diff_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
+            )
+            cv2.imencode('.png', (bw_union * 255).astype(np.uint8))[1].tofile(
+                str(diff_union_dir / f"{prev_k:04d}_bw_union.png")
             )
 
         if direction == "last-to-first":
