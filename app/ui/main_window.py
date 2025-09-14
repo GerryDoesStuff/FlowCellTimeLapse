@@ -73,7 +73,6 @@ class MainWindow(QMainWindow):
         self._current_preview = None
         self._build_ui()
         self._update_seg_controls(self.seg_method.currentText())
-        self._update_gm_controls(self.gm_thresh_method.currentText())
         self._param_timer = QTimer(self)
         self._param_timer.setSingleShot(True)
         self._param_timer.setInterval(200)
@@ -151,8 +150,12 @@ class MainWindow(QMainWindow):
         self.local_blk.setEnabled(local)
 
     def _update_gm_controls(self, method: str) -> None:
-        """Enable percentile spin when using percentile threshold."""
-        self.gm_thresh_percentile.setEnabled(method == "percentile")
+        """Enable/disable gain/loss widgets based on threshold method."""
+        percentile = method == "percentile"
+        self.gm_thresh_percentile.setEnabled(percentile)
+        # Remaining controls are required for all methods
+        for w in (self.gm_close_k, self.gm_dilate_k, self.gm_sat_slider):
+            w.setEnabled(True)
 
     def _reset_gain_loss_preview(self, collapse: bool = True) -> None:
         """Disable gain/loss UI and reset segmentation flag."""
@@ -595,6 +598,7 @@ class MainWindow(QMainWindow):
         gm_layout.addWidget(self.gm_preview_btn)
         self.gm_section.setContentLayout(gm_layout)
         self.gm_section.setEnabled(False)
+        self._update_gm_controls(self.gm_thresh_method.currentText())
         controls.addWidget(self.gm_section)
         self._add_help(
             self.seg_method,
