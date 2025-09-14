@@ -355,6 +355,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         x_off: int,
         y_off: int,
         *,
+        target_dir: Path,
         suffix: str = "",
         overlay: bool = True,
     ) -> None:
@@ -364,7 +365,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         full_mask = np.zeros_like(imgs_gray[idx], dtype=mask.dtype)
         full_mask[y_off : y_off + h, x_off : x_off + w] = mask
         cv2.imencode(".png", (full_mask * 255).astype(np.uint8))[1].tofile(
-            str(out_dir / f"mask_{idx:04d}{suffix}.png")
+            str(target_dir / f"mask_{idx:04d}{suffix}.png")
         )
         if overlay:
             frame_color = cv2.cvtColor(imgs_gray[idx], cv2.COLOR_GRAY2BGR)
@@ -381,7 +382,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     1,
                 )
             cv2.imencode(".png", frame_color)[1].tofile(
-                str(out_dir / f"mask_{idx:04d}_overlay{suffix}.png")
+                str(target_dir / f"mask_{idx:04d}_overlay{suffix}.png")
             )
 
     ref_gray = registered_frames[ref_idx]
@@ -513,9 +514,17 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # this by comparing full-frame intensities.
         seg_mask = bw_reg
 
-        _save_mask(k, bw_reg, x_k, y_k, suffix="_registered")
+        _save_mask(k, bw_reg, x_k, y_k, target_dir=out_dir, suffix="_registered")
         if bw_diff is not None:
-            _save_mask(k, bw_diff, x_k, y_k, suffix="_difference", overlay=False)
+            _save_mask(
+                k,
+                bw_diff,
+                x_k,
+                y_k,
+                target_dir=diff_bw_dir,
+                suffix="_difference",
+                overlay=False,
+            )
 
         if not np.any(seg_mask):
             logger.warning(
