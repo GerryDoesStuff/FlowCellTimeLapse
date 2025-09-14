@@ -93,9 +93,17 @@ def test_save_masks(tmp_path, monkeypatch):
 
     gain_path = out_dir / "diff" / "gain" / "0000_bw_gain.png"
     loss_path = out_dir / "diff" / "loss" / "0000_bw_loss.png"
+    overlap_path = out_dir / "diff" / "overlap" / "0000_bw_overlap.png"
+    union_path = out_dir / "diff" / "union" / "0000_bw_union.png"
     assert gain_path.exists()
     assert loss_path.exists()
+    assert overlap_path.exists()
+    assert union_path.exists()
     gain_mask = cv2.imread(str(gain_path), cv2.IMREAD_GRAYSCALE)
     loss_mask = cv2.imread(str(loss_path), cv2.IMREAD_GRAYSCALE)
+    overlap_mask = cv2.imread(str(overlap_path), cv2.IMREAD_GRAYSCALE)
+    union_mask = cv2.imread(str(union_path), cv2.IMREAD_GRAYSCALE)
     assert gain_mask.shape == img0.shape
     assert loss_mask.shape == img1.shape
+    assert overlap_mask.shape == img0.shape
+    assert union_mask.shape == img1.shape
