@@ -91,11 +91,11 @@ def test_save_masks(tmp_path, monkeypatch):
     out_dir = tmp_path / "out"
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
-    mask0_path = out_dir / "mask_0000_registered.png"
-    mask1_path = out_dir / "mask_0001_registered.png"
-    assert mask0_path.exists()
-    assert mask1_path.exists()
-    mask0 = cv2.imread(str(mask0_path), cv2.IMREAD_GRAYSCALE)
-    mask1 = cv2.imread(str(mask1_path), cv2.IMREAD_GRAYSCALE)
-    assert mask0.shape == img0.shape
-    assert mask1.shape == img1.shape
+    gain_path = out_dir / "diff" / "gain" / "0000_bw_gain.png"
+    loss_path = out_dir / "diff" / "loss" / "0000_bw_loss.png"
+    assert gain_path.exists()
+    assert loss_path.exists()
+    gain_mask = cv2.imread(str(gain_path), cv2.IMREAD_GRAYSCALE)
+    loss_mask = cv2.imread(str(loss_path), cv2.IMREAD_GRAYSCALE)
+    assert gain_mask.shape == img0.shape
+    assert loss_mask.shape == img1.shape
