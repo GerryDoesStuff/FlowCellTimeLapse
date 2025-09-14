@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
+import cv2
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QSettings
 
@@ -126,6 +127,16 @@ def test_gain_loss_preview_matches_detection(tmp_path, monkeypatch):
     assert captured["direction"] == win.dir_combo.currentText()
     assert np.array_equal(captured["green_mask"], expected_green)
     assert np.array_equal(captured["magenta_mask"], expected_magenta)
+
+    expected_overlay = cv2.cvtColor(win._diff_gray, cv2.COLOR_GRAY2BGR)
+    for mask, color in ((expected_green, win.lost_color), (expected_magenta, win.new_color)):
+        contours, _ = cv2.findContours(
+            (mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if contours:
+            cv2.drawContours(expected_overlay, contours, -1, color, 1)
+    expected_display = cv2.cvtColor(expected_overlay, cv2.COLOR_BGR2RGB).transpose(1, 0, 2)
+    assert np.array_equal(win.view.imageItem.image.astype(np.uint8), expected_display)
 
     win.close()
     app.quit()
