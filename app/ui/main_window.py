@@ -1522,9 +1522,13 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"Preview failed: {e}")
 
     def _preview_gain_loss(self):
-        if self._reg_ref is None or self._reg_warp is None:
+        if (
+            self._reg_ref is None
+            or self._reg_warp is None
+            or self._diff_gray is None
+        ):
             QMessageBox.warning(
-                self, "Run difference preview", "Run the difference preview first."
+                self, "Run difference preview", "Run the difference preview first.",
             )
             return
         try:
@@ -1575,15 +1579,7 @@ class MainWindow(QMainWindow):
             green_mask, magenta_mask = _detect_green_magenta(
                 gm_comp, prev_bw, curr_bw, app_cfg, direction=app.direction
             )
-            disp_comp = gm_comp.copy()
-            sat = getattr(app, "gm_saturation", 1.0)
-            if sat != 1.0:
-                lab = cv2.cvtColor(disp_comp, cv2.COLOR_BGR2LAB).astype(np.int16)
-                a = lab[..., 1].astype(np.int16) - 128
-                a = np.clip(a * sat, -255, 255) + 128
-                lab[..., 1] = a.astype(np.uint8)
-                disp_comp = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
-            overlay = disp_comp.copy()
+            overlay = cv2.cvtColor(self._diff_gray, cv2.COLOR_GRAY2BGR)
             for mask, color in ((green_mask, self.lost_color), (magenta_mask, self.new_color)):
                 contours, _ = cv2.findContours(
                     (mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
