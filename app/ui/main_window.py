@@ -651,23 +651,29 @@ class MainWindow(QMainWindow):
         )
         self._add_help(
             self.gm_thresh_method,
-            "Thresholding for green/magenta detection: Otsu or percentile.",
+            "Thresholding for green/magenta detection. Otsu chooses a global cutoff and works well"
+            " when intensities are clearly separated; percentile selects a fixed upper percentile"
+            " and is preferable for skewed histograms or when Otsu fails.",
         )
         self._add_help(
             self.gm_thresh_percentile,
-            "Percentile used when threshold method is 'percentile'.",
+            "Upper percentile for thresholding (typical 95–99.5%). Lower values increase"
+            " sensitivity; higher values are more conservative.",
         )
         self._add_help(
             self.gm_close_k,
-            "Kernel size for morphological closing on difference masks—0 disables.",
+            "Kernel size for morphological closing on difference masks—0 disables. Small"
+            " kernels (0–5 px) suit most data.",
         )
         self._add_help(
             self.gm_dilate_k,
-            "Kernel size for dilation applied to difference masks—0 disables.",
+            "Kernel size for dilation applied to difference masks—0 disables. Small kernels"
+            " (0–5 px) suit most data.",
         )
         self._add_help(
             self.gm_sat_slider,
-            "Multiplier for green/magenta channel prior to thresholding to adjust saturation.",
+            "Multiplier for green/magenta channel prior to thresholding to adjust saturation;"
+            " values around 0.5–2.0 are typical.",
         )
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.seg_method.currentTextChanged.connect(self._update_seg_controls)
