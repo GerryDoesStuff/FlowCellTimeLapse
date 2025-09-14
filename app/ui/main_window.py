@@ -762,7 +762,7 @@ class MainWindow(QMainWindow):
         self.overlay_mov_cb.setChecked(self.app.show_mov_overlay)
         self.alpha_slider = QSlider(Qt.Orientation.Horizontal)
         self.alpha_slider.setRange(0, 100)
-        self.alpha_slider.setValue(self.app.overlay_opacity)
+        self.alpha_slider.setValue(self.app.gm_opacity)
         overlay_box.addWidget(self.overlay_ref_cb)
         overlay_box.addWidget(self.overlay_mov_cb)
         overlay_box.addWidget(QLabel("Opacity"))
@@ -948,6 +948,7 @@ class MainWindow(QMainWindow):
             show_ref_overlay=self.overlay_ref_cb.isChecked(),
             show_mov_overlay=self.overlay_mov_cb.isChecked(),
             overlay_opacity=self.alpha_slider.value(),
+            gm_opacity=self.alpha_slider.value(),
             overlay_mode=self.overlay_mode_combo.currentText(),
             overlay_ref_color=self.ref_color,
             overlay_mov_color=self.mov_color,
@@ -1056,7 +1057,7 @@ class MainWindow(QMainWindow):
         self.scale_max.setEnabled(self.norm_cb.isChecked())
         self.overlay_ref_cb.setChecked(app.show_ref_overlay)
         self.overlay_mov_cb.setChecked(app.show_mov_overlay)
-        self.alpha_slider.setValue(app.overlay_opacity)
+        self.alpha_slider.setValue(app.gm_opacity)
         self.overlay_mode_combo.setCurrentText(app.overlay_mode)
         self.save_intermediates.setChecked(app.save_intermediates)
         self.archive_intermediates.setChecked(app.archive_intermediates)
@@ -1517,7 +1518,7 @@ class MainWindow(QMainWindow):
                 remove_holes_smaller_px=seg.remove_holes_smaller_px,
                 use_clahe=seg.use_clahe,
             )
-            alpha = app.overlay_opacity / 100.0
+            alpha = app.gm_opacity / 100.0
             gm_comp = np.zeros((*self._reg_ref.shape, 3), dtype=np.uint8)
             gm_comp[..., 1] = (self._reg_ref * (1 - alpha)).astype(np.uint8)
             gm_comp[..., 0] = gm_comp[..., 2] = (

@@ -11,5 +11,5 @@ All notable changes to this project will be documented in this file.
 - Usage notes: Yen excels on low-contrast backgrounds, while Multi-Otsu is suited for images with distinct histogram peaks.
 
 ### Changed
-- Green–magenta composite now blends frames using `overlay_opacity` to weight the current frame.
+- Green–magenta composite now blends frames using `gm_opacity` to weight the current frame.
 
