@@ -2,8 +2,11 @@ import os
 import sys
 from pathlib import Path
 import numpy as np
-import pyqtgraph as pg
 import cv2
+import pytest
+
+pg = pytest.importorskip("pyqtgraph")
+pytest.importorskip("PyQt6")
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QSettings
 

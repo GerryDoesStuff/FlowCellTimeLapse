@@ -488,8 +488,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                     if seg_cfg.get("morph_close_radius") is not None
                     else None
                 ),
-                remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
-                remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
+                remove_objects_smaller_px=int(
+                    seg_cfg.get("remove_objects_smaller_px", 64)
+                ),
+                remove_holes_smaller_px=int(
+                    seg_cfg.get("remove_holes_smaller_px", 64)
+                ),
                 use_clahe=bool(seg_cfg.get("use_clahe", False)),
             )
             if app_cfg.get("save_intermediates", False):
@@ -499,44 +503,21 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 cv2.imencode(".png", (bw_diff * 255).astype(np.uint8))[1].tofile(
                     str(diff_bw_dir / f"{k:04d}_bw_diff.png")
                 )
-        bw_reg = segment(
-            mov_crop,
-            method=seg_cfg.get("method", "otsu"),
-            invert=bool(seg_cfg.get("invert", True)),
-            skip_outline=bool(seg_cfg.get("skip_outline", False)),
-            use_diff=False,
-            manual_thresh=int(seg_cfg.get("manual_thresh", 128)),
-            adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
-            adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
-            local_block=int(seg_cfg.get("local_block", 51)),
-            morph_open_radius=(
-                int(seg_cfg["morph_open_radius"])
-                if seg_cfg.get("morph_open_radius") is not None
-                else None
-            ),
-            morph_close_radius=(
-                int(seg_cfg["morph_close_radius"])
-                if seg_cfg.get("morph_close_radius") is not None
-                else None
-            ),
-            remove_objects_smaller_px=int(seg_cfg.get("remove_objects_smaller_px", 64)),
-            remove_holes_smaller_px=int(seg_cfg.get("remove_holes_smaller_px", 64)),
-            use_clahe=bool(seg_cfg.get("use_clahe", False)),
-        )
 
-        # Use the segmentation of the registered moving frame for subsequent
-        # green/magenta difference calculations. The raw difference mask is
-        # still saved for debugging but does not directly control "new"/"lost"
-        # detection. Relying solely on pixel-wise differences caused empty
-        # masks when regions vanished; the composite approach below resolves
-        # this by comparing full-frame intensities.
-        seg_mask = bw_reg
+        # Use the difference mask directly for subsequent processing. When
+        # ``idx == 0`` no difference is available, so fall back to an empty
+        # mask and skip gain/loss calculations.
+        if bw_diff is not None:
+            seg_mask = bw_diff
+        else:
+            seg_mask = np.zeros_like(prev_bw_crop)
+
         _save_mask(k, seg_mask, x_k, y_k, target_dir=seg_dir)
 
         if bw_diff is not None:
             _save_mask(
                 k,
-                bw_diff,
+                seg_mask,
                 x_k,
                 y_k,
                 target_dir=diff_bw_dir,
