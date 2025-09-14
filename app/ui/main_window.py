@@ -632,21 +632,35 @@ class MainWindow(QMainWindow):
         controls.addLayout(run_box)
 
         self.save_intermediates = QCheckBox("Save intermediate images")
+        self.save_intermediates.setToolTip(
+            "Store registration and segmentation frames for debugging."
+        )
         self.save_intermediates.setChecked(self.app.save_intermediates)
         controls.addWidget(self.save_intermediates)
         self.save_intermediates.toggled.connect(self._persist_settings)
 
-        self.archive_intermediates = QCheckBox("Archive/delete intermediate images after run")
+        self.archive_intermediates = QCheckBox(
+            "Archive/delete intermediate images after run"
+        )
+        self.archive_intermediates.setToolTip(
+            "After completion, move intermediate files to archive or delete them."
+        )
         self.archive_intermediates.setChecked(self.app.archive_intermediates)
         controls.addWidget(self.archive_intermediates)
         self.archive_intermediates.toggled.connect(self._persist_settings)
 
         self.save_masks_checkbox = QCheckBox("Save difference masks")
+        self.save_masks_checkbox.setToolTip(
+            "Export binary difference masks for each frame."
+        )
         self.save_masks_checkbox.setChecked(self.app.save_masks)
         controls.addWidget(self.save_masks_checkbox)
         self.save_masks_checkbox.toggled.connect(self._persist_settings)
 
         self.save_gm_checkbox = QCheckBox("Save GM composites")
+        self.save_gm_checkbox.setToolTip(
+            "Save composite images of growth measurement (GM) results."
+        )
         self.save_gm_checkbox.setChecked(self.app.save_gm_composite)
         controls.addWidget(self.save_gm_checkbox)
         self.save_gm_checkbox.toggled.connect(self._persist_settings)
