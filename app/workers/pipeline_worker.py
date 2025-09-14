@@ -26,7 +26,7 @@ class PipelineWorker(QObject):
         self.out_dir = out_dir
 
     def _archive_intermediates(self) -> None:
-        subdirs = ["registered", "binary", "diff", "overlay"]
+        subdirs = ["registered", "diff", "overlay"]
         for name in subdirs:
             p = self.out_dir / name
             if not p.exists():
