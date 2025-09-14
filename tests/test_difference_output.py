@@ -54,6 +54,7 @@ def test_difference_output(tmp_path, monkeypatch):
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
     diff_dir = out_dir / "diff"
+    seg_dir = out_dir / "seg"
     assert (diff_dir / "raw" / "0001_diff.png").exists()
     assert (diff_dir / "bw" / "0001_bw_diff.png").exists()
     assert (diff_dir / "new" / "0000_bw_new.png").exists()
@@ -62,6 +63,8 @@ def test_difference_output(tmp_path, monkeypatch):
     assert (diff_dir / "loss" / "0000_bw_loss.png").exists()
     assert (diff_dir / "green" / "0000_bw_green.png").exists()
     assert (diff_dir / "magenta" / "0000_bw_magenta.png").exists()
+    assert (seg_dir / "mask_0000.png").exists()
+    assert (seg_dir / "mask_0000_overlay.png").exists()
 
 
 def test_difference_output_disabled(tmp_path, monkeypatch):
@@ -94,5 +97,7 @@ def test_difference_output_disabled(tmp_path, monkeypatch):
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
 
     diff_dir = out_dir / "diff"
+    seg_dir = out_dir / "seg"
     assert (diff_dir / "raw" / "0001_diff.png").exists()
     assert (diff_dir / "bw" / "0001_bw_diff.png").exists()
+    assert (seg_dir / "mask_0000.png").exists()
