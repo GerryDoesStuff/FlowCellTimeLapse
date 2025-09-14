@@ -421,17 +421,29 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             registered_frames[k] = warped
         mov_crop = warped[y_k:y_k + h_k, x_k:x_k + w_k]
 
-        # Create a green‑magenta composite to highlight differences, blending
-        # the frames according to ``gm_opacity``.
+        # Create a green–magenta composite to highlight differences, blending
+        # the frames according to ``gm_opacity``. The previous frame contributes
+        # ``1 - alpha`` while the current frame contributes ``alpha``.
         alpha = gm_opacity / 100.0
-        gm_composite = np.zeros((h_k, w_k, 3), dtype=np.uint8)
-        gm_composite[..., 1] = (prev_crop * (1 - alpha)).astype(np.uint8)
-        gm_composite[..., 0] = gm_composite[..., 2] = (
-            mov_crop * alpha
-        ).astype(np.uint8)
+        gm_composite = np.stack(
+            [
+                (mov_crop * alpha).astype(np.uint8),  # blue
+                (prev_crop * (1 - alpha)).astype(np.uint8),  # green
+                (mov_crop * alpha).astype(np.uint8),  # red
+            ],
+            axis=-1,
+        )
 
         if app_cfg.get("save_gm_composite", False):
-            cv2.imencode(".png", gm_composite)[1].tofile(
+            gm_disp = gm_composite.copy()
+            sat = float(app_cfg.get("gm_saturation", 1.0))
+            if sat != 1.0:
+                lab = cv2.cvtColor(gm_disp, cv2.COLOR_BGR2LAB).astype(np.int16)
+                a = lab[..., 1].astype(np.int16) - 128
+                a = np.clip(a * sat, -255, 255) + 128
+                lab[..., 1] = a.astype(np.uint8)
+                gm_disp = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+            cv2.imencode(".png", gm_disp)[1].tofile(
                 str(diff_gm_dir / f"{k:04d}_gm.png")
             )
 
