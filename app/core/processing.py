@@ -99,6 +99,8 @@ def _detect_green_magenta(
 
     lab = cv2.cvtColor(gm_composite, cv2.COLOR_BGR2LAB)
     a_channel = lab[..., 1].astype(np.int16) - 128  # center at 0
+    sat = float(app_cfg.get("gm_saturation", 1.0))
+    a_channel = np.clip(a_channel * sat, -255, 255).astype(np.int16)
     abs_a = np.abs(a_channel).astype(np.uint8)
 
     thresh_method = str(app_cfg.get("gm_thresh_method", "otsu")).lower()

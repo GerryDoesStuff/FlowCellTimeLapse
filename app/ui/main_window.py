@@ -44,7 +44,7 @@ from ..core.io_utils import (
 )
 from ..core.registration import register_ecc, register_orb, register_orb_ecc, preprocess
 from ..core.segmentation import segment
-from ..core.processing import overlay_outline
+from ..core.processing import overlay_outline, _detect_green_magenta
 from ..core.difference import compute_difference
 from ..workers.pipeline_worker import PipelineWorker
 from .collapsible_section import CollapsibleSection
@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
         self._current_preview = None
         self._build_ui()
         self._update_seg_controls(self.seg_method.currentText())
+        self._update_gm_controls(self.gm_thresh_method.currentText())
         self._param_timer = QTimer(self)
         self._param_timer.setSingleShot(True)
         self._param_timer.setInterval(200)
@@ -146,6 +147,10 @@ class MainWindow(QMainWindow):
         self.adaptive_blk.setEnabled(adaptive)
         self.adaptive_C.setEnabled(adaptive)
         self.local_blk.setEnabled(local)
+
+    def _update_gm_controls(self, method: str) -> None:
+        """Enable percentile spin when using percentile threshold."""
+        self.gm_thresh_percentile.setEnabled(method == "percentile")
 
     def _build_ui(self):
         central = QWidget()
@@ -454,6 +459,7 @@ class MainWindow(QMainWindow):
 
         # Segmentation params
         seg_section = CollapsibleSection("Segmentation", collapsed=True)
+        seg_layout = QVBoxLayout()
         seg_grid = QGridLayout()
         self.seg_method = QComboBox()
         self.seg_method.addItems(
@@ -524,13 +530,47 @@ class MainWindow(QMainWindow):
         seg_grid.addWidget(self.rm_obj, 3, 3)
         seg_grid.addWidget(QLabel("Remove holes < px"), 4, 2)
         seg_grid.addWidget(self.rm_holes, 4, 3)
-        seg_section.setContentLayout(seg_grid)
+
+        seg_layout.addLayout(seg_grid)
+
+        gm_group = QGroupBox("Gain/Loss Detection")
+        gm_form = QFormLayout(gm_group)
+        self.gm_thresh_method = QComboBox()
+        self.gm_thresh_method.addItems(["otsu", "percentile"])
+        self.gm_thresh_method.setCurrentText(self.app.gm_thresh_method)
+        self.gm_thresh_percentile = QDoubleSpinBox()
+        self.gm_thresh_percentile.setRange(0.0, 100.0)
+        self.gm_thresh_percentile.setDecimals(1)
+        self.gm_thresh_percentile.setValue(self.app.gm_thresh_percentile)
+        self.gm_close_k = QSpinBox()
+        self.gm_close_k.setRange(0, 50)
+        self.gm_close_k.setValue(self.app.gm_close_kernel)
+        self.gm_dilate_k = QSpinBox()
+        self.gm_dilate_k.setRange(0, 50)
+        self.gm_dilate_k.setValue(self.app.gm_dilate_kernel)
+        self.gm_saturation = QDoubleSpinBox()
+        self.gm_saturation.setRange(0.1, 10.0)
+        self.gm_saturation.setSingleStep(0.1)
+        self.gm_saturation.setValue(getattr(self.app, "gm_saturation", 1.0))
+        gm_form.addRow("Threshold method", self.gm_thresh_method)
+        gm_form.addRow("Percentile", self.gm_thresh_percentile)
+        gm_form.addRow("Close kernel", self.gm_close_k)
+        gm_form.addRow("Dilate kernel", self.gm_dilate_k)
+        gm_form.addRow("Saturation", self.gm_saturation)
+        seg_layout.addWidget(gm_group)
+
+        seg_section.setContentLayout(seg_layout)
         controls.addWidget(seg_section)
         self.seg_preview_btn = QPushButton("Preview Segmentation")
         # Initially disabled until a registration preview is successfully run
         self.seg_preview_btn.setEnabled(False)
         self.seg_preview_btn.clicked.connect(self._preview_segmentation)
         controls.addWidget(self.seg_preview_btn)
+
+        self.gm_preview_btn = QPushButton("Preview Gain/Loss")
+        self.gm_preview_btn.setEnabled(False)
+        self.gm_preview_btn.clicked.connect(self._preview_gain_loss)
+        controls.addWidget(self.gm_preview_btn)
         self._add_help(
             self.seg_method,
             "Segmentation algorithm. Otsu chooses a global threshold; Adaptive and Local use"
@@ -584,6 +624,26 @@ class MainWindow(QMainWindow):
             "Fill holes smaller than this area in pixels within segmented objects—typical range"
             " 0–1000 px².",
         )
+        self._add_help(
+            self.gm_thresh_method,
+            "Thresholding for green/magenta detection: Otsu or percentile.",
+        )
+        self._add_help(
+            self.gm_thresh_percentile,
+            "Percentile used when threshold method is 'percentile'.",
+        )
+        self._add_help(
+            self.gm_close_k,
+            "Kernel size for morphological closing on difference masks—0 disables.",
+        )
+        self._add_help(
+            self.gm_dilate_k,
+            "Kernel size for dilation applied to difference masks—0 disables.",
+        )
+        self._add_help(
+            self.gm_saturation,
+            "Multiplier for green/magenta channel prior to thresholding to adjust saturation.",
+        )
         self.seg_method.currentTextChanged.connect(self._persist_settings)
         self.seg_method.currentTextChanged.connect(self._update_seg_controls)
         self.invert.toggled.connect(self._persist_settings)
@@ -596,6 +656,12 @@ class MainWindow(QMainWindow):
         self.close_r.valueChanged.connect(self._persist_settings)
         self.rm_obj.valueChanged.connect(self._persist_settings)
         self.rm_holes.valueChanged.connect(self._persist_settings)
+        self.gm_thresh_method.currentTextChanged.connect(self._persist_settings)
+        self.gm_thresh_method.currentTextChanged.connect(self._update_gm_controls)
+        self.gm_thresh_percentile.valueChanged.connect(self._persist_settings)
+        self.gm_close_k.valueChanged.connect(self._persist_settings)
+        self.gm_dilate_k.valueChanged.connect(self._persist_settings)
+        self.gm_saturation.valueChanged.connect(self._persist_settings)
         self.seg_method.currentTextChanged.connect(self._on_params_changed)
         self.invert.toggled.connect(self._on_params_changed)
         self.skip_outline.toggled.connect(self._on_params_changed)
@@ -607,6 +673,11 @@ class MainWindow(QMainWindow):
         self.close_r.valueChanged.connect(self._on_params_changed)
         self.rm_obj.valueChanged.connect(self._on_params_changed)
         self.rm_holes.valueChanged.connect(self._on_params_changed)
+        self.gm_thresh_method.currentTextChanged.connect(self._on_params_changed)
+        self.gm_thresh_percentile.valueChanged.connect(self._on_params_changed)
+        self.gm_close_k.valueChanged.connect(self._on_params_changed)
+        self.gm_dilate_k.valueChanged.connect(self._on_params_changed)
+        self.gm_saturation.valueChanged.connect(self._on_params_changed)
 
         # Presets
         preset_box = QHBoxLayout()
@@ -735,6 +806,7 @@ class MainWindow(QMainWindow):
         self.overlay_ref_cb.toggled.connect(self._refresh_overlay_alpha)
         self.overlay_mov_cb.toggled.connect(self._refresh_overlay_alpha)
         self.alpha_slider.valueChanged.connect(self._persist_settings)
+        self.alpha_slider.valueChanged.connect(self._on_params_changed)
         self.overlay_ref_cb.toggled.connect(self._persist_settings)
         self.overlay_mov_cb.toggled.connect(self._persist_settings)
         self.overlay_mode_combo.currentTextChanged.connect(
@@ -885,6 +957,11 @@ class MainWindow(QMainWindow):
             archive_intermediates=self.archive_intermediates.isChecked(),
             save_masks=self.save_masks_checkbox.isChecked(),
             save_gm_composite=self.save_gm_checkbox.isChecked(),
+            gm_thresh_method=self.gm_thresh_method.currentText(),
+            gm_thresh_percentile=self.gm_thresh_percentile.value(),
+            gm_close_kernel=self.gm_close_k.value(),
+            gm_dilate_kernel=self.gm_dilate_k.value(),
+            gm_saturation=self.gm_saturation.value(),
         )
         app.presets_path = self.app.presets_path
         return reg, seg, app
@@ -959,6 +1036,11 @@ class MainWindow(QMainWindow):
             self.close_r.lineEdit().clear()
         self.rm_obj.setValue(seg.remove_objects_smaller_px)
         self.rm_holes.setValue(seg.remove_holes_smaller_px)
+        self.gm_thresh_method.setCurrentText(app.gm_thresh_method)
+        self.gm_thresh_percentile.setValue(app.gm_thresh_percentile)
+        self.gm_close_k.setValue(app.gm_close_kernel)
+        self.gm_dilate_k.setValue(app.gm_dilate_kernel)
+        self.gm_saturation.setValue(getattr(app, "gm_saturation", 1.0))
         self.dir_combo.setCurrentText(app.direction)
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
@@ -990,6 +1072,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Preset loaded: {path}")
         self._persist_settings()
         self._on_reg_method_change(self.reg_method.currentText())
+        self._update_gm_controls(app.gm_thresh_method)
 
     def _on_reg_method_change(self, method: str):
         """Enable or hide method-specific registration controls."""
@@ -1047,7 +1130,7 @@ class MainWindow(QMainWindow):
             and not sender.isEnabled()
         ):
             return
-        if self._current_preview not in ("registration", "segmentation", "difference"):
+        if self._current_preview not in ("registration", "segmentation", "difference", "gain_loss"):
             return
         self._param_timer.start()
 
@@ -1059,6 +1142,8 @@ class MainWindow(QMainWindow):
             self._preview_segmentation()
         elif self._current_preview == "difference":
             self._preview_difference()
+        elif self._current_preview == "gain_loss":
+            self._preview_gain_loss()
 
     def _refresh_overlay_alpha(self):
         """Blend cached overlays according to slider and checkbox states."""
@@ -1335,6 +1420,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Difference preview successful.")
             self.seg_preview_btn.setEnabled(True)
             self.diff_preview_btn.setEnabled(True)
+            self.gm_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
@@ -1389,6 +1475,74 @@ class MainWindow(QMainWindow):
             self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Segmentation preview successful.")
             self.diff_preview_btn.setEnabled(True)
+            self.gm_preview_btn.setEnabled(True)
+        except Exception as e:
+            self.status_label.setText(f"Preview failed: {e}")
+
+    def _preview_gain_loss(self):
+        if self._reg_ref is None or self._reg_warp is None:
+            QMessageBox.warning(
+                self, "Run difference preview", "Run the difference preview first."
+            )
+            return
+        try:
+            _, seg, app = self._persist_settings()
+            prev_bw = segment(
+                self._reg_ref,
+                method=seg.method,
+                invert=seg.invert,
+                skip_outline=seg.skip_outline,
+                manual_thresh=seg.manual_thresh,
+                adaptive_block=seg.adaptive_block,
+                adaptive_C=seg.adaptive_C,
+                local_block=seg.local_block,
+                morph_open_radius=seg.morph_open_radius,
+                morph_close_radius=seg.morph_close_radius,
+                remove_objects_smaller_px=seg.remove_objects_smaller_px,
+                remove_holes_smaller_px=seg.remove_holes_smaller_px,
+                use_clahe=seg.use_clahe,
+            )
+            curr_bw = segment(
+                self._reg_warp,
+                method=seg.method,
+                invert=seg.invert,
+                skip_outline=seg.skip_outline,
+                manual_thresh=seg.manual_thresh,
+                adaptive_block=seg.adaptive_block,
+                adaptive_C=seg.adaptive_C,
+                local_block=seg.local_block,
+                morph_open_radius=seg.morph_open_radius,
+                morph_close_radius=seg.morph_close_radius,
+                remove_objects_smaller_px=seg.remove_objects_smaller_px,
+                remove_holes_smaller_px=seg.remove_holes_smaller_px,
+                use_clahe=seg.use_clahe,
+            )
+            alpha = app.overlay_opacity / 100.0
+            gm_comp = np.zeros((*self._reg_ref.shape, 3), dtype=np.uint8)
+            gm_comp[..., 1] = (self._reg_ref * (1 - alpha)).astype(np.uint8)
+            gm_comp[..., 0] = gm_comp[..., 2] = (
+                self._reg_warp * alpha
+            ).astype(np.uint8)
+            app_cfg = {
+                "gm_thresh_method": app.gm_thresh_method,
+                "gm_thresh_percentile": app.gm_thresh_percentile,
+                "gm_close_kernel": app.gm_close_kernel,
+                "gm_dilate_kernel": app.gm_dilate_kernel,
+                "gm_saturation": getattr(app, "gm_saturation", 1.0),
+            }
+            green_mask, magenta_mask = _detect_green_magenta(
+                gm_comp, prev_bw, curr_bw, app_cfg, direction=app.direction
+            )
+            overlay = gm_comp.copy()
+            for mask, color in ((green_mask, self.lost_color), (magenta_mask, self.new_color)):
+                contours, _ = cv2.findContours(
+                    (mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                )
+                if contours:
+                    cv2.drawContours(overlay, contours, -1, color, 1)
+            self._current_preview = "gain_loss"
+            self.view.setImage(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+            self.status_label.setText("Gain/Loss preview successful.")
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
@@ -1488,6 +1642,11 @@ class MainWindow(QMainWindow):
             normalize=app.normalize,
             subtract_background=app.subtract_background,
             scale_minmax=app.scale_minmax,
+            gm_thresh_method=app.gm_thresh_method,
+            gm_thresh_percentile=app.gm_thresh_percentile,
+            gm_close_kernel=app.gm_close_kernel,
+            gm_dilate_kernel=app.gm_dilate_kernel,
+            gm_saturation=app.gm_saturation,
         )
 
         out_dir = Path(self.folder_edit.text()) / "_processed_pyqt"
