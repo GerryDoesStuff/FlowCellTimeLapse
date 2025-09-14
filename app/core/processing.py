@@ -227,6 +227,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     diff_gain_dir = diff_dir / "gain"; ensure_dir(diff_gain_dir)
     diff_loss_dir = diff_dir / "loss"; ensure_dir(diff_loss_dir)
     diff_gm_dir = diff_dir / "gm"; ensure_dir(diff_gm_dir)
+    diff_green_dir = diff_dir / "green"; ensure_dir(diff_green_dir)
+    diff_magenta_dir = diff_dir / "magenta"; ensure_dir(diff_magenta_dir)
 
     overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
 
@@ -557,6 +559,14 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             app_cfg,
             direction=direction,
         )
+
+        if idx > 0 and app_cfg.get("save_masks", False):
+            cv2.imencode('.png', (green_mask * 255).astype(np.uint8))[1].tofile(
+                str(diff_green_dir / f"{prev_k:04d}_bw_green.png")
+            )
+            cv2.imencode('.png', (magenta_mask * 255).astype(np.uint8))[1].tofile(
+                str(diff_magenta_dir / f"{prev_k:04d}_bw_magenta.png")
+            )
 
         if direction == "last-to-first":
             prev_bw_crop, seg_mask = seg_mask, prev_bw_crop

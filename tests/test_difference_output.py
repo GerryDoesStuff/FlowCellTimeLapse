@@ -60,6 +60,8 @@ def test_difference_output(tmp_path, monkeypatch):
     assert (diff_dir / "lost" / "0000_bw_lost.png").exists()
     assert (diff_dir / "gain" / "0000_bw_gain.png").exists()
     assert (diff_dir / "loss" / "0000_bw_loss.png").exists()
+    assert (diff_dir / "green" / "0000_bw_green.png").exists()
+    assert (diff_dir / "magenta" / "0000_bw_magenta.png").exists()
 
 
 def test_difference_output_disabled(tmp_path, monkeypatch):
