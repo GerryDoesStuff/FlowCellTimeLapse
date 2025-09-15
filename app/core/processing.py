@@ -87,7 +87,11 @@ def _detect_green_magenta(
         Segmentation masks of the previous and current frame respectively.
     app_cfg:
         Application configuration dictionary providing thresholding and
-        morphology parameters.
+        morphology parameters. When ``gm_thresh_method`` is set to
+        ``"percentile"``, the percentiles used for magenta and green channels
+        can be specified independently via ``gm_thresh_percentile_magenta`` and
+        ``gm_thresh_percentile_green`` (falling back to
+        ``gm_thresh_percentile`` if not provided).
     direction:
         Either ``"first-to-last"`` or ``"last-to-first"``.  When running in
         reverse the mask roles are swapped so that the classification is
@@ -104,49 +108,86 @@ def _detect_green_magenta(
     sat = float(app_cfg.get("gm_saturation", 1.0))
     a_channel = np.clip(a_channel * sat, -255, 255).astype(np.int16)
     abs_a = np.abs(a_channel).astype(np.uint8)
-
     if diagnostics_dir is not None and frame_index is not None:
         ensure_dir(diagnostics_dir)
         cv2.imencode(".png", abs_a)[1].tofile(
             str(diagnostics_dir / f"{frame_index:04d}_a.png")
         )
 
+    magenta_vals = a_channel[a_channel > 0].astype(np.uint8)
+    green_vals = (-a_channel[a_channel < 0]).astype(np.uint8)
     thresh_method = str(app_cfg.get("gm_thresh_method", "otsu")).lower()
     if thresh_method == "percentile":
-        perc = float(app_cfg.get("gm_thresh_percentile", 99.0))
-        abs_nonzero = abs_a[abs_a > 0]
-        if abs_nonzero.size > 0:
-            gm_thresh = int(np.percentile(abs_nonzero, perc))
-        else:
-            gm_thresh = int(
-                cv2.threshold(abs_a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0]
+        perc_magenta = float(
+            app_cfg.get(
+                "gm_thresh_percentile_magenta",
+                app_cfg.get("gm_thresh_percentile", 99.0),
             )
+        )
+        perc_green = float(
+            app_cfg.get(
+                "gm_thresh_percentile_green",
+                app_cfg.get("gm_thresh_percentile", 99.0),
+            )
+        )
+        gm_thresh_magenta = (
+            int(np.percentile(magenta_vals, perc_magenta))
+            if magenta_vals.size > 0
+            else 0
+        )
+        gm_thresh_green = (
+            int(np.percentile(green_vals, perc_green))
+            if green_vals.size > 0
+            else 0
+        )
     else:
-        gm_thresh = int(
+        gm_thresh_magenta = gm_thresh_green = int(
             cv2.threshold(abs_a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[0]
         )
 
-    gm_thresh = max(gm_thresh, 1)
+    gm_thresh_magenta = max(gm_thresh_magenta, 1)
+    gm_thresh_green = max(gm_thresh_green, 1)
 
     if diagnostics_dir is not None and frame_index is not None:
-        magenta_vals = abs_a[a_channel > 0]
         if magenta_vals.size > 0:
-            hist, _ = np.histogram(magenta_vals, bins=256, range=(0, 256))
-            above = int(hist[gm_thresh + 1 :].sum()) if gm_thresh < 255 else 0
+            hist_m, _ = np.histogram(magenta_vals, bins=256, range=(0, 256))
+            above_m = (
+                int(hist_m[gm_thresh_magenta + 1 :].sum())
+                if gm_thresh_magenta < 255
+                else 0
+            )
             max_magenta = int(magenta_vals.max())
         else:
-            above = 0
+            above_m = 0
             max_magenta = 0
+        if green_vals.size > 0:
+            hist_g, _ = np.histogram(green_vals, bins=256, range=(0, 256))
+            above_g = (
+                int(hist_g[gm_thresh_green + 1 :].sum())
+                if gm_thresh_green < 255
+                else 0
+            )
+            max_green = int(green_vals.max())
+        else:
+            above_g = 0
+            max_green = 0
         logger.debug(
-            "Frame %04d: gm_thresh=%d max_magenta=%d pixels_above_thresh=%d",
+            (
+                "Frame %04d: gm_thresh_magenta=%d gm_thresh_green=%d "
+                "max_magenta=%d max_green=%d pixels_above_magenta_thresh=%d "
+                "pixels_above_green_thresh=%d"
+            ),
             frame_index,
-            gm_thresh,
+            gm_thresh_magenta,
+            gm_thresh_green,
             max_magenta,
-            above,
+            max_green,
+            above_m,
+            above_g,
         )
 
-    green_mask = (a_channel < -gm_thresh).astype(np.uint8)
-    magenta_mask = (a_channel > gm_thresh).astype(np.uint8)
+    green_mask = (a_channel < -gm_thresh_green).astype(np.uint8)
+    magenta_mask = (a_channel > gm_thresh_magenta).astype(np.uint8)
 
     close_k = int(app_cfg.get("gm_close_kernel", 0))
     if close_k > 0:
