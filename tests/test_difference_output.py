@@ -47,8 +47,7 @@ def test_difference_output(tmp_path, monkeypatch):
     app_cfg = {
         "direction": "first-to-last",
         "use_difference_for_seg": True,
-        "save_intermediates": True,
-        "save_masks": True,
+        "save_diagnostics": True,
     }
 
     out_dir = tmp_path / "out"
@@ -95,8 +94,6 @@ def test_difference_output_disabled(tmp_path, monkeypatch):
     app_cfg = {
         "direction": "first-to-last",
         "use_difference_for_seg": False,
-        "save_intermediates": True,
-        "save_masks": True,
         "save_diagnostics": False,
     }
 

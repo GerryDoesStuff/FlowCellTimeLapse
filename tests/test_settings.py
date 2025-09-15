@@ -51,8 +51,6 @@ def test_settings_persist(tmp_path):
     win.scale_min.setValue(5)
     win.scale_max.setValue(100)
     win.bg_sub_cb.setChecked(True)
-    win.save_intermediates.setChecked(True)
-    win.archive_intermediates.setChecked(True)
     win.save_diag_checkbox.setChecked(False)
     win.gm_sat_slider.setValue(15)
     win.close()
@@ -87,8 +85,6 @@ def test_settings_persist(tmp_path):
     assert win2.scale_min.value() == 5
     assert win2.scale_max.value() == 100
     assert win2.bg_sub_cb.isChecked()
-    assert win2.save_intermediates.isChecked()
-    assert win2.archive_intermediates.isChecked()
     assert not win2.save_diag_checkbox.isChecked()
     assert win2.gm_sat_slider.value() == 15
     win2.close()
@@ -127,7 +123,7 @@ def test_presets_path_persist(tmp_path, monkeypatch):
     preset_dir2 = tmp_path / "presets2"
     preset_dir2.mkdir()
     preset_file2 = preset_dir2 / "preset2.json"
-    save_preset(str(preset_file2), RegParams(), SegParams(), AppParams(save_intermediates=False))
+    save_preset(str(preset_file2), RegParams(), SegParams(), AppParams())
 
     def fake_open(parent, caption, dir, filter):
         assert dir == str(preset_dir1)

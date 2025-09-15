@@ -44,7 +44,7 @@ def test_aborts_on_tiny_initial_radius(tmp_path):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": False}
 
     from app.core import processing
 

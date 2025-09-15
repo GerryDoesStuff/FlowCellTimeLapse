@@ -65,11 +65,6 @@ class AppParams:
     overlay_lost_color: tuple[int, int, int] = (0, 0, 255)
     gm_opacity: int = 50  # 0-100 weight of current frame in green/magenta composites
     save_jpg_quality: int = 95
-    save_png: bool = False
-    save_intermediates: bool = False
-    archive_intermediates: bool = False
-    save_masks: bool = False  # save difference masks
-    save_gm_composite: bool = False  # save green/magenta composites
     save_diagnostics: bool = True  # save optional diagnostic outputs
     use_difference_for_seg: bool = False  # diff masks saved regardless
     difference_method: str = "abs"
@@ -94,11 +89,19 @@ def save_preset(path: str, reg: RegParams, seg: SegParams, app: AppParams) -> No
 def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    app_data = data["app"]
+    app_data: Dict[str, Any] = data["app"]
     app_data.setdefault("gm_saturation", 1.0)
     app_data.setdefault("gm_opacity", app_data.get("overlay_opacity", 50))
     app_data.setdefault("save_diagnostics", True)
     app_data.setdefault("show_diff_overlay", True)
+    for key in [
+        "save_png",
+        "save_intermediates",
+        "archive_intermediates",
+        "save_masks",
+        "save_gm_composite",
+    ]:
+        app_data.pop(key, None)
     return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**app_data)
 
 def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
@@ -121,6 +124,14 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
                 data.setdefault("gm_opacity", data.get("overlay_opacity", 50))
                 data.setdefault("save_diagnostics", True)
                 data.setdefault("show_diff_overlay", True)
+                for key in [
+                    "save_png",
+                    "save_intermediates",
+                    "archive_intermediates",
+                    "save_masks",
+                    "save_gm_composite",
+                ]:
+                    data.pop(key, None)
             return cls(**data)
         except Exception:
             return default

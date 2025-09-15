@@ -52,8 +52,7 @@ def test_overlay_frame_alignment(tmp_path, monkeypatch):
     seg_cfg = {}
     app_cfg = {
         "direction": "first-to-last",
-        "save_intermediates": True,
-        "save_masks": True,
+        "save_diagnostics": True,
     }
 
     out_dir = tmp_path / "out"

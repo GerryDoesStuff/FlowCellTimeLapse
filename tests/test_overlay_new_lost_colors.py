@@ -43,8 +43,7 @@ def test_overlay_contains_new_and_lost_colors(tmp_path, monkeypatch):
     seg_cfg = {}
     app_cfg = {
         "direction": "first-to-last",
-        "save_intermediates": True,
-        "save_masks": True,
+        "save_diagnostics": True,
         "overlay_new_color": (0, 255, 0),
         "overlay_lost_color": (255, 0, 255),
         "overlay_mov_color": (255, 255, 0),

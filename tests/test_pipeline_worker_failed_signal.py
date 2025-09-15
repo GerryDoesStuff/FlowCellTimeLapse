@@ -52,7 +52,7 @@ def test_pipeline_worker_emits_failed_on_low_overlap(tmp_path, monkeypatch):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": False}
 
     def fake_register(ref, mov, model="affine", **kwargs):
         h, w = ref.shape

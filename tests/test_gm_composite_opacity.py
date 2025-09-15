@@ -63,8 +63,7 @@ def test_gm_composite_opacity_and_saturation(tmp_path, monkeypatch):
     seg_cfg = {}
     app_cfg = {
         "direction": "first-to-last",
-        "save_intermediates": True,
-        "save_gm_composite": True,
+        "save_diagnostics": True,
         "overlay_mov_color": (255, 255, 0),
         "gm_opacity": 60,
         "gm_saturation": 1.4,

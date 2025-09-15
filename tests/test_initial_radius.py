@@ -42,7 +42,7 @@ def run(paths, radius):
         "remove_objects_smaller_px": 0,
         "remove_holes_smaller_px": 0,
     }
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": False}
     from app.core import processing
 
     def fake_register(ref, mov, model="affine", **kwargs):

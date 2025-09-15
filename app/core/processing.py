@@ -289,13 +289,13 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     reg_dir = out_dir / "registered"; ensure_dir(reg_dir)
     mov_dir = reg_dir / "mov"; ensure_dir(mov_dir)
     prev_dir = reg_dir / "prev"
-    if save_diagnostics and app_cfg.get("save_intermediates", False):
+    if save_diagnostics:
         ensure_dir(prev_dir)
 
     diff_dir = out_dir / "diff"; ensure_dir(diff_dir)
     diff_raw_dir = diff_dir / "raw"; ensure_dir(diff_raw_dir)
     diff_bw_dir = diff_dir / "bw"; ensure_dir(diff_bw_dir)
-    diff_gm_dir = diff_dir / "gm"; ensure_dir(diff_gm_dir)
+    diff_gm_dir = diff_dir / "gm"
     diff_green_dir = diff_dir / "green"; ensure_dir(diff_green_dir)
     diff_magenta_dir = diff_dir / "magenta"; ensure_dir(diff_magenta_dir)
 
@@ -313,15 +313,14 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         ensure_dir(diff_loss_dir)
         ensure_dir(diff_overlap_dir)
         ensure_dir(diff_union_dir)
-        if app_cfg.get("save_intermediates", False):
-            ensure_dir(diff_a_dir)
+        ensure_dir(diff_a_dir)
+        ensure_dir(diff_gm_dir)
 
     overlay_dir = out_dir / "overlay"
     seg_dir = out_dir / "seg"
     if save_diagnostics:
         ensure_dir(overlay_dir)
-        if app_cfg.get("save_masks", False):
-            ensure_dir(seg_dir)
+        ensure_dir(seg_dir)
 
     gm_opacity = int(app_cfg.get("gm_opacity", 50))
 
@@ -451,8 +450,6 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         suffix: str = "",
         overlay: bool = True,
     ) -> None:
-        if not app_cfg.get("save_masks", False):
-            return
         h, w = mask.shape[:2]
         full_mask = np.zeros_like(imgs_gray[idx], dtype=mask.dtype)
         full_mask[y_off : y_off + h, x_off : x_off + w] = mask
@@ -538,17 +535,18 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             axis=-1,
         )
 
-        gm_disp = gm_composite.copy()
-        sat = float(app_cfg.get("gm_saturation", 1.0))
-        if sat != 1.0:
-            lab = cv2.cvtColor(gm_disp, cv2.COLOR_BGR2LAB).astype(np.int16)
-            a = lab[..., 1].astype(np.int16) - 128
-            a = np.clip(a * sat, -255, 255) + 128
-            lab[..., 1] = a.astype(np.uint8)
-            gm_disp = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
-        cv2.imencode(".png", gm_disp)[1].tofile(
-            str(diff_gm_dir / f"{k:04d}_gm.png")
-        )
+        if save_diagnostics:
+            gm_disp = gm_composite.copy()
+            sat = float(app_cfg.get("gm_saturation", 1.0))
+            if sat != 1.0:
+                lab = cv2.cvtColor(gm_disp, cv2.COLOR_BGR2LAB).astype(np.int16)
+                a = lab[..., 1].astype(np.int16) - 128
+                a = np.clip(a * sat, -255, 255) + 128
+                lab[..., 1] = a.astype(np.uint8)
+                gm_disp = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+            cv2.imencode(".png", gm_disp)[1].tofile(
+                str(diff_gm_dir / f"{k:04d}_gm.png")
+            )
 
         seg_img = None
         bw_diff = None
@@ -625,11 +623,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             seg_mask,
             app_cfg,
             direction=direction,
-            diagnostics_dir=diff_a_dir if (save_diagnostics and app_cfg.get("save_intermediates", False)) else None,
+            diagnostics_dir=diff_a_dir if save_diagnostics else None,
             frame_index=k,
         )
-        gm_mask_u8 = ((green_mask | magenta_mask) * 255).astype(np.uint8)
-        write_shape_properties(gm_mask_u8, diff_gm_dir / "gm_props.csv")
+        if save_diagnostics:
+            gm_mask_u8 = ((green_mask | magenta_mask) * 255).astype(np.uint8)
+            write_shape_properties(gm_mask_u8, diff_gm_dir / "gm_props.csv")
 
         # Prepare updated segmentation for the current frame before any
         # direction-dependent swapping occurs so that stable regions persist.
@@ -657,7 +656,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
             write_shape_properties(green_u8, diff_green_dir / "green_props.csv")
             write_shape_properties(magenta_u8, diff_magenta_dir / "magenta_props.csv")
-            if save_diagnostics and app_cfg.get("save_masks", False):
+            if save_diagnostics:
                 cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
                     str(diff_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
                 )
@@ -749,7 +748,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         }
         rows.append(row)
 
-        if idx > 0 and app_cfg.get("save_masks", False) and save_diagnostics:
+        if idx > 0 and save_diagnostics:
             cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(
                 str(diff_new_dir / f"{prev_k:04d}_bw_new.png")
             )
@@ -762,8 +761,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', (loss_mask * 255).astype(np.uint8))[1].tofile(
                 str(diff_loss_dir / f"{prev_k:04d}_bw_loss.png")
             )
-
-        if save_diagnostics and app_cfg.get("save_intermediates", False):
+        if save_diagnostics:
             cv2.imencode('.png', prev_crop)[1].tofile(
                 str(prev_dir / f"{prev_k:04d}_prev.png")
             )

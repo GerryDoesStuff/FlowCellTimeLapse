@@ -53,7 +53,7 @@ def test_pipeline_worker_skips_clahe(monkeypatch, tmp_path):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": False}
 
     def fake_create_clahe(*args, **kwargs):
         raise AssertionError("CLAHE should not be called")

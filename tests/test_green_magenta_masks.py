@@ -43,7 +43,7 @@ def setup(monkeypatch):
 def run_and_load(paths, direction, tmp_path, green, magenta):
     reg_cfg = {"initial_radius": 0, "gauss_blur_sigma": 0, "clahe_clip": 0, "clahe_grid": 8, "use_masked_ecc": False}
     seg_cfg = {}
-    app_cfg = {"direction": direction, "save_masks": True}
+    app_cfg = {"direction": direction}
     out_dir = tmp_path / f"out_{direction}"
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
     prev_idx = 0 if direction == "first-to-last" else 1

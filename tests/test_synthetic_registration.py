@@ -59,7 +59,7 @@ def test_synthetic_registration_alignment(tmp_path):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": True}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": True}
 
     out_dir = tmp_path / "out"
     analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
