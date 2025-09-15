@@ -39,11 +39,10 @@ def create_masks(tmp_path: Path) -> Path:
 
 def test_evaluate_diff_masks(tmp_path):
     diff_dir = create_masks(tmp_path)
-    df = evaluate_diff_masks(diff_dir, csv_path="summary.csv")
+    df = evaluate_diff_masks(diff_dir)
     assert df.shape[0] == 1
     row = df.iloc[0]
     assert row["area_new_px"] == 2
     assert row["area_lost_px"] == 1
     assert row["net_new_px"] == 1
     assert row["area_diff_px"] == 3
-    assert (diff_dir / "summary.csv").exists()

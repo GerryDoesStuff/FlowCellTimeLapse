@@ -9,6 +9,7 @@ from .registration import register_ecc, register_orb, register_orb_ecc, crop_to_
 from .segmentation import segment
 from .difference import compute_difference
 from .background import normalize_background, estimate_temporal_background
+from .evaluation import write_shape_properties
 import logging
 import re
 
@@ -586,9 +587,11 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode(".png", seg_img)[1].tofile(
                 str(diff_raw_dir / f"{k:04d}_diff.png")
             )
-            cv2.imencode(".png", (bw_diff * 255).astype(np.uint8))[1].tofile(
+            bw_diff_u8 = (bw_diff * 255).astype(np.uint8)
+            cv2.imencode(".png", bw_diff_u8)[1].tofile(
                 str(diff_bw_dir / f"{k:04d}_bw_diff.png")
             )
+            write_shape_properties(bw_diff_u8, diff_bw_dir / "bw_props.csv")
 
         # Use the difference mask directly for subsequent processing. When
         # ``idx == 0`` no difference is available, so fall back to an empty
@@ -625,6 +628,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             diagnostics_dir=diff_a_dir if (save_diagnostics and app_cfg.get("save_intermediates", False)) else None,
             frame_index=k,
         )
+        gm_mask_u8 = ((green_mask | magenta_mask) * 255).astype(np.uint8)
+        write_shape_properties(gm_mask_u8, diff_gm_dir / "gm_props.csv")
 
         # Prepare updated segmentation for the current frame before any
         # direction-dependent swapping occurs so that stable regions persist.
@@ -642,12 +647,16 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 green_mask = np.zeros_like(green_mask)
 
         if idx > 0:
-            cv2.imencode('.png', (green_mask * 255).astype(np.uint8))[1].tofile(
+            green_u8 = (green_mask * 255).astype(np.uint8)
+            magenta_u8 = (magenta_mask * 255).astype(np.uint8)
+            cv2.imencode('.png', green_u8)[1].tofile(
                 str(diff_green_dir / f"{prev_k:04d}_bw_green.png")
             )
-            cv2.imencode('.png', (magenta_mask * 255).astype(np.uint8))[1].tofile(
+            cv2.imencode('.png', magenta_u8)[1].tofile(
                 str(diff_magenta_dir / f"{prev_k:04d}_bw_magenta.png")
             )
+            write_shape_properties(green_u8, diff_green_dir / "green_props.csv")
+            write_shape_properties(magenta_u8, diff_magenta_dir / "magenta_props.csv")
             if save_diagnostics and app_cfg.get("save_masks", False):
                 cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
                     str(diff_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
@@ -809,7 +818,5 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         raise ValueError(msg)
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
-    summary_path = out_dir / "summary.csv"
-    df.to_csv(summary_path, index=False)
-    logger.info("Segmentation complete; summary saved to %s", summary_path)
+    logger.info("Segmentation complete")
     return df

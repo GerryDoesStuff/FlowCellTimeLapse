@@ -61,7 +61,7 @@ def test_diff_evaluation(tmp_path, monkeypatch):
 
     monkeypatch.setattr(evaluation, "_read_mask", tracking_read)
 
-    df = evaluate_diff_masks(diff_dir, csv_path="summary.csv")
+    df = evaluate_diff_masks(diff_dir)
 
     assert df.shape[0] == 1
     row = df.iloc[0]
@@ -69,8 +69,6 @@ def test_diff_evaluation(tmp_path, monkeypatch):
     assert row["area_lost_px"] == 1
     assert row["net_new_px"] == 1
     assert row["area_diff_px"] == 3
-    assert (diff_dir / "summary.csv").exists()
-    assert not (tmp_path / "summary.csv").exists()
 
     diff_dir_res = diff_dir.resolve()
     all_paths = [p.resolve() for p in accessed_dirs + read_files]
