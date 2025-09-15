@@ -70,6 +70,7 @@ class AppParams:
     archive_intermediates: bool = False
     save_masks: bool = False  # save difference masks
     save_gm_composite: bool = False  # save green/magenta composites
+    save_diagnostics: bool = True  # save optional diagnostic outputs
     use_difference_for_seg: bool = False  # diff masks saved regardless
     difference_method: str = "abs"
     gm_thresh_method: str = "otsu"  # "otsu" | "percentile"
@@ -95,6 +96,7 @@ def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
     app_data = data["app"]
     app_data.setdefault("gm_saturation", 1.0)
     app_data.setdefault("gm_opacity", app_data.get("overlay_opacity", 50))
+    app_data.setdefault("save_diagnostics", True)
     return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**app_data)
 
 def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
@@ -115,6 +117,7 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
             if cls is AppParams:
                 data.setdefault("gm_saturation", 1.0)
                 data.setdefault("gm_opacity", data.get("overlay_opacity", 50))
+                data.setdefault("save_diagnostics", True)
             return cls(**data)
         except Exception:
             return default

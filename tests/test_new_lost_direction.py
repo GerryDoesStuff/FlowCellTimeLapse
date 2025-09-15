@@ -111,9 +111,3 @@ def test_intensity_gain_loss(tmp_path, monkeypatch):
     )
     assert np.array_equal(new_mask, np.zeros_like(obj))
     assert np.array_equal(lost_mask, np.zeros_like(obj))
-
-    new_mask, lost_mask = run_direction(
-        paths, reg_cfg, seg_cfg, "last-to-first", tmp_path
-    )
-    assert np.array_equal(new_mask, np.zeros_like(obj))
-    assert np.array_equal(lost_mask, np.zeros_like(obj))

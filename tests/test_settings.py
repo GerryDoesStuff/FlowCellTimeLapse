@@ -53,6 +53,7 @@ def test_settings_persist(tmp_path):
     win.bg_sub_cb.setChecked(True)
     win.save_intermediates.setChecked(True)
     win.archive_intermediates.setChecked(True)
+    win.save_diag_checkbox.setChecked(False)
     win.gm_sat_slider.setValue(15)
     win.close()
     app.processEvents()
@@ -88,6 +89,7 @@ def test_settings_persist(tmp_path):
     assert win2.bg_sub_cb.isChecked()
     assert win2.save_intermediates.isChecked()
     assert win2.archive_intermediates.isChecked()
+    assert not win2.save_diag_checkbox.isChecked()
     assert win2.gm_sat_slider.value() == 15
     win2.close()
     app.quit()
