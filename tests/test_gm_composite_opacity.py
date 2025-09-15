@@ -40,10 +40,17 @@ def test_gm_composite_opacity_and_saturation(tmp_path, monkeypatch):
 
     real_detect = processing._detect_green_magenta
 
-    def capture_detect(gm_comp, prev_seg, curr_seg, app_cfg, direction):
+    def capture_detect(gm_comp, prev_seg, curr_seg, app_cfg, direction, **kwargs):
         captured["gm_composite"] = gm_comp.copy()
         captured["app_cfg"] = dict(app_cfg)
-        return real_detect(gm_comp, prev_seg, curr_seg, app_cfg, direction=direction)
+        return real_detect(
+            gm_comp,
+            prev_seg,
+            curr_seg,
+            app_cfg,
+            direction=direction,
+            **kwargs,
+        )
 
     monkeypatch.setattr(processing, "_detect_green_magenta", capture_detect)
 
