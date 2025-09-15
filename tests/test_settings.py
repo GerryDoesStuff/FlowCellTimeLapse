@@ -52,6 +52,7 @@ def test_settings_persist(tmp_path):
     win.scale_max.setValue(100)
     win.bg_sub_cb.setChecked(True)
     win.save_diag_checkbox.setChecked(False)
+    win.archive_outputs.setChecked(True)
     win.gm_sat_slider.setValue(15)
     win.close()
     app.processEvents()
@@ -86,6 +87,7 @@ def test_settings_persist(tmp_path):
     assert win2.scale_max.value() == 100
     assert win2.bg_sub_cb.isChecked()
     assert not win2.save_diag_checkbox.isChecked()
+    assert win2.archive_outputs.isChecked()
     assert win2.gm_sat_slider.value() == 15
     win2.close()
     app.quit()

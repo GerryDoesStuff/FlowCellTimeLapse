@@ -739,6 +739,10 @@ class MainWindow(QMainWindow):
         self.mov_idx_spin.setMaximum(0)
         self.mov_idx_spin.setToolTip("Select frame pair index")
         run_box.addWidget(self.mov_idx_spin)
+        self.archive_outputs = QCheckBox("Archive and remove images")
+        self.archive_outputs.setChecked(self.app.archive_outputs)
+        self.archive_outputs.toggled.connect(self._persist_settings)
+        run_box.addWidget(self.archive_outputs)
         controls.addLayout(run_box)
 
         self.save_diag_checkbox = QCheckBox("Save diagnostic outputs")
@@ -969,6 +973,7 @@ class MainWindow(QMainWindow):
             overlay_new_color=self.new_color,
             overlay_lost_color=self.lost_color,
             save_diagnostics=self.save_diag_checkbox.isChecked(),
+            archive_outputs=self.archive_outputs.isChecked(),
             gm_thresh_method=self.gm_thresh_method.currentText(),
             gm_thresh_percentile=self.gm_thresh_percentile.value(),
             gm_close_kernel=self.gm_close_k.value(),
@@ -1075,6 +1080,7 @@ class MainWindow(QMainWindow):
         self.alpha_slider.setValue(app.gm_opacity)
         self.overlay_mode_combo.setCurrentText(app.overlay_mode)
         self.save_diag_checkbox.setChecked(app.save_diagnostics)
+        self.archive_outputs.setChecked(app.archive_outputs)
         self.ref_color = tuple(app.overlay_ref_color)
         self.mov_color = tuple(app.overlay_mov_color)
         self.new_color = tuple(app.overlay_new_color)
@@ -1704,6 +1710,7 @@ class MainWindow(QMainWindow):
             gm_close_kernel=app.gm_close_kernel,
             gm_dilate_kernel=app.gm_dilate_kernel,
             gm_saturation=app.gm_saturation,
+            archive_outputs=self.archive_outputs.isChecked(),
         )
 
         out_dir = Path(self.folder_edit.text()) / "_processed_pyqt"

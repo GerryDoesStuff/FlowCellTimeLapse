@@ -2,11 +2,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import List
+import shutil
 
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
 
 from ..core.processing import analyze_sequence
 from ..core.io_utils import ensure_dir
+
+ARCHIVE_SUBDIRS = ("registered", "diff", "overlay", "seg")
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,10 @@ class PipelineWorker(QObject):
             logger.info("Progressed: %d/%d", 0, total)
 
             df = analyze_sequence(self.paths, self.reg_cfg, self.seg_cfg, self.app_cfg, self.out_dir)
+            df.to_csv(self.out_dir / "summary.csv", index=False)
+
+            if self.app_cfg.get("archive_outputs"):
+                self._archive_intermediates()
 
             self.progressed.emit(total, total)
             logger.info("Progressed: %d/%d", total, total)
@@ -43,3 +50,10 @@ class PipelineWorker(QObject):
         except Exception as e:
             logger.exception("Processing failed")
             self.failed.emit(str(e))
+
+    def _archive_intermediates(self):
+        for sub in ARCHIVE_SUBDIRS:
+            d = self.out_dir / sub
+            if d.exists():
+                shutil.make_archive(str(d), "zip", root_dir=str(d))
+                shutil.rmtree(d, ignore_errors=True)
