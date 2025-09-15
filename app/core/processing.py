@@ -65,6 +65,8 @@ def _detect_green_magenta(
     app_cfg: dict,
     *,
     direction: str,
+    diagnostics_dir: Path | None = None,
+    frame_index: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Detect green and magenta difference masks.
 
@@ -103,6 +105,12 @@ def _detect_green_magenta(
     a_channel = np.clip(a_channel * sat, -255, 255).astype(np.int16)
     abs_a = np.abs(a_channel).astype(np.uint8)
 
+    if diagnostics_dir is not None and frame_index is not None:
+        ensure_dir(diagnostics_dir)
+        cv2.imencode(".png", abs_a)[1].tofile(
+            str(diagnostics_dir / f"{frame_index:04d}_a.png")
+        )
+
     thresh_method = str(app_cfg.get("gm_thresh_method", "otsu")).lower()
     if thresh_method == "percentile":
         perc = float(app_cfg.get("gm_thresh_percentile", 99.0))
@@ -119,6 +127,23 @@ def _detect_green_magenta(
         )
 
     gm_thresh = max(gm_thresh, 1)
+
+    if diagnostics_dir is not None and frame_index is not None:
+        magenta_vals = abs_a[a_channel > 0]
+        if magenta_vals.size > 0:
+            hist, _ = np.histogram(magenta_vals, bins=256, range=(0, 256))
+            above = int(hist[gm_thresh + 1 :].sum()) if gm_thresh < 255 else 0
+            max_magenta = int(magenta_vals.max())
+        else:
+            above = 0
+            max_magenta = 0
+        logger.debug(
+            "Frame %04d: gm_thresh=%d max_magenta=%d pixels_above_thresh=%d",
+            frame_index,
+            gm_thresh,
+            max_magenta,
+            above,
+        )
 
     green_mask = (a_channel < -gm_thresh).astype(np.uint8)
     magenta_mask = (a_channel > gm_thresh).astype(np.uint8)
@@ -229,6 +254,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     diff_gain_dir = diff_dir / "gain"; ensure_dir(diff_gain_dir)
     diff_loss_dir = diff_dir / "loss"; ensure_dir(diff_loss_dir)
     diff_gm_dir = diff_dir / "gm"; ensure_dir(diff_gm_dir)
+    diff_a_dir = diff_dir / "a_channel"; ensure_dir(diff_a_dir)
     diff_green_dir = diff_dir / "green"; ensure_dir(diff_green_dir)
     diff_magenta_dir = diff_dir / "magenta"; ensure_dir(diff_magenta_dir)
     diff_overlap_dir = diff_dir / "overlap"; ensure_dir(diff_overlap_dir)
@@ -545,6 +571,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             seg_mask,
             app_cfg,
             direction=direction,
+            diagnostics_dir=diff_a_dir if app_cfg.get("save_intermediates", False) else None,
+            frame_index=k,
         )
 
         if idx > 0 and app_cfg.get("save_masks", False):
@@ -654,7 +682,34 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 str(mov_dir / f"{k:04d}_mov.png")
             )
             overlay_color = tuple(app_cfg.get("overlay_mov_color", (255, 0, 255)))
-            ov = overlay_outline(mov_crop, mask=seg_mask, color=overlay_color)
+            mov_seg = segment(
+                mov_crop,
+                method=seg_cfg.get("method", "otsu"),
+                invert=bool(seg_cfg.get("invert", True)),
+                skip_outline=bool(seg_cfg.get("skip_outline", False)),
+                manual_thresh=int(seg_cfg.get("manual_thresh", 128)),
+                adaptive_block=int(seg_cfg.get("adaptive_block", 51)),
+                adaptive_C=int(seg_cfg.get("adaptive_C", 5)),
+                local_block=int(seg_cfg.get("local_block", 51)),
+                morph_open_radius=(
+                    int(seg_cfg["morph_open_radius"])
+                    if seg_cfg.get("morph_open_radius") is not None
+                    else None
+                ),
+                morph_close_radius=(
+                    int(seg_cfg["morph_close_radius"])
+                    if seg_cfg.get("morph_close_radius") is not None
+                    else None
+                ),
+                remove_objects_smaller_px=int(
+                    seg_cfg.get("remove_objects_smaller_px", 64)
+                ),
+                remove_holes_smaller_px=int(
+                    seg_cfg.get("remove_holes_smaller_px", 64)
+                ),
+                use_clahe=bool(seg_cfg.get("use_clahe", False)),
+            )
+            ov = overlay_outline(mov_crop, mask=mov_seg, color=overlay_color)
             cv2.imencode('.png', ov)[1].tofile(
                 str(overlay_dir / f"{k:04d}_overlay_mov.png")
             )

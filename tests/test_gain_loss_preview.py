@@ -54,8 +54,10 @@ def test_gain_loss_preview_matches_detection(tmp_path, monkeypatch):
 
     captured = {}
 
-    def capture_detect(gm_comp, prev_seg, curr_seg, app_cfg, direction):
-        g, m = real_detect(gm_comp, prev_seg, curr_seg, app_cfg, direction=direction)
+    def capture_detect(gm_comp, prev_seg, curr_seg, app_cfg, direction, **kwargs):
+        g, m = real_detect(
+            gm_comp, prev_seg, curr_seg, app_cfg, direction=direction, **kwargs
+        )
         captured["gm_composite"] = gm_comp
         captured["prev_seg"] = prev_seg
         captured["curr_seg"] = curr_seg
