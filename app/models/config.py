@@ -66,6 +66,7 @@ class AppParams:
     gm_opacity: int = 50  # 0-100 weight of current frame in green/magenta composites
     save_jpg_quality: int = 95
     save_diagnostics: bool = True  # save optional diagnostic outputs
+    archive_outputs: bool = False  # zip and remove image outputs
     use_difference_for_seg: bool = False  # diff masks saved regardless
     difference_method: str = "abs"
     gm_thresh_method: str = "otsu"  # "otsu" | "percentile"
@@ -94,6 +95,7 @@ def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
     app_data.setdefault("gm_opacity", app_data.get("overlay_opacity", 50))
     app_data.setdefault("save_diagnostics", True)
     app_data.setdefault("show_diff_overlay", True)
+    app_data.setdefault("archive_outputs", False)
     for key in [
         "save_png",
         "save_intermediates",
@@ -124,6 +126,7 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
                 data.setdefault("gm_opacity", data.get("overlay_opacity", 50))
                 data.setdefault("save_diagnostics", True)
                 data.setdefault("show_diff_overlay", True)
+                data.setdefault("archive_outputs", False)
                 for key in [
                     "save_png",
                     "save_intermediates",

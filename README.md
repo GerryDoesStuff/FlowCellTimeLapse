@@ -20,9 +20,10 @@ Otherwise it runs on CPU with multi-processing. To install a CUDA wheel, conside
 
 ### Run Analysis
 After selecting an image folder and setting parameters, click **Run Analysis** to process the
-time-lapse sequence. Output controls provide an option:
+time-lapse sequence. Output controls provide options:
 
 - **Save diagnostic outputs** – write optional masks (gain/loss, overlap/union, segmentation overlays, GM composites).
+- **Archive and remove images** – zip all image subdirectories and delete the originals, keeping `summary.csv` for results.
 
 ### Intermediate outputs
 The pipeline always writes core results to `registered/mov/` and the `diff/` subdirectories
