@@ -78,6 +78,7 @@ class AppParams:
     gm_close_kernel: int = 3  # closing kernel size; 0 disables
     gm_dilate_kernel: int = 0  # dilation kernel size; 0 disables
     gm_saturation: float = 1.0  # scale factor for a-channel before thresholding
+    show_diff_overlay: bool = True  # draw diff/green and diff/magenta outlines
     use_file_timestamps: bool = True
     normalize: bool = True
     subtract_background: bool = False
@@ -97,6 +98,7 @@ def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
     app_data.setdefault("gm_saturation", 1.0)
     app_data.setdefault("gm_opacity", app_data.get("overlay_opacity", 50))
     app_data.setdefault("save_diagnostics", True)
+    app_data.setdefault("show_diff_overlay", True)
     return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**app_data)
 
 def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
@@ -118,6 +120,7 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
                 data.setdefault("gm_saturation", 1.0)
                 data.setdefault("gm_opacity", data.get("overlay_opacity", 50))
                 data.setdefault("save_diagnostics", True)
+                data.setdefault("show_diff_overlay", True)
             return cls(**data)
         except Exception:
             return default

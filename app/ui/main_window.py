@@ -466,6 +466,9 @@ class MainWindow(QMainWindow):
         self.diff_method.addItems(["abs", "lab", "edges"])
         self.diff_method.setCurrentText(self.app.difference_method)
         diff_layout.addWidget(self.diff_method)
+        self.show_diff_overlay_cb = QCheckBox("Show diff overlay")
+        self.show_diff_overlay_cb.setChecked(self.app.show_diff_overlay)
+        diff_layout.addWidget(self.show_diff_overlay_cb)
         diff_section.setContentLayout(diff_layout)
         controls.addWidget(diff_section)
         self.diff_preview_btn = QPushButton("Preview Difference")
@@ -474,6 +477,7 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.diff_preview_btn)
         self.diff_method.currentTextChanged.connect(self._persist_settings)
         self.diff_method.currentTextChanged.connect(self._on_params_changed)
+        self.show_diff_overlay_cb.toggled.connect(self._persist_settings)
 
         # Segmentation params
         seg_section = CollapsibleSection("Segmentation", collapsed=True)
@@ -1008,6 +1012,7 @@ class MainWindow(QMainWindow):
             gm_close_kernel=self.gm_close_k.value(),
             gm_dilate_kernel=self.gm_dilate_k.value(),
             gm_saturation=self.gm_sat_slider.value() / 10.0,
+            show_diff_overlay=self.show_diff_overlay_cb.isChecked(),
         )
         app.presets_path = self.app.presets_path
         return reg, seg, app
@@ -1093,6 +1098,7 @@ class MainWindow(QMainWindow):
         self.dt_min.setValue(app.minutes_between_frames)
         self.use_ts.setChecked(app.use_file_timestamps)
         self.diff_method.setCurrentText(app.difference_method)
+        self.show_diff_overlay_cb.setChecked(app.show_diff_overlay)
         self.norm_cb.setChecked(app.normalize)
         if app.scale_minmax is not None:
             self.scale_min.setValue(int(app.scale_minmax[0]))
@@ -1252,6 +1258,32 @@ class MainWindow(QMainWindow):
             self.view.setImage(blend.transpose(1, 0, 2))
         elif self._current_preview == "difference" and self._diff_img is not None:
             self.view.setImage(self._diff_img.transpose(1, 0, 2))
+
+    def _update_preview(self, diff_dir: str | Path, index: int) -> None:
+        """Load a diff image and optional masks and display in the viewer."""
+        diff_dir = Path(diff_dir)
+        raw_path = diff_dir / "raw" / f"{index:04d}_diff.png"
+        img = cv2.imread(str(raw_path), cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            raise FileNotFoundError(raw_path)
+        overlay = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        if getattr(self, "show_diff_overlay_cb", None) and self.show_diff_overlay_cb.isChecked():
+            green_path = diff_dir / "green" / f"{index:04d}_bw_green.png"
+            magenta_path = diff_dir / "magenta" / f"{index:04d}_bw_magenta.png"
+            green = cv2.imread(str(green_path), cv2.IMREAD_GRAYSCALE)
+            magenta = cv2.imread(str(magenta_path), cv2.IMREAD_GRAYSCALE)
+            for mask, color in ((green, (0, 255, 0)), (magenta, (255, 0, 255))):
+                if mask is None:
+                    continue
+                contours, _ = cv2.findContours(
+                    (mask > 0).astype(np.uint8),
+                    cv2.RETR_EXTERNAL,
+                    cv2.CHAIN_APPROX_SIMPLE,
+                )
+                if contours:
+                    cv2.drawContours(overlay, contours, -1, color, 1)
+        display = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB).transpose(1, 0, 2)
+        self.view.setImage(display)
 
     def _preview_registration(self):
         # Clear any previous previews so stale images aren't blended
