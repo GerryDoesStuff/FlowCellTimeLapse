@@ -93,15 +93,18 @@ def _detect_green_magenta(
         ``gm_thresh_percentile_green`` (falling back to
         ``gm_thresh_percentile`` if not provided).
     direction:
-        Either ``"first-to-last"`` or ``"last-to-first"``.  When running in
-        reverse the mask roles are swapped so that the classification is
-        consistent regardless of processing order.
+        Either ``"first-to-last"`` or ``"last-to-first"``. Included for API
+        compatibility; callers running in reverse must handle any swapping of
+        the returned masks themselves.
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray]
         ``green_mask`` and ``magenta_mask`` after segmentation filtering.
     """
+
+    # ``direction`` is currently unused; swapping is handled by callers.
+    _ = direction
 
     lab = cv2.cvtColor(gm_composite, cv2.COLOR_BGR2LAB)
     a_channel = lab[..., 1].astype(np.int16) - 128  # center at 0
@@ -218,9 +221,6 @@ def _detect_green_magenta(
 
     green_mask = _mask_with_seg(green_mask, prev_seg)
     magenta_mask = _mask_with_seg(magenta_mask, curr_seg)
-
-    if direction == "last-to-first":
-        green_mask, magenta_mask = magenta_mask, green_mask
 
     return green_mask, magenta_mask
 
@@ -604,8 +604,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
 
         # Obtain masks highlighting regions unique to the previous (green) and
-        # current (magenta) frame.  When processing in reverse the roles are
-        # swapped so that new/lost classification is independent of direction.
+        # current (magenta) frame. Masks are returned without swapping; when
+        # processing in reverse we swap after saving so classification remains
+        # direction-independent.
         green_mask, magenta_mask = _detect_green_magenta(
             gm_composite,
             prev_bw_crop,
@@ -632,6 +633,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
         if direction == "last-to-first":
             prev_bw_crop, seg_mask = seg_mask, prev_bw_crop
+            green_mask, magenta_mask = magenta_mask, green_mask
 
         # Dilate segmentation masks slightly before classifying regions as
         # "new" or "lost" to tolerate small registration errors.
