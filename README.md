@@ -26,18 +26,14 @@ time-lapse sequence. Output controls provide several options:
 - **Archive/delete intermediate images after run** – zip and remove intermediate images when finished.
 - **Save difference masks** – write thresholded difference masks for each frame pair.
 - **Save GM composites** – save green/magenta composite images alongside the outputs.
+- **Save diagnostic outputs** – write optional masks (gain/loss, overlap/union, segmentation overlays).
 
 ### Intermediate outputs
-When `save_intermediates` is enabled, the pipeline saves additional artifacts alongside the final results.
-For every pair of frames a raw difference (`{frame}_diff.png`) is written to `diff/raw/` and its
-thresholded mask (`{frame}_bw_diff.png`) to `diff/bw/`. These files are the same difference maps
-shown in the UI when using the **Preview Difference** button.
-
-If `archive_intermediates` is enabled, these folders are zipped and the original
-PNGs removed once processing finishes.
-
-- `diff/new/` — binary masks highlighting regions that newly appear, used for evaluation.
-- `diff/lost/` — binary masks highlighting regions that disappear, used for evaluation.
+The pipeline always writes core results to `registered/mov/` and the `diff/` subdirectories
+`raw/`, `bw/`, `gm/`, `green/`, and `magenta/`. Enabling **Save diagnostic outputs** adds
+further artifacts such as `diff/new/`, `diff/lost/`, `diff/gain/`, `diff/loss/`,
+`diff/overlap/`, `diff/union/`, and segmentation masks in `seg/`. These diagnostics can be
+archived or removed after processing when **Archive/delete intermediate images** is enabled.
 
 ### Gain/Loss Detection
 

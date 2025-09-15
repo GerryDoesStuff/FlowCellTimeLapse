@@ -771,6 +771,14 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.save_gm_checkbox)
         self.save_gm_checkbox.toggled.connect(self._persist_settings)
 
+        self.save_diag_checkbox = QCheckBox("Save diagnostic outputs")
+        self.save_diag_checkbox.setToolTip(
+            "Write optional diagnostic images (gain/loss masks, overlays, etc.)."
+        )
+        self.save_diag_checkbox.setChecked(self.app.save_diagnostics)
+        controls.addWidget(self.save_diag_checkbox)
+        self.save_diag_checkbox.toggled.connect(self._persist_settings)
+
         controls.addStretch(1)
 
         # Right: viewer
@@ -994,6 +1002,7 @@ class MainWindow(QMainWindow):
             archive_intermediates=self.archive_intermediates.isChecked(),
             save_masks=self.save_masks_checkbox.isChecked(),
             save_gm_composite=self.save_gm_checkbox.isChecked(),
+            save_diagnostics=self.save_diag_checkbox.isChecked(),
             gm_thresh_method=self.gm_thresh_method.currentText(),
             gm_thresh_percentile=self.gm_thresh_percentile.value(),
             gm_close_kernel=self.gm_close_k.value(),
@@ -1099,6 +1108,7 @@ class MainWindow(QMainWindow):
         self.overlay_mode_combo.setCurrentText(app.overlay_mode)
         self.save_intermediates.setChecked(app.save_intermediates)
         self.archive_intermediates.setChecked(app.archive_intermediates)
+        self.save_diag_checkbox.setChecked(app.save_diagnostics)
         self.ref_color = tuple(app.overlay_ref_color)
         self.mov_color = tuple(app.overlay_mov_color)
         self.new_color = tuple(app.overlay_new_color)
@@ -1696,6 +1706,7 @@ class MainWindow(QMainWindow):
             archive_intermediates=app.archive_intermediates,
             save_masks=self.save_masks_checkbox.isChecked(),
             save_gm_composite=self.save_gm_checkbox.isChecked(),
+            save_diagnostics=self.save_diag_checkbox.isChecked(),
             difference_method=app.difference_method,
             normalize=app.normalize,
             subtract_background=app.subtract_background,

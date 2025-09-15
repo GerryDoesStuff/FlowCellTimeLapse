@@ -282,27 +282,45 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     )
     imgs_norm = [preprocess(g, gauss_sigma, clahe_clip, clahe_grid, use_clahe) for g in imgs_norm]
 
+    save_diagnostics = bool(app_cfg.get("save_diagnostics", True))
+
     ensure_dir(out_dir)
     reg_dir = out_dir / "registered"; ensure_dir(reg_dir)
-    prev_dir = reg_dir / "prev"; ensure_dir(prev_dir)
     mov_dir = reg_dir / "mov"; ensure_dir(mov_dir)
+    prev_dir = reg_dir / "prev"
+    if save_diagnostics and app_cfg.get("save_intermediates", False):
+        ensure_dir(prev_dir)
 
     diff_dir = out_dir / "diff"; ensure_dir(diff_dir)
     diff_raw_dir = diff_dir / "raw"; ensure_dir(diff_raw_dir)
     diff_bw_dir = diff_dir / "bw"; ensure_dir(diff_bw_dir)
-    diff_new_dir = diff_dir / "new"; ensure_dir(diff_new_dir)
-    diff_lost_dir = diff_dir / "lost"; ensure_dir(diff_lost_dir)
-    diff_gain_dir = diff_dir / "gain"; ensure_dir(diff_gain_dir)
-    diff_loss_dir = diff_dir / "loss"; ensure_dir(diff_loss_dir)
     diff_gm_dir = diff_dir / "gm"; ensure_dir(diff_gm_dir)
-    diff_a_dir = diff_dir / "a_channel"; ensure_dir(diff_a_dir)
     diff_green_dir = diff_dir / "green"; ensure_dir(diff_green_dir)
     diff_magenta_dir = diff_dir / "magenta"; ensure_dir(diff_magenta_dir)
-    diff_overlap_dir = diff_dir / "overlap"; ensure_dir(diff_overlap_dir)
-    diff_union_dir = diff_dir / "union"; ensure_dir(diff_union_dir)
 
-    overlay_dir = out_dir / "overlay"; ensure_dir(overlay_dir)
-    seg_dir = out_dir / "seg"; ensure_dir(seg_dir)
+    diff_new_dir = diff_dir / "new"
+    diff_lost_dir = diff_dir / "lost"
+    diff_gain_dir = diff_dir / "gain"
+    diff_loss_dir = diff_dir / "loss"
+    diff_overlap_dir = diff_dir / "overlap"
+    diff_union_dir = diff_dir / "union"
+    diff_a_dir = diff_dir / "a_channel"
+    if save_diagnostics:
+        ensure_dir(diff_new_dir)
+        ensure_dir(diff_lost_dir)
+        ensure_dir(diff_gain_dir)
+        ensure_dir(diff_loss_dir)
+        ensure_dir(diff_overlap_dir)
+        ensure_dir(diff_union_dir)
+        if app_cfg.get("save_intermediates", False):
+            ensure_dir(diff_a_dir)
+
+    overlay_dir = out_dir / "overlay"
+    seg_dir = out_dir / "seg"
+    if save_diagnostics:
+        ensure_dir(overlay_dir)
+        if app_cfg.get("save_masks", False):
+            ensure_dir(seg_dir)
 
     gm_opacity = int(app_cfg.get("gm_opacity", 50))
 
@@ -492,7 +510,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
     prev_k = ref_idx
 
     ecc_mask = None
-    all_masks_empty = True
+    all_masks_empty = not np.any(bw_ref)
 
     for idx, k in enumerate(ordered_indices):
         logger.debug("Frame %d: segmentation phase", k)
@@ -519,18 +537,17 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             axis=-1,
         )
 
-        if app_cfg.get("save_gm_composite", False):
-            gm_disp = gm_composite.copy()
-            sat = float(app_cfg.get("gm_saturation", 1.0))
-            if sat != 1.0:
-                lab = cv2.cvtColor(gm_disp, cv2.COLOR_BGR2LAB).astype(np.int16)
-                a = lab[..., 1].astype(np.int16) - 128
-                a = np.clip(a * sat, -255, 255) + 128
-                lab[..., 1] = a.astype(np.uint8)
-                gm_disp = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
-            cv2.imencode(".png", gm_disp)[1].tofile(
-                str(diff_gm_dir / f"{k:04d}_gm.png")
-            )
+        gm_disp = gm_composite.copy()
+        sat = float(app_cfg.get("gm_saturation", 1.0))
+        if sat != 1.0:
+            lab = cv2.cvtColor(gm_disp, cv2.COLOR_BGR2LAB).astype(np.int16)
+            a = lab[..., 1].astype(np.int16) - 128
+            a = np.clip(a * sat, -255, 255) + 128
+            lab[..., 1] = a.astype(np.uint8)
+            gm_disp = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
+        cv2.imencode(".png", gm_disp)[1].tofile(
+            str(diff_gm_dir / f"{k:04d}_gm.png")
+        )
 
         seg_img = None
         bw_diff = None
@@ -566,13 +583,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 ),
                 use_clahe=bool(seg_cfg.get("use_clahe", False)),
             )
-            if app_cfg.get("save_intermediates", False):
-                cv2.imencode(".png", seg_img)[1].tofile(
-                    str(diff_raw_dir / f"{k:04d}_diff.png")
-                )
-                cv2.imencode(".png", (bw_diff * 255).astype(np.uint8))[1].tofile(
-                    str(diff_bw_dir / f"{k:04d}_bw_diff.png")
-                )
+            cv2.imencode(".png", seg_img)[1].tofile(
+                str(diff_raw_dir / f"{k:04d}_diff.png")
+            )
+            cv2.imencode(".png", (bw_diff * 255).astype(np.uint8))[1].tofile(
+                str(diff_bw_dir / f"{k:04d}_bw_diff.png")
+            )
 
         # Use the difference mask directly for subsequent processing. When
         # ``idx == 0`` no difference is available, so fall back to an empty
@@ -582,18 +598,19 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         else:
             seg_mask = np.zeros_like(prev_full_seg_crop)
 
-        _save_mask(k, seg_mask, x_k, y_k, target_dir=seg_dir)
+        if save_diagnostics:
+            _save_mask(k, seg_mask, x_k, y_k, target_dir=seg_dir)
 
-        if bw_diff is not None:
-            _save_mask(
-                k,
-                seg_mask,
-                x_k,
-                y_k,
-                target_dir=diff_bw_dir,
-                suffix="_difference",
-                overlay=False,
-            )
+            if bw_diff is not None:
+                _save_mask(
+                    k,
+                    seg_mask,
+                    x_k,
+                    y_k,
+                    target_dir=diff_bw_dir,
+                    suffix="_difference",
+                    overlay=False,
+                )
 
         # Obtain masks highlighting regions unique to the previous (green) and
         # current (magenta) frame. Masks are returned without swapping; when
@@ -605,7 +622,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             seg_mask,
             app_cfg,
             direction=direction,
-            diagnostics_dir=diff_a_dir if app_cfg.get("save_intermediates", False) else None,
+            diagnostics_dir=diff_a_dir if (save_diagnostics and app_cfg.get("save_intermediates", False)) else None,
             frame_index=k,
         )
 
@@ -613,7 +630,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # direction-dependent swapping occurs so that stable regions persist.
         updated_crop = (prev_full_seg_crop & (~green_mask)) | magenta_mask
         prev_area_px = int(prev_full_seg_crop.sum())
-        curr_seg = updated_crop if idx > 0 else np.zeros_like(updated_crop)
+        curr_seg = updated_crop if idx > 0 else prev_full_seg_crop.copy()
         bw_overlap = (prev_full_seg_crop & curr_seg).astype(np.uint8)
         bw_union = (prev_full_seg_crop | curr_seg).astype(np.uint8)
 
@@ -621,22 +638,23 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         # the previous segmentation (e.g., pure intensity changes).
         if np.array_equal(seg_mask, prev_full_seg_crop):
             magenta_mask = np.zeros_like(magenta_mask)
-            seg_mask = np.zeros_like(seg_mask)
-            bw_diff = None
+            if np.any(curr_seg):
+                green_mask = np.zeros_like(green_mask)
 
-        if idx > 0 and app_cfg.get("save_masks", False):
+        if idx > 0:
             cv2.imencode('.png', (green_mask * 255).astype(np.uint8))[1].tofile(
                 str(diff_green_dir / f"{prev_k:04d}_bw_green.png")
             )
             cv2.imencode('.png', (magenta_mask * 255).astype(np.uint8))[1].tofile(
                 str(diff_magenta_dir / f"{prev_k:04d}_bw_magenta.png")
             )
-            cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
-                str(diff_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
-            )
-            cv2.imencode('.png', (bw_union * 255).astype(np.uint8))[1].tofile(
-                str(diff_union_dir / f"{prev_k:04d}_bw_union.png")
-            )
+            if save_diagnostics and app_cfg.get("save_masks", False):
+                cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
+                    str(diff_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
+                )
+                cv2.imencode('.png', (bw_union * 255).astype(np.uint8))[1].tofile(
+                    str(diff_union_dir / f"{prev_k:04d}_bw_union.png")
+                )
 
         if direction == "last-to-first":
             prev_full_seg_crop, curr_seg = curr_seg, prev_full_seg_crop
@@ -696,6 +714,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             gain_mask = np.zeros_like(bw_new)
             loss_mask = np.zeros_like(bw_lost)
 
+        if np.any(bw_new) or np.any(bw_lost):
+            all_masks_empty = False
+
         area_new_px = int(gain_mask.sum())
         area_lost_px = int(loss_mask.sum())
         area_overlap_px = int(bw_overlap.sum())
@@ -719,7 +740,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         }
         rows.append(row)
 
-        if idx > 0 and app_cfg.get("save_masks", False):
+        if idx > 0 and app_cfg.get("save_masks", False) and save_diagnostics:
             cv2.imencode('.png', (bw_new * 255).astype(np.uint8))[1].tofile(
                 str(diff_new_dir / f"{prev_k:04d}_bw_new.png")
             )
@@ -733,12 +754,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 str(diff_loss_dir / f"{prev_k:04d}_bw_loss.png")
             )
 
-        if app_cfg.get("save_intermediates", False):
+        if save_diagnostics and app_cfg.get("save_intermediates", False):
             cv2.imencode('.png', prev_crop)[1].tofile(
                 str(prev_dir / f"{prev_k:04d}_prev.png")
-            )
-            cv2.imencode('.png', mov_crop)[1].tofile(
-                str(mov_dir / f"{k:04d}_mov.png")
             )
             overlay_color = tuple(app_cfg.get("overlay_mov_color", (255, 0, 255)))
             mov_seg = segment(
@@ -772,6 +790,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', ov)[1].tofile(
                 str(overlay_dir / f"{k:04d}_overlay_mov.png")
             )
+
+        cv2.imencode('.png', mov_crop)[1].tofile(
+            str(mov_dir / f"{k:04d}_mov.png")
+        )
 
         # update previous frame and mask for next iteration
         prev_gray = warped

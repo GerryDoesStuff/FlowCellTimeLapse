@@ -91,6 +91,7 @@ def test_difference_output_disabled(tmp_path, monkeypatch):
         "use_difference_for_seg": False,
         "save_intermediates": True,
         "save_masks": True,
+        "save_diagnostics": False,
     }
 
     out_dir = tmp_path / "out"
@@ -100,4 +101,8 @@ def test_difference_output_disabled(tmp_path, monkeypatch):
     seg_dir = out_dir / "seg"
     assert (diff_dir / "raw" / "0001_diff.png").exists()
     assert (diff_dir / "bw" / "0001_bw_diff.png").exists()
-    assert (seg_dir / "mask_0000.png").exists()
+    assert (diff_dir / "green" / "0000_bw_green.png").exists()
+    assert (diff_dir / "magenta" / "0000_bw_magenta.png").exists()
+    assert not (diff_dir / "new" / "0000_bw_new.png").exists()
+    assert not (diff_dir / "lost" / "0000_bw_lost.png").exists()
+    assert not (seg_dir / "mask_0000.png").exists()
