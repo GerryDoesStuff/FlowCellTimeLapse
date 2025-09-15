@@ -114,4 +114,3 @@ def test_all_masks_empty_error(tmp_path):
     out_dir = tmp_path / "out"
     with pytest.raises(ValueError, match="All segmentation masks were empty"):
         analyze_sequence(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
-    assert not (out_dir / "summary.csv").exists()

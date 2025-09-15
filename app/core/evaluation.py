@@ -33,25 +33,67 @@ def _read_mask(path: Path | None) -> np.ndarray | None:
     return mask
 
 
-def evaluate_diff_masks(
-    diff_dir: Path,
-    *,
-    csv_path: Path | str | None = None,
-) -> pd.DataFrame:
+def write_shape_properties(mask: np.ndarray, csv_path: Path | str) -> None:
+    """Append connected component properties of ``mask`` to ``csv_path``.
+
+    Parameters
+    ----------
+    mask:
+        Binary mask where non-zero pixels represent the components of
+        interest. Values are interpreted in a binary fashion.
+    csv_path:
+        Destination CSV file. Created if it does not yet exist. The
+        resulting table contains one row per connected component with the
+        columns ``area_px``, ``centroid_x``, ``centroid_y``, ``bbox_left``,
+        ``bbox_top``, ``bbox_width`` and ``bbox_height``.
+    """
+
+    csv_path = Path(csv_path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    mask_bin = (mask > 0).astype(np.uint8)
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_bin)
+
+    rows: list[dict[str, float]] = []
+    for lbl in range(1, num_labels):  # Skip background
+        x = int(stats[lbl, cv2.CC_STAT_LEFT])
+        y = int(stats[lbl, cv2.CC_STAT_TOP])
+        w = int(stats[lbl, cv2.CC_STAT_WIDTH])
+        h = int(stats[lbl, cv2.CC_STAT_HEIGHT])
+        area = int(stats[lbl, cv2.CC_STAT_AREA])
+        cx, cy = centroids[lbl]
+        rows.append(
+            {
+                "area_px": area,
+                "centroid_x": float(cx),
+                "centroid_y": float(cy),
+                "bbox_left": x,
+                "bbox_top": y,
+                "bbox_width": w,
+                "bbox_height": h,
+            }
+        )
+
+    if not rows:
+        return
+
+    df = pd.DataFrame(rows)
+    df.to_csv(csv_path, mode="a", header=not csv_path.exists(), index=False)
+
+
+def evaluate_diff_masks(diff_dir: Path) -> pd.DataFrame:
     """Evaluate binary difference masks.
 
-    This function scans ``diff_dir`` for ``bw``, ``gain`` and ``loss`` subfolders
-    produced by :func:`app.core.processing.analyze_sequence`. When the older
-    ``new``/``lost`` folders are present they are used instead. For each frame
-    interval it loads the corresponding masks and computes simple area metrics.
+    This function scans ``diff_dir`` for ``bw``, ``gain`` and ``loss``
+    subfolders produced by :func:`app.core.processing.analyze_sequence`. When
+    the older ``new``/``lost`` folders are present they are used instead. For
+    each frame interval it loads the corresponding masks and computes simple
+    area metrics.
 
     Parameters
     ----------
     diff_dir : Path
         Directory containing ``bw`` and ``gain``/``loss`` subdirectories.
-    csv_path : Path | str | None, optional
-        When provided, the resulting :class:`pandas.DataFrame` is written to this
-        CSV file. Relative paths are resolved inside ``diff_dir``.
 
     Returns
     -------
@@ -113,11 +155,4 @@ def evaluate_diff_masks(
         )
 
     df = pd.DataFrame(rows).sort_values("frame_index").reset_index(drop=True)
-
-    if csv_path is not None:
-        csv_path = Path(csv_path)
-        if not csv_path.is_absolute():
-            csv_path = diff_dir / csv_path
-        df.to_csv(csv_path, index=False)
-
     return df

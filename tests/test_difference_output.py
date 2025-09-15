@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import pandas as pd
 from pathlib import Path
 import sys
 
@@ -63,6 +64,11 @@ def test_difference_output(tmp_path, monkeypatch):
     assert (diff_dir / "loss" / "0000_bw_loss.png").exists()
     assert (diff_dir / "green" / "0000_bw_green.png").exists()
     assert (diff_dir / "magenta" / "0000_bw_magenta.png").exists()
+    bw_props = pd.read_csv(diff_dir / "bw" / "bw_props.csv")
+    assert bw_props.loc[0, "area_px"] == 32 * 32
+    assert bw_props.loc[0, "bbox_width"] == 32
+    assert bw_props.loc[0, "bbox_height"] == 32
+    assert (diff_dir / "gm" / "gm_props.csv").exists()
     assert (seg_dir / "mask_0000.png").exists()
     assert (seg_dir / "mask_0000_overlay.png").exists()
 
