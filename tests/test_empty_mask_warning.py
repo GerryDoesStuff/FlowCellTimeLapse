@@ -50,7 +50,7 @@ def test_warns_and_skips_ecc_mask(tmp_path, caplog):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": False}
 
     from app.core import processing
 
@@ -100,7 +100,7 @@ def test_all_masks_empty_error(tmp_path):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": False}
 
     from app.core import processing
 

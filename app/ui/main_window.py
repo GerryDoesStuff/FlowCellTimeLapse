@@ -741,40 +741,6 @@ class MainWindow(QMainWindow):
         run_box.addWidget(self.mov_idx_spin)
         controls.addLayout(run_box)
 
-        self.save_intermediates = QCheckBox("Save intermediate images")
-        self.save_intermediates.setToolTip(
-            "Store registration and segmentation frames for debugging."
-        )
-        self.save_intermediates.setChecked(self.app.save_intermediates)
-        controls.addWidget(self.save_intermediates)
-        self.save_intermediates.toggled.connect(self._persist_settings)
-
-        self.archive_intermediates = QCheckBox(
-            "Archive/delete intermediate images after run"
-        )
-        self.archive_intermediates.setToolTip(
-            "After completion, move intermediate files to archive or delete them."
-        )
-        self.archive_intermediates.setChecked(self.app.archive_intermediates)
-        controls.addWidget(self.archive_intermediates)
-        self.archive_intermediates.toggled.connect(self._persist_settings)
-
-        self.save_masks_checkbox = QCheckBox("Save difference masks")
-        self.save_masks_checkbox.setToolTip(
-            "Export binary difference masks for each frame."
-        )
-        self.save_masks_checkbox.setChecked(self.app.save_masks)
-        controls.addWidget(self.save_masks_checkbox)
-        self.save_masks_checkbox.toggled.connect(self._persist_settings)
-
-        self.save_gm_checkbox = QCheckBox("Save GM composites")
-        self.save_gm_checkbox.setToolTip(
-            "Save composite images of growth measurement (GM) results."
-        )
-        self.save_gm_checkbox.setChecked(self.app.save_gm_composite)
-        controls.addWidget(self.save_gm_checkbox)
-        self.save_gm_checkbox.toggled.connect(self._persist_settings)
-
         self.save_diag_checkbox = QCheckBox("Save diagnostic outputs")
         self.save_diag_checkbox.setToolTip(
             "Write optional diagnostic images (gain/loss masks, overlays, etc.)."
@@ -1002,10 +968,6 @@ class MainWindow(QMainWindow):
             overlay_mov_color=self.mov_color,
             overlay_new_color=self.new_color,
             overlay_lost_color=self.lost_color,
-            save_intermediates=self.save_intermediates.isChecked(),
-            archive_intermediates=self.archive_intermediates.isChecked(),
-            save_masks=self.save_masks_checkbox.isChecked(),
-            save_gm_composite=self.save_gm_checkbox.isChecked(),
             save_diagnostics=self.save_diag_checkbox.isChecked(),
             gm_thresh_method=self.gm_thresh_method.currentText(),
             gm_thresh_percentile=self.gm_thresh_percentile.value(),
@@ -1112,8 +1074,6 @@ class MainWindow(QMainWindow):
         self.overlay_mov_cb.setChecked(app.show_mov_overlay)
         self.alpha_slider.setValue(app.gm_opacity)
         self.overlay_mode_combo.setCurrentText(app.overlay_mode)
-        self.save_intermediates.setChecked(app.save_intermediates)
-        self.archive_intermediates.setChecked(app.archive_intermediates)
         self.save_diag_checkbox.setChecked(app.save_diagnostics)
         self.ref_color = tuple(app.overlay_ref_color)
         self.mov_color = tuple(app.overlay_mov_color)
@@ -1734,10 +1694,6 @@ class MainWindow(QMainWindow):
         app_cfg = dict(
             direction=app.direction,
             use_difference_for_seg=app.use_difference_for_seg,
-            save_intermediates=app.save_intermediates,
-            archive_intermediates=app.archive_intermediates,
-            save_masks=self.save_masks_checkbox.isChecked(),
-            save_gm_composite=self.save_gm_checkbox.isChecked(),
             save_diagnostics=self.save_diag_checkbox.isChecked(),
             difference_method=app.difference_method,
             normalize=app.normalize,

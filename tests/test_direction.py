@@ -41,7 +41,7 @@ def run_analyze(paths, direction, caplog=None):
     }
     app_cfg = {
         "direction": direction,
-        "save_intermediates": False,
+        "save_diagnostics": False,
     }
     out_dir = paths[0].parent / "out"
     if caplog:
@@ -104,7 +104,7 @@ def test_last_to_first_registration_order(tmp_path, monkeypatch):
     }
     app_cfg = {
         "direction": "last-to-first",
-        "save_intermediates": False,
+        "save_diagnostics": False,
         "normalize": False,
     }
     out_dir = paths[0].parent / "out"

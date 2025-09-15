@@ -43,7 +43,7 @@ def test_per_frame_crop_rectangles(tmp_path):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": False}
 
     from app.core import processing, segmentation
 

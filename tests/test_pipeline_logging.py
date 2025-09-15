@@ -35,7 +35,7 @@ def test_pipeline_logs_direction(tmp_path, monkeypatch, caplog, direction):
 
     reg = RegParams()
     seg = SegParams()
-    app_params = AppParams(direction=direction, save_intermediates=False)
+    app_params = AppParams(direction=direction)
     monkeypatch.setattr(win, "_persist_settings", lambda *a, **k: (reg, seg, app_params))
     monkeypatch.setattr(QThread, "start", lambda self: None)
 
@@ -80,7 +80,7 @@ def test_save_masks(tmp_path, monkeypatch):
         "remove_holes_smaller_px": 0,
     }
 
-    app_cfg = {"direction": "first-to-last", "save_intermediates": False, "save_masks": True}
+    app_cfg = {"direction": "first-to-last", "save_diagnostics": True}
 
     from app.core import processing
 

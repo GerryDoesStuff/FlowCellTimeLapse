@@ -70,8 +70,7 @@ def boundary_from(mask):
 def run_direction(paths, reg_cfg, seg_cfg, direction, tmp_path):
     app_cfg = {
         "direction": direction,
-        "save_intermediates": True,
-        "save_masks": True,
+        "save_diagnostics": True,
         "overlay_new_color": (0, 255, 0),
         "overlay_lost_color": (255, 0, 255),
     }

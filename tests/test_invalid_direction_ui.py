@@ -28,7 +28,7 @@ def test_invalid_direction_aborts(tmp_path, monkeypatch):
 
     reg = RegParams()
     seg = SegParams()
-    app_params = AppParams(direction="invalid", save_intermediates=False)
+    app_params = AppParams(direction="invalid")
     monkeypatch.setattr(win, "_persist_settings", lambda *a, **k: (reg, seg, app_params))
 
     captured = {}

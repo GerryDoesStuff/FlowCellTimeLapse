@@ -20,20 +20,15 @@ Otherwise it runs on CPU with multi-processing. To install a CUDA wheel, conside
 
 ### Run Analysis
 After selecting an image folder and setting parameters, click **Run Analysis** to process the
-time-lapse sequence. Output controls provide several options:
+time-lapse sequence. Output controls provide an option:
 
-- **Save intermediate images** – store registration and segmentation artifacts.
-- **Archive/delete intermediate images after run** – zip and remove intermediate images when finished.
-- **Save difference masks** – write thresholded difference masks for each frame pair.
-- **Save GM composites** – save green/magenta composite images alongside the outputs.
-- **Save diagnostic outputs** – write optional masks (gain/loss, overlap/union, segmentation overlays).
+- **Save diagnostic outputs** – write optional masks (gain/loss, overlap/union, segmentation overlays, GM composites).
 
 ### Intermediate outputs
 The pipeline always writes core results to `registered/mov/` and the `diff/` subdirectories
-`raw/`, `bw/`, `gm/`, `green/`, and `magenta/`. Enabling **Save diagnostic outputs** adds
+`raw/`, `bw/`, `green/`, and `magenta/`. Enabling **Save diagnostic outputs** adds
 further artifacts such as `diff/new/`, `diff/lost/`, `diff/gain/`, `diff/loss/`,
-`diff/overlap/`, `diff/union/`, and segmentation masks in `seg/`. These diagnostics can be
-archived or removed after processing when **Archive/delete intermediate images** is enabled.
+`diff/overlap/`, `diff/union/`, `diff/gm/`, and segmentation masks in `seg/`.
 
 ### Gain/Loss Detection
 

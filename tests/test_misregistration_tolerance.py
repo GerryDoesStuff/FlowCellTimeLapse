@@ -62,8 +62,7 @@ def test_misregistration_tolerance(tmp_path, monkeypatch, dx, dy, dilate):
     reg_cfg, seg_cfg = setup(monkeypatch)
     app_cfg = {
         "direction": "first-to-last",
-        "save_intermediates": True,
-        "save_masks": True,
+        "save_diagnostics": True,
         "class_dilate_kernel": dilate,
         "component_min_overlap": 0.5,
     }
