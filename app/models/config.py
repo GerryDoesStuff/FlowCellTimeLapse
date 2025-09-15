@@ -81,6 +81,7 @@ class AppParams:
     scale_minmax: Optional[tuple[int, int]] = None
     presets_path: Optional[str] = None
     last_folder: str | None = None
+    process_subdirs: bool = False
 
 def save_preset(path: str, reg: RegParams, seg: SegParams, app: AppParams) -> None:
     data = {"reg": asdict(reg), "seg": asdict(seg), "app": asdict(app)}
@@ -96,6 +97,7 @@ def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
     app_data.setdefault("save_diagnostics", True)
     app_data.setdefault("show_diff_overlay", True)
     app_data.setdefault("archive_outputs", False)
+    app_data.setdefault("process_subdirs", False)
     for key in [
         "save_png",
         "save_intermediates",
@@ -127,6 +129,7 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
                 data.setdefault("save_diagnostics", True)
                 data.setdefault("show_diff_overlay", True)
                 data.setdefault("archive_outputs", False)
+                data.setdefault("process_subdirs", False)
                 for key in [
                     "save_png",
                     "save_intermediates",

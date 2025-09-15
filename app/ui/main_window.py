@@ -63,6 +63,8 @@ class MainWindow(QMainWindow):
         self.new_color = tuple(self.app.overlay_new_color)
         self.lost_color = tuple(self.app.overlay_lost_color)
         self.paths: list[Path] = []
+        self.subdirs: list[Path] = []
+        self._pending_subdirs: list[Path] | None = None
         # Cached preview images for alpha blending
         self._reg_ref = None
         self._reg_warp = None
@@ -190,6 +192,10 @@ class MainWindow(QMainWindow):
         folder_box.addWidget(browse_btn)
         controls.addLayout(folder_box)
         self.folder_edit.textChanged.connect(self._persist_settings)
+        self.process_subdirs_cb = QCheckBox("Process subdirectories")
+        self.process_subdirs_cb.setChecked(self.app.process_subdirs)
+        self.process_subdirs_cb.toggled.connect(self._persist_settings)
+        controls.addWidget(self.process_subdirs_cb)
 
         # Direction + timestamps
         ref_group = QGroupBox("Direction & Timing")
@@ -891,17 +897,37 @@ class MainWindow(QMainWindow):
             self._seg_overlay = None
             self._diff_img = None
             self._diff_gray = None
-            self.paths = discover_images(Path(d))
-            if not self.paths:
-                QMessageBox.warning(self, "No images", "No images found.")
-                return
-            self.mov_idx_spin.setMaximum(max(0, len(self.paths) - 2))
-            self.mov_idx_spin.setValue(0)
-            idx = self._show_reference_frame()
-            if idx is not None:
-                self.status_label.setText(
-                    f"Found {len(self.paths)} images. Preview: {self.paths[idx].name}"
-                )
+            root = Path(d)
+            if self.process_subdirs_cb.isChecked():
+                self.subdirs = sorted([p for p in root.iterdir() if p.is_dir()])
+                if not self.subdirs:
+                    QMessageBox.warning(self, "No subdirectories", "No subdirectories found.")
+                    return
+                first = self.subdirs[0]
+                self.paths = discover_images(first)
+                if not self.paths:
+                    QMessageBox.warning(self, "No images", f"No images found in {first.name}.")
+                    return
+                self.mov_idx_spin.setMaximum(max(0, len(self.paths) - 2))
+                self.mov_idx_spin.setValue(0)
+                idx = self._show_reference_frame()
+                if idx is not None:
+                    self.status_label.setText(
+                        f"Found {len(self.subdirs)} subdirectories. Preview: {first.name}/{self.paths[idx].name}"
+                    )
+            else:
+                self.subdirs = []
+                self.paths = discover_images(root)
+                if not self.paths:
+                    QMessageBox.warning(self, "No images", "No images found.")
+                    return
+                self.mov_idx_spin.setMaximum(max(0, len(self.paths) - 2))
+                self.mov_idx_spin.setValue(0)
+                idx = self._show_reference_frame()
+                if idx is not None:
+                    self.status_label.setText(
+                        f"Found {len(self.paths)} images. Preview: {self.paths[idx].name}"
+                    )
         else:
             logger.info("Folder selection canceled")
 
@@ -980,6 +1006,7 @@ class MainWindow(QMainWindow):
             gm_dilate_kernel=self.gm_dilate_k.value(),
             gm_saturation=self.gm_sat_slider.value() / 10.0,
             show_diff_overlay=self.show_diff_overlay_cb.isChecked(),
+            process_subdirs=self.process_subdirs_cb.isChecked(),
         )
         app.presets_path = self.app.presets_path
         return reg, seg, app
@@ -1067,6 +1094,7 @@ class MainWindow(QMainWindow):
         self.diff_method.setCurrentText(app.difference_method)
         self.show_diff_overlay_cb.setChecked(app.show_diff_overlay)
         self.norm_cb.setChecked(app.normalize)
+        self.process_subdirs_cb.setChecked(app.process_subdirs)
         if app.scale_minmax is not None:
             self.scale_min.setValue(int(app.scale_minmax[0]))
             self.scale_max.setValue(int(app.scale_minmax[1]))
@@ -1713,22 +1741,56 @@ class MainWindow(QMainWindow):
             archive_outputs=self.archive_outputs.isChecked(),
         )
 
-        out_dir = Path(self.folder_edit.text()) / "_processed_pyqt"
+        if self.process_subdirs_cb.isChecked():
+            if not self.subdirs:
+                QMessageBox.warning(self, "No subdirectories", "Choose a folder with subdirectories first.")
+                return
+            self._reg_cfg = reg_cfg
+            self._seg_cfg = seg_cfg
+            self._app_cfg = app_cfg
+            self._pending_subdirs = list(self.subdirs)
+            self._process_next_subdir()
+        else:
+            self._pending_subdirs = None
+            out_dir = Path(self.folder_edit.text()) / "_processed_pyqt"
+            self._start_worker(self.paths, reg_cfg, seg_cfg, app_cfg, out_dir)
+            self.status_label.setText("Processing…")
+
+    def _start_worker(self, paths, reg_cfg, seg_cfg, app_cfg, out_dir):
         self.thread = QThread()
-        self.worker = PipelineWorker(self.paths, reg_cfg, seg_cfg, app_cfg, out_dir)
+        self.worker = PipelineWorker(paths, reg_cfg, seg_cfg, app_cfg, out_dir)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
         self.thread.started.connect(lambda: logger.info("Pipeline thread started"))
         self.worker.finished.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
         self.thread.start()
-        self.status_label.setText("Processing…")
+
+    def _process_next_subdir(self):
+        if not self._pending_subdirs:
+            return
+        subdir = self._pending_subdirs.pop(0)
+        paths = discover_images(subdir)
+        if not paths:
+            logger.warning("No images in %s, skipping", subdir)
+            if self._pending_subdirs:
+                self._process_next_subdir()
+            else:
+                self.status_label.setText("Done")
+            return
+        out_dir = subdir / "_processed_pyqt"
+        self._start_worker(paths, self._reg_cfg, self._seg_cfg, self._app_cfg, out_dir)
+        self.status_label.setText(f"Processing {subdir.name}…")
 
     def _on_done(self, out_dir: str):
         logger.info("Pipeline thread finished successfully: %s", out_dir)
-        self.status_label.setText(f"Done. Outputs: {out_dir}")
         self.thread.quit()
         self.thread.wait()
+        if self._pending_subdirs is not None and self._pending_subdirs:
+            self._process_next_subdir()
+        else:
+            self.status_label.setText(f"Done. Outputs: {out_dir}")
+            self._pending_subdirs = None
 
     def _on_failed(self, err: str):
         logger.error("Pipeline thread failed: %s", err)
@@ -1738,6 +1800,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Failed: {err}")
         self.thread.quit()
         self.thread.wait()
+        self._pending_subdirs = None
 
     def closeEvent(self, event):
         """Persist current settings when the window is closed."""
