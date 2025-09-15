@@ -483,9 +483,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         use_clahe=bool(seg_cfg.get("use_clahe", False)),
     )
 
-    # store previous frame, mask, and index for iterative segmentation
+    # store previous frame, full segmentation mask, and index for iterative
+    # processing. ``prev_full_seg`` represents the complete segmentation of the
+    # previously processed frame so that regions outside the current crop are
+    # preserved across iterations.
     prev_gray = ref_gray
-    prev_bw = bw_ref
+    prev_full_seg = bw_ref
     prev_k = ref_idx
 
     ecc_mask = None
@@ -495,7 +498,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         logger.debug("Frame %d: segmentation phase", k)
         x_k, y_k, w_k, h_k = crop_rects.get(k, (0, 0, W, H))
         prev_crop = prev_gray[y_k:y_k + h_k, x_k:x_k + w_k]
-        prev_bw_crop = prev_bw[y_k:y_k + h_k, x_k:x_k + w_k]
+        prev_full_seg_crop = prev_full_seg[y_k:y_k + h_k, x_k:x_k + w_k]
         T = step_transforms.get(k, np.eye(3, dtype=np.float32))
         warped = registered_frames.get(k)
         if warped is None:
@@ -577,7 +580,7 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         if bw_diff is not None:
             seg_mask = bw_diff
         else:
-            seg_mask = np.zeros_like(prev_bw_crop)
+            seg_mask = np.zeros_like(prev_full_seg_crop)
 
         _save_mask(k, seg_mask, x_k, y_k, target_dir=seg_dir)
 
@@ -592,30 +595,34 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 overlay=False,
             )
 
-        if not np.any(seg_mask):
-            logger.warning(
-                "Frame %d: segmentation mask is empty; skipping ecc_mask update", k
-            )
-        else:
-            all_masks_empty = False
-            ecc_mask = seg_mask.copy()
-
-        bw_overlap = (prev_bw_crop & seg_mask).astype(np.uint8)
-        bw_union = (prev_bw_crop | seg_mask).astype(np.uint8)
-
         # Obtain masks highlighting regions unique to the previous (green) and
         # current (magenta) frame. Masks are returned without swapping; when
         # processing in reverse we swap after saving so classification remains
         # direction-independent.
         green_mask, magenta_mask = _detect_green_magenta(
             gm_composite,
-            prev_bw_crop,
+            prev_full_seg_crop,
             seg_mask,
             app_cfg,
             direction=direction,
             diagnostics_dir=diff_a_dir if app_cfg.get("save_intermediates", False) else None,
             frame_index=k,
         )
+
+        # Prepare updated segmentation for the current frame before any
+        # direction-dependent swapping occurs so that stable regions persist.
+        updated_crop = (prev_full_seg_crop & (~green_mask)) | magenta_mask
+        prev_area_px = int(prev_full_seg_crop.sum())
+        curr_seg = updated_crop if idx > 0 else np.zeros_like(updated_crop)
+        bw_overlap = (prev_full_seg_crop & curr_seg).astype(np.uint8)
+        bw_union = (prev_full_seg_crop | curr_seg).astype(np.uint8)
+
+        # Suppress spurious "new" detections when the difference mask matches
+        # the previous segmentation (e.g., pure intensity changes).
+        if np.array_equal(seg_mask, prev_full_seg_crop):
+            magenta_mask = np.zeros_like(magenta_mask)
+            seg_mask = np.zeros_like(seg_mask)
+            bw_diff = None
 
         if idx > 0 and app_cfg.get("save_masks", False):
             cv2.imencode('.png', (green_mask * 255).astype(np.uint8))[1].tofile(
@@ -632,27 +639,36 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
 
         if direction == "last-to-first":
-            prev_bw_crop, seg_mask = seg_mask, prev_bw_crop
+            prev_full_seg_crop, curr_seg = curr_seg, prev_full_seg_crop
             green_mask, magenta_mask = magenta_mask, green_mask
+
+        if not np.any(curr_seg):
+            logger.warning(
+                "Frame %d: segmentation mask is empty; skipping ecc_mask update", k
+            )
+            ecc_mask = None
+        else:
+            all_masks_empty = False
+            ecc_mask = curr_seg.copy()
 
         # Dilate segmentation masks slightly before classifying regions as
         # "new" or "lost" to tolerate small registration errors.
         class_dilate_k = int(app_cfg.get("class_dilate_kernel", 0))
         if class_dilate_k > 0:
             kernel = np.ones((class_dilate_k, class_dilate_k), np.uint8)
-            prev_dilated = cv2.dilate(prev_bw_crop, kernel)
-            seg_dilated = cv2.dilate(seg_mask, kernel)
+            prev_dilated = cv2.dilate(prev_full_seg_crop, kernel)
+            seg_dilated = cv2.dilate(curr_seg, kernel)
         else:
-            prev_dilated = prev_bw_crop
-            seg_dilated = seg_mask
+            prev_dilated = prev_full_seg_crop
+            seg_dilated = curr_seg
 
         # Classify connected components based on their overlap with the
         # opposite frame. A component is only considered gained or lost if the
         # overlap ratio falls below a configurable threshold.
         min_overlap = float(app_cfg.get("component_min_overlap", 0.5))
 
-        bw_lost = np.zeros_like(prev_bw_crop)
-        num_prev, labels_prev = cv2.connectedComponents(prev_bw_crop)
+        bw_lost = np.zeros_like(prev_full_seg_crop)
+        num_prev, labels_prev = cv2.connectedComponents(prev_full_seg_crop)
         for lbl in range(1, num_prev):
             comp = (labels_prev == lbl).astype(np.uint8)
             area = int(comp.sum())
@@ -662,8 +678,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             if overlap / area < min_overlap:
                 bw_lost |= comp & green_mask
 
-        bw_new = np.zeros_like(seg_mask)
-        num_curr, labels_curr = cv2.connectedComponents(seg_mask)
+        bw_new = np.zeros_like(curr_seg)
+        num_curr, labels_curr = cv2.connectedComponents(curr_seg)
         for lbl in range(1, num_curr):
             comp = (labels_curr == lbl).astype(np.uint8)
             area = int(comp.sum())
@@ -691,8 +707,8 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             "overlap_w": w_k,
             "overlap_h": h_k,
             "overlap_px": int(w_k * h_k),
-            "area_ref_px": int(prev_bw_crop.sum()),
-            "area_mov_px": int(seg_mask.sum()),
+            "area_ref_px": prev_area_px,
+            "area_mov_px": int(curr_seg.sum()),
             "area_union_px": int(bw_union.sum()),
             "area_new_px": area_new_px,
             "area_lost_px": area_lost_px,
@@ -759,8 +775,10 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
 
         # update previous frame and mask for next iteration
         prev_gray = warped
-        prev_bw = np.zeros_like(prev_bw)
-        prev_bw[y_k:y_k + h_k, x_k:x_k + w_k] = seg_mask
+        # Update the full segmentation mask using the precomputed
+        # ``updated_crop`` so that stable regions are carried over to the next
+        # iteration regardless of processing direction.
+        prev_full_seg[y_k:y_k + h_k, x_k:x_k + w_k] = updated_crop
         prev_k = k
 
     if all_masks_empty:
