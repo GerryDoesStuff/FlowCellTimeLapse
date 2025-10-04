@@ -1,6 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
-from typing import Literal, Optional, Dict, Any
+from dataclasses import dataclass, asdict, field
+from typing import Literal, Optional, Dict, Any, List, Tuple
 import json
 from PyQt6.QtCore import QSettings
 
@@ -51,6 +51,30 @@ class SegParams:
     use_clahe: bool = False
 
 @dataclass
+class UvVisParams:
+    """Parameters describing UV-Vis spectral data handling."""
+
+    data_files: List[str] = field(default_factory=list)
+    data_directory: Optional[str] = None
+    blank_reference: Optional[str] = None
+    dark_reference: Optional[str] = None
+    apply_baseline_correction: bool = True
+    baseline_poly_order: int = 2
+    apply_smoothing: bool = False
+    smoothing_window: int = 5
+    enable_peak_metrics: bool = True
+    enable_area_metrics: bool = True
+    enable_ratio_metrics: bool = True
+    ratio_wavelengths: List[float] = field(default_factory=lambda: [260.0, 280.0])
+    peak_prominence: float = 0.01
+    top_n_peaks: int = 3
+
+    def as_ratio_tuple(self) -> Tuple[float, float]:
+        if len(self.ratio_wavelengths) < 2:
+            return 0.0, 0.0
+        return float(self.ratio_wavelengths[0]), float(self.ratio_wavelengths[1])
+
+@dataclass
 class AppParams:
     px_size_um: float = 1.0
     minutes_between_frames: float = 1.0  # default; can be overridden by timestamps
@@ -83,12 +107,25 @@ class AppParams:
     last_folder: str | None = None
     process_subdirs: bool = False
 
-def save_preset(path: str, reg: RegParams, seg: SegParams, app: AppParams) -> None:
-    data = {"reg": asdict(reg), "seg": asdict(seg), "app": asdict(app)}
+def save_preset(
+    path: str,
+    reg: RegParams,
+    seg: SegParams,
+    app: AppParams,
+    uvvis: Optional[UvVisParams] = None,
+) -> None:
+    data = {
+        "reg": asdict(reg),
+        "seg": asdict(seg),
+        "app": asdict(app),
+    }
+    if uvvis is None:
+        uvvis = UvVisParams()
+    data["uvvis"] = asdict(uvvis)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
+def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams, UvVisParams]:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     app_data: Dict[str, Any] = data["app"]
@@ -106,18 +143,34 @@ def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
         "save_gm_composite",
     ]:
         app_data.pop(key, None)
-    return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**app_data)
+    uvvis_data = data.get("uvvis", {})
+    ratio = uvvis_data.get("ratio_wavelengths")
+    if isinstance(ratio, tuple):
+        uvvis_data["ratio_wavelengths"] = list(ratio)
+    return (
+        RegParams(**data["reg"]),
+        SegParams(**data["seg"]),
+        AppParams(**app_data),
+        UvVisParams(**uvvis_data),
+    )
 
-def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
+def save_settings(
+    reg: RegParams,
+    seg: SegParams,
+    app: AppParams,
+    uvvis: Optional[UvVisParams] = None,
+) -> None:
     s = QSettings("YeastLab", "FlowcellPyQt")
     s.setValue("reg", json.dumps(asdict(reg)))
     s.setValue("seg", json.dumps(asdict(seg)))
     s.setValue("app", json.dumps(asdict(app)))
+    uvvis_dict = asdict(uvvis or UvVisParams())
+    s.setValue("uvvis", json.dumps(uvvis_dict))
     s.sync()
 
-def load_settings() -> tuple[RegParams, SegParams, AppParams]:
+def load_settings() -> tuple[RegParams, SegParams, AppParams, UvVisParams]:
     s = QSettings("YeastLab", "FlowcellPyQt")
-    reg = s.value("reg"); seg = s.value("seg"); app = s.value("app")
+    reg = s.value("reg"); seg = s.value("seg"); app = s.value("app"); uvvis = s.value("uvvis")
     def parse(v, cls, default):
         if v is None:
             return default
@@ -138,6 +191,10 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
                     "save_gm_composite",
                 ]:
                     data.pop(key, None)
+            if cls is UvVisParams:
+                ratio = data.get("ratio_wavelengths")
+                if isinstance(ratio, tuple):
+                    data["ratio_wavelengths"] = list(ratio)
             return cls(**data)
         except Exception:
             return default
@@ -145,4 +202,6 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
         parse(reg, RegParams, RegParams()),
         parse(seg, SegParams, SegParams()),
         parse(app, AppParams, AppParams()),
+        parse(uvvis, UvVisParams, UvVisParams()),
     )
+
