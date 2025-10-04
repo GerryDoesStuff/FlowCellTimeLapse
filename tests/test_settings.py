@@ -9,7 +9,14 @@ from PyQt6.QtCore import QSettings
 pg.setConfigOptions(useOpenGL=False)
 
 from app.ui.main_window import MainWindow
-from app.models.config import save_preset, load_preset, RegParams, SegParams, AppParams
+from app.models.config import (
+    save_preset,
+    load_preset,
+    RegParams,
+    SegParams,
+    AppParams,
+    UvVisParams,
+)
 
 
 def test_settings_persist(tmp_path):
@@ -54,6 +61,7 @@ def test_settings_persist(tmp_path):
     win.save_diag_checkbox.setChecked(False)
     win.archive_outputs.setChecked(True)
     win.gm_sat_slider.setValue(15)
+    win.update_uvvis_params(data_files=["spec1.csv"], apply_smoothing=True)
     win.close()
     app.processEvents()
 
@@ -89,6 +97,8 @@ def test_settings_persist(tmp_path):
     assert not win2.save_diag_checkbox.isChecked()
     assert win2.archive_outputs.isChecked()
     assert win2.gm_sat_slider.value() == 15
+    assert win2.uvvis.data_files == ["spec1.csv"]
+    assert win2.uvvis.apply_smoothing
     win2.close()
     app.quit()
 
@@ -125,7 +135,7 @@ def test_presets_path_persist(tmp_path, monkeypatch):
     preset_dir2 = tmp_path / "presets2"
     preset_dir2.mkdir()
     preset_file2 = preset_dir2 / "preset2.json"
-    save_preset(str(preset_file2), RegParams(), SegParams(), AppParams())
+    save_preset(str(preset_file2), RegParams(), SegParams(), AppParams(), UvVisParams())
 
     def fake_open(parent, caption, dir, filter):
         assert dir == str(preset_dir1)
@@ -150,7 +160,9 @@ def test_preset_gm_params(tmp_path):
         RegParams(),
         SegParams(),
         AppParams(gm_opacity=67, gm_saturation=1.5),
+        UvVisParams(data_files=["sample.csv"]),
     )
-    _, _, app = load_preset(str(preset))
+    _, _, app, uvvis = load_preset(str(preset))
     assert app.gm_opacity == 67
     assert app.gm_saturation == 1.5
+    assert uvvis.data_files == ["sample.csv"]

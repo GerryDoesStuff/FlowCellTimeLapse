@@ -1,4 +1,6 @@
 from __future__ import annotations
+from dataclasses import replace
+
 from PyQt6.QtWidgets import (
     QMainWindow,
     QFileDialog,
@@ -32,6 +34,7 @@ from ..models.config import (
     RegParams,
     SegParams,
     AppParams,
+    UvVisParams,
     save_settings,
     load_settings,
     save_preset,
@@ -41,6 +44,11 @@ from ..core.io_utils import (
     discover_images,
     imread_gray,
     compute_global_minmax,
+)
+from ..core.uv_vis import (
+    load_uvvis_dataset,
+    compute_uvvis_metrics,
+    UvVisDataset,
 )
 from ..core.registration import register_ecc, register_orb, register_orb_ecc, preprocess
 from ..core.segmentation import segment
@@ -57,7 +65,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Yeast Flowcell Analyzer — PyQt")
         self.resize(1200, 800)
-        self.reg, self.seg, self.app = load_settings()
+        self.reg, self.seg, self.app, self.uvvis = load_settings()
         self.ref_color = tuple(self.app.overlay_ref_color)
         self.mov_color = tuple(self.app.overlay_mov_color)
         self.new_color = tuple(self.app.overlay_new_color)
@@ -65,6 +73,7 @@ class MainWindow(QMainWindow):
         self.paths: list[Path] = []
         self.subdirs: list[Path] = []
         self._pending_subdirs: list[Path] | None = None
+        self._uvvis_dataset: UvVisDataset | None = None
         # Cached preview images for alpha blending
         self._reg_ref = None
         self._reg_warp = None
@@ -84,6 +93,50 @@ class MainWindow(QMainWindow):
         self._registration_done = False
         # Track whether segmentation has been run so gain/loss preview can be gated.
         self._segmentation_done = False
+
+    # ------------------------------------------------------------------
+    # UV-Vis data access helpers
+    def set_uvvis_params(self, params: UvVisParams) -> None:
+        """Replace UV-Vis parameters and persist them."""
+
+        self.uvvis = params
+        self._uvvis_dataset = None
+        save_settings(self.reg, self.seg, self.app, self.uvvis)
+
+    def update_uvvis_params(self, **kwargs) -> None:
+        """Update UV-Vis parameters in-place using dataclasses.replace."""
+
+        self.uvvis = replace(self.uvvis, **kwargs)
+        self._uvvis_dataset = None
+        save_settings(self.reg, self.seg, self.app, self.uvvis)
+
+    def get_uvvis_dataset(self, force_reload: bool = False) -> UvVisDataset | None:
+        """Load and cache the configured UV-Vis dataset."""
+
+        if force_reload:
+            self._uvvis_dataset = None
+        if not self.uvvis.data_files and not self.uvvis.data_directory:
+            return None
+        if self._uvvis_dataset is None:
+            try:
+                self._uvvis_dataset = load_uvvis_dataset(self.uvvis)
+            except FileNotFoundError as exc:
+                logger.warning("UV-Vis dataset not found: %s", exc)
+                self._uvvis_dataset = None
+            except Exception:
+                logger.exception("Failed to load UV-Vis dataset")
+                self._uvvis_dataset = None
+        return self._uvvis_dataset
+
+    def get_uvvis_metrics(self, force_reload: bool = False) -> dict | None:
+        dataset = self.get_uvvis_dataset(force_reload=force_reload)
+        if dataset is None:
+            return None
+        try:
+            return compute_uvvis_metrics(dataset, self.uvvis)
+        except Exception:
+            logger.exception("Failed to compute UV-Vis metrics")
+            return None
 
     def _add_help(self, widget, text: str) -> None:
         widget.setToolTip(text)
@@ -1017,7 +1070,7 @@ class MainWindow(QMainWindow):
         reg, seg, app = self._collect_params()
         app.last_folder = last
         self.reg, self.seg, self.app = reg, seg, app
-        save_settings(reg, seg, app)
+        save_settings(reg, seg, app, self.uvvis)
         return reg, seg, app
 
     def _save_preset(self):
@@ -1032,8 +1085,8 @@ class MainWindow(QMainWindow):
         )
         if path:
             self.app.presets_path = str(Path(path).parent)
-            save_preset(path, reg, seg, self.app)
-            save_settings(self.reg, self.seg, self.app)
+            save_preset(path, reg, seg, self.app, self.uvvis)
+            save_settings(self.reg, self.seg, self.app, self.uvvis)
             self.status_label.setText(f"Preset saved: {path}")
 
     def _load_preset(self):
@@ -1042,11 +1095,13 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        reg, seg, app = load_preset(path)
+        reg, seg, app, uvvis = load_preset(path)
         app.presets_path = str(Path(path).parent)
         self.reg = reg
         self.seg = seg
         self.app = app
+        self.uvvis = uvvis
+        self._uvvis_dataset = None
         # Update UI
         self.reg_method.setCurrentText(reg.method)
         self.reg_model.setCurrentText(reg.model)
@@ -1119,7 +1174,6 @@ class MainWindow(QMainWindow):
         self._set_btn_color(self.lost_color_btn, self.lost_color)
         self._on_overlay_mode_changed(app.overlay_mode)
         self.status_label.setText(f"Preset loaded: {path}")
-        self._persist_settings()
         self._on_reg_method_change(self.reg_method.currentText())
         self._update_gm_controls(app.gm_thresh_method)
 
