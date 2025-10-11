@@ -73,6 +73,8 @@ class MainWindow(QMainWindow):
         self._seg_overlay = None
         self._diff_img = None
         self._diff_gray = None
+        self._denoise_gray = None
+        self._denoise_img = None
         self._current_preview = None
         self._build_ui()
         self._update_seg_controls(self.seg_method.currentText())
@@ -528,6 +530,10 @@ class MainWindow(QMainWindow):
         denoise_layout.addRow("NLM strength", self.denoise_nlm_strength)
         denoise_section.setContentLayout(denoise_layout)
         controls.addWidget(denoise_section)
+        self.denoise_preview_btn = QPushButton("Preview Denoising")
+        self.denoise_preview_btn.setEnabled(False)
+        self.denoise_preview_btn.clicked.connect(self._preview_denoising)
+        controls.addWidget(self.denoise_preview_btn)
         self.denoise_gaussian.valueChanged.connect(self._persist_settings)
         self.denoise_median.valueChanged.connect(self._persist_settings)
         self.denoise_bilateral_d.valueChanged.connect(self._persist_settings)
@@ -1281,7 +1287,13 @@ class MainWindow(QMainWindow):
             and not sender.isEnabled()
         ):
             return
-        if self._current_preview not in ("registration", "segmentation", "difference", "gain_loss"):
+        if self._current_preview not in (
+            "registration",
+            "denoise",
+            "segmentation",
+            "difference",
+            "gain_loss",
+        ):
             return
         self._param_timer.start()
 
@@ -1289,6 +1301,8 @@ class MainWindow(QMainWindow):
         logger.info("Applying parameter change for preview: %s", self._current_preview)
         if self._current_preview == "registration":
             self._preview_registration()
+        elif self._current_preview == "denoise":
+            self._preview_denoising()
         elif self._current_preview == "segmentation":
             self._preview_segmentation()
         elif self._current_preview == "difference":
@@ -1327,6 +1341,11 @@ class MainWindow(QMainWindow):
             else:
                 blend = np.zeros_like(ref_color)
             self.view.setImage(blend.transpose(1, 0, 2))
+        elif (
+            self._current_preview == "denoise"
+            and self._denoise_img is not None
+        ):
+            self.view.setImage(self._denoise_img.transpose(1, 0, 2))
         elif (
             self._current_preview == "segmentation"
             and self._seg_gray is not None
@@ -1381,10 +1400,13 @@ class MainWindow(QMainWindow):
         self._seg_overlay = None
         self._diff_img = None
         self._diff_gray = None
+        self._denoise_gray = None
+        self._denoise_img = None
         # Reset registration flag until this preview completes successfully
         self._registration_done = False
         self.seg_preview_btn.setEnabled(False)
         self.diff_preview_btn.setEnabled(False)
+        self.denoise_preview_btn.setEnabled(False)
         self._reset_gain_loss_preview()
 
         if len(self.paths) < 2:
@@ -1491,8 +1513,11 @@ class MainWindow(QMainWindow):
         self._seg_overlay = None
         self._diff_img = None
         self._diff_gray = None
+        self._denoise_gray = None
+        self._denoise_img = None
         self.seg_preview_btn.setEnabled(False)
         self.diff_preview_btn.setEnabled(False)
+        self.denoise_preview_btn.setEnabled(False)
         self._reset_gain_loss_preview()
 
         if len(self.paths) < 2:
@@ -1597,8 +1622,33 @@ class MainWindow(QMainWindow):
             self._refresh_overlay_alpha()
             self.view.setImage(self.view.imageItem.image)
             self.status_label.setText("Difference preview successful.")
-            self.seg_preview_btn.setEnabled(True)
             self.diff_preview_btn.setEnabled(True)
+            self.denoise_preview_btn.setEnabled(True)
+        except Exception as e:
+            self.status_label.setText(f"Preview failed: {e}")
+
+    def _preview_denoising(self):
+        if self._diff_gray is None:
+            QMessageBox.warning(
+                self, "Run difference preview", "Run the difference preview first."
+            )
+            return
+        self.seg_preview_btn.setEnabled(False)
+        try:
+            _, seg, _ = self._persist_settings()
+            gray = self._diff_gray
+            if gray.dtype != np.uint8:
+                gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+            proc_gray = apply_denoising(gray, seg)
+            self._denoise_gray = proc_gray
+            self._denoise_img = cv2.cvtColor(proc_gray, cv2.COLOR_GRAY2RGB)
+            self._seg_gray = None
+            self._seg_overlay = None
+            self._current_preview = "denoise"
+            self._refresh_overlay_alpha()
+            self.view.setImage(self.view.imageItem.image)
+            self.status_label.setText("Denoising preview successful.")
+            self.seg_preview_btn.setEnabled(True)
         except Exception as e:
             self.status_label.setText(f"Preview failed: {e}")
 
@@ -1625,7 +1675,12 @@ class MainWindow(QMainWindow):
                 gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(
                     np.uint8
                 )
-            proc_gray = apply_denoising(gray, seg)
+            if self._denoise_gray is not None:
+                proc_gray = self._denoise_gray
+            else:
+                proc_gray = apply_denoising(gray, seg)
+                self._denoise_gray = proc_gray
+                self._denoise_img = cv2.cvtColor(proc_gray, cv2.COLOR_GRAY2RGB)
             bw = segment(
                 proc_gray,
                 method=seg.method,
