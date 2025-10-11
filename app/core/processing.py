@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Dict
 from .io_utils import imread_gray, imread_color, ensure_dir
 from .registration import register_ecc, register_orb, register_orb_ecc, crop_to_overlap, preprocess
-from .segmentation import segment
+from .segmentation import segment, apply_denoising
 from .difference import compute_difference
 from .background import normalize_background, estimate_temporal_background
 from .evaluation import write_shape_properties
@@ -475,8 +475,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             )
 
     ref_gray = registered_frames[ref_idx]
+    ref_input = apply_denoising(ref_gray, seg_cfg)
     bw_ref = segment(
-        ref_gray,
+        ref_input,
         method=seg_cfg.get("method", "otsu"),
         invert=bool(seg_cfg.get("invert", True)),
         skip_outline=bool(seg_cfg.get("skip_outline", False)),
@@ -554,8 +555,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             seg_img = compute_difference(
                 prev_crop, mov_crop, method=app_cfg.get("difference_method", "abs")
             )
+            seg_input = apply_denoising(seg_img, seg_cfg)
             bw_diff = segment(
-                seg_img,
+                seg_input,
                 method=seg_cfg.get("method", "otsu"),
                 invert=bool(seg_cfg.get("invert", True)),
                 skip_outline=bool(seg_cfg.get("skip_outline", False)),
@@ -766,8 +768,9 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
                 str(prev_dir / f"{prev_k:04d}_prev.png")
             )
             overlay_color = tuple(app_cfg.get("overlay_mov_color", (255, 0, 255)))
+            mov_input = apply_denoising(mov_crop, seg_cfg)
             mov_seg = segment(
-                mov_crop,
+                mov_input,
                 method=seg_cfg.get("method", "otsu"),
                 invert=bool(seg_cfg.get("invert", True)),
                 skip_outline=bool(seg_cfg.get("skip_outline", False)),

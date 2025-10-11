@@ -49,6 +49,12 @@ class SegParams:
     invert: bool = True  # cells darker
     skip_outline: bool = False
     use_clahe: bool = False
+    gaussian_sigma: float = 0.0
+    median_kernel_size: int = 0
+    bilateral_diameter: int = 0
+    bilateral_sigma_color: float = 0.0
+    bilateral_sigma_space: float = 0.0
+    nlm_strength: float | None = None
 
 @dataclass
 class AppParams:

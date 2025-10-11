@@ -43,7 +43,7 @@ from ..core.io_utils import (
     compute_global_minmax,
 )
 from ..core.registration import register_ecc, register_orb, register_orb_ecc, preprocess
-from ..core.segmentation import segment
+from ..core.segmentation import segment, apply_denoising
 from ..core.processing import overlay_outline, _detect_green_magenta
 from ..core.difference import compute_difference
 from ..workers.pipeline_worker import PipelineWorker
@@ -485,6 +485,57 @@ class MainWindow(QMainWindow):
         self.diff_method.currentTextChanged.connect(self._on_params_changed)
         self.show_diff_overlay_cb.toggled.connect(self._persist_settings)
 
+        # Denoising params
+        denoise_section = CollapsibleSection("Denoising", collapsed=True)
+        denoise_layout = QFormLayout()
+        self.denoise_gaussian = QDoubleSpinBox()
+        self.denoise_gaussian.setRange(0.0, 10.0)
+        self.denoise_gaussian.setDecimals(2)
+        self.denoise_gaussian.setSingleStep(0.1)
+        self.denoise_gaussian.setValue(self.seg.gaussian_sigma)
+        self.denoise_median = QSpinBox()
+        self.denoise_median.setRange(0, 99)
+        self.denoise_median.setSingleStep(2)
+        self.denoise_median.setValue(self.seg.median_kernel_size)
+        self.denoise_bilateral_d = QSpinBox()
+        self.denoise_bilateral_d.setRange(0, 99)
+        self.denoise_bilateral_d.setValue(self.seg.bilateral_diameter)
+        self.denoise_bilateral_sigma_color = QDoubleSpinBox()
+        self.denoise_bilateral_sigma_color.setRange(0.0, 255.0)
+        self.denoise_bilateral_sigma_color.setDecimals(1)
+        self.denoise_bilateral_sigma_color.setSingleStep(1.0)
+        self.denoise_bilateral_sigma_color.setValue(self.seg.bilateral_sigma_color)
+        self.denoise_bilateral_sigma_space = QDoubleSpinBox()
+        self.denoise_bilateral_sigma_space.setRange(0.0, 50.0)
+        self.denoise_bilateral_sigma_space.setDecimals(1)
+        self.denoise_bilateral_sigma_space.setSingleStep(0.5)
+        self.denoise_bilateral_sigma_space.setValue(self.seg.bilateral_sigma_space)
+        self.denoise_nlm_strength = QDoubleSpinBox()
+        self.denoise_nlm_strength.setRange(0.0, 50.0)
+        self.denoise_nlm_strength.setDecimals(1)
+        self.denoise_nlm_strength.setSingleStep(0.5)
+        self.denoise_nlm_strength.setValue(self.seg.nlm_strength or 0.0)
+        denoise_layout.addRow("Gaussian σ", self.denoise_gaussian)
+        denoise_layout.addRow("Median kernel", self.denoise_median)
+        denoise_layout.addRow("Bilateral diameter", self.denoise_bilateral_d)
+        denoise_layout.addRow("Bilateral σcolor", self.denoise_bilateral_sigma_color)
+        denoise_layout.addRow("Bilateral σspace", self.denoise_bilateral_sigma_space)
+        denoise_layout.addRow("NLM strength", self.denoise_nlm_strength)
+        denoise_section.setContentLayout(denoise_layout)
+        controls.addWidget(denoise_section)
+        self.denoise_gaussian.valueChanged.connect(self._persist_settings)
+        self.denoise_median.valueChanged.connect(self._persist_settings)
+        self.denoise_bilateral_d.valueChanged.connect(self._persist_settings)
+        self.denoise_bilateral_sigma_color.valueChanged.connect(self._persist_settings)
+        self.denoise_bilateral_sigma_space.valueChanged.connect(self._persist_settings)
+        self.denoise_nlm_strength.valueChanged.connect(self._persist_settings)
+        self.denoise_gaussian.valueChanged.connect(self._on_params_changed)
+        self.denoise_median.valueChanged.connect(self._on_params_changed)
+        self.denoise_bilateral_d.valueChanged.connect(self._on_params_changed)
+        self.denoise_bilateral_sigma_color.valueChanged.connect(self._on_params_changed)
+        self.denoise_bilateral_sigma_space.valueChanged.connect(self._on_params_changed)
+        self.denoise_nlm_strength.valueChanged.connect(self._on_params_changed)
+
         # Segmentation params
         seg_section = CollapsibleSection("Segmentation", collapsed=True)
         seg_layout = QVBoxLayout()
@@ -610,6 +661,30 @@ class MainWindow(QMainWindow):
         self.gm_section.setEnabled(False)
         self._update_gm_controls(self.gm_thresh_method.currentText())
         controls.addWidget(self.gm_section)
+        self._add_help(
+            self.denoise_gaussian,
+            "Apply Gaussian blur before segmentation. Increase σ to smooth noise; set to 0 to disable.",
+        )
+        self._add_help(
+            self.denoise_median,
+            "Median filter kernel size. Uses the nearest odd value; set to 0 to skip.",
+        )
+        self._add_help(
+            self.denoise_bilateral_d,
+            "Bilateral filter diameter in pixels. Requires σ values to take effect.",
+        )
+        self._add_help(
+            self.denoise_bilateral_sigma_color,
+            "Bilateral filter color sigma. Larger values smooth across higher intensity differences.",
+        )
+        self._add_help(
+            self.denoise_bilateral_sigma_space,
+            "Bilateral filter spatial sigma. Controls how far pixels influence each other.",
+        )
+        self._add_help(
+            self.denoise_nlm_strength,
+            "Fast Non-Local Means denoising strength. Higher values remove more noise; 0 disables.",
+        )
         self._add_help(
             self.seg_method,
             "Segmentation algorithm. Otsu chooses a global threshold; Adaptive and Local use"
@@ -961,6 +1036,7 @@ class MainWindow(QMainWindow):
             min_matches=self.min_matches.value(),
             use_ecc_fallback=self.use_ecc_fallback.isChecked(),
         )
+        nlm_val = self.denoise_nlm_strength.value()
         seg = SegParams(
             method=self.seg_method.currentText(),
             invert=self.invert.isChecked(),
@@ -976,6 +1052,12 @@ class MainWindow(QMainWindow):
             remove_objects_smaller_px=self.rm_obj.value(),
             remove_holes_smaller_px=self.rm_holes.value(),
             use_clahe=self.use_clahe.isChecked(),
+            gaussian_sigma=self.denoise_gaussian.value(),
+            median_kernel_size=self.denoise_median.value(),
+            bilateral_diameter=self.denoise_bilateral_d.value(),
+            bilateral_sigma_color=self.denoise_bilateral_sigma_color.value(),
+            bilateral_sigma_space=self.denoise_bilateral_sigma_space.value(),
+            nlm_strength=nlm_val if nlm_val > 0 else None,
         )
         scale_minmax = (self.scale_min.value(), self.scale_max.value())
         if scale_minmax[1] <= scale_minmax[0]:
@@ -1081,6 +1163,12 @@ class MainWindow(QMainWindow):
             self.close_r.lineEdit().clear()
         self.rm_obj.setValue(seg.remove_objects_smaller_px)
         self.rm_holes.setValue(seg.remove_holes_smaller_px)
+        self.denoise_gaussian.setValue(seg.gaussian_sigma)
+        self.denoise_median.setValue(seg.median_kernel_size)
+        self.denoise_bilateral_d.setValue(seg.bilateral_diameter)
+        self.denoise_bilateral_sigma_color.setValue(seg.bilateral_sigma_color)
+        self.denoise_bilateral_sigma_space.setValue(seg.bilateral_sigma_space)
+        self.denoise_nlm_strength.setValue(seg.nlm_strength or 0.0)
         self.gm_thresh_method.setCurrentText(app.gm_thresh_method)
         self.gm_thresh_percentile.setValue(app.gm_thresh_percentile)
         self.gm_close_k.setValue(app.gm_close_kernel)
@@ -1532,8 +1620,9 @@ class MainWindow(QMainWindow):
                 gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX).astype(
                     np.uint8
                 )
+            proc_gray = apply_denoising(gray, seg)
             bw = segment(
-                gray,
+                proc_gray,
                 method=seg.method,
                 invert=seg.invert,
                 skip_outline=seg.skip_outline,
@@ -1549,9 +1638,9 @@ class MainWindow(QMainWindow):
                 use_clahe=seg.use_clahe,
             )
 
-            self._seg_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+            self._seg_gray = cv2.cvtColor(proc_gray, cv2.COLOR_GRAY2RGB)
             self._seg_overlay = cv2.cvtColor(
-                overlay_outline(gray, bw), cv2.COLOR_BGR2RGB
+                overlay_outline(proc_gray, bw), cv2.COLOR_BGR2RGB
             )
             self._current_preview = "segmentation"
             self._registration_done = True
@@ -1579,8 +1668,9 @@ class MainWindow(QMainWindow):
             return
         try:
             _, seg, app = self._persist_settings()
+            prev_input = apply_denoising(self._reg_ref, seg)
             prev_bw = segment(
-                self._reg_ref,
+                prev_input,
                 method=seg.method,
                 invert=seg.invert,
                 skip_outline=seg.skip_outline,
@@ -1594,8 +1684,9 @@ class MainWindow(QMainWindow):
                 remove_holes_smaller_px=seg.remove_holes_smaller_px,
                 use_clahe=seg.use_clahe,
             )
+            curr_input = apply_denoising(self._reg_warp, seg)
             curr_bw = segment(
-                self._reg_warp,
+                curr_input,
                 method=seg.method,
                 invert=seg.invert,
                 skip_outline=seg.skip_outline,
@@ -1724,6 +1815,13 @@ class MainWindow(QMainWindow):
             morph_close_radius=seg.morph_close_radius,
             remove_objects_smaller_px=seg.remove_objects_smaller_px,
             remove_holes_smaller_px=seg.remove_holes_smaller_px,
+            use_clahe=seg.use_clahe,
+            gaussian_sigma=seg.gaussian_sigma,
+            median_kernel_size=seg.median_kernel_size,
+            bilateral_diameter=seg.bilateral_diameter,
+            bilateral_sigma_color=seg.bilateral_sigma_color,
+            bilateral_sigma_space=seg.bilateral_sigma_space,
+            nlm_strength=seg.nlm_strength,
         )
         app_cfg = dict(
             direction=app.direction,

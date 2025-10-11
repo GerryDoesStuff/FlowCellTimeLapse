@@ -1,7 +1,85 @@
 from __future__ import annotations
+from typing import Mapping, Any
 import numpy as np
 import cv2
 from skimage import morphology, filters
+
+
+def _seg_param(params: Any, key: str, default: Any) -> Any:
+    if hasattr(params, key):
+        return getattr(params, key)
+    if isinstance(params, Mapping):
+        return params.get(key, default)
+    return default
+
+
+def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
+    """Apply optional denoising steps configured in :class:`SegParams`.
+
+    Parameters
+    ----------
+    gray:
+        Input grayscale image. The array is never modified in place; a copy is
+        returned even when no filters are enabled.
+    params:
+        Either a :class:`SegParams` instance or a mapping that exposes the
+        denoising keys (``gaussian_sigma``, ``median_kernel_size``,
+        ``bilateral_diameter``, ``bilateral_sigma_color``,
+        ``bilateral_sigma_space``, ``nlm_strength``).
+    """
+
+    sigma = float(_seg_param(params, "gaussian_sigma", 0.0) or 0.0)
+    median = int(_seg_param(params, "median_kernel_size", 0) or 0)
+    bilateral_d = int(_seg_param(params, "bilateral_diameter", 0) or 0)
+    bilateral_sigma_color = float(
+        _seg_param(params, "bilateral_sigma_color", 0.0) or 0.0
+    )
+    bilateral_sigma_space = float(
+        _seg_param(params, "bilateral_sigma_space", 0.0) or 0.0
+    )
+    nlm_strength = _seg_param(params, "nlm_strength", None)
+    try:
+        nlm_strength = None if nlm_strength is None else float(nlm_strength)
+    except (TypeError, ValueError):
+        nlm_strength = None
+
+    work: np.ndarray | None = None
+
+    def ensure_work() -> np.ndarray:
+        nonlocal work
+        if work is None:
+            work = gray.astype(np.uint8, copy=True)
+        return work
+
+    if sigma > 0:
+        work = cv2.GaussianBlur(ensure_work(), (0, 0), sigma)
+
+    if median >= 3:
+        ksize = median | 1  # ensure odd kernel size
+        work = cv2.medianBlur(ensure_work(), ksize)
+
+    if bilateral_d > 0 and (bilateral_sigma_color > 0 or bilateral_sigma_space > 0):
+        work = cv2.bilateralFilter(
+            ensure_work(),
+            bilateral_d,
+            max(bilateral_sigma_color, 0.0),
+            max(bilateral_sigma_space, 0.0),
+        )
+
+    if nlm_strength is not None and nlm_strength > 0:
+        work = cv2.fastNlMeansDenoising(
+            ensure_work(),
+            None,
+            float(nlm_strength),
+            templateWindowSize=7,
+            searchWindowSize=21,
+        )
+
+    if work is None:
+        return gray.copy()
+    if gray.dtype == np.uint8:
+        return work
+    return work.astype(gray.dtype)
 
 
 def outline_focused(gray: np.ndarray, invert: bool = True) -> np.ndarray:
