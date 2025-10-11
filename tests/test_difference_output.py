@@ -64,9 +64,14 @@ def test_difference_output(tmp_path, monkeypatch):
     assert (diff_dir / "green" / "0000_bw_green.png").exists()
     assert (diff_dir / "magenta" / "0000_bw_magenta.png").exists()
     bw_props = pd.read_csv(diff_dir / "bw" / "bw_props.csv")
-    assert bw_props.loc[0, "area_px"] == 32 * 32
-    assert bw_props.loc[0, "bbox_width"] == 32
-    assert bw_props.loc[0, "bbox_height"] == 32
+    assert {"frame_index", "frame_name"}.issubset(bw_props.columns)
+    bw_frame = bw_props[bw_props["frame_index"] == 1]
+    assert not bw_frame.empty
+    bw_row = bw_frame.iloc[0]
+    assert bw_row["frame_name"] == paths[1].name
+    assert bw_row["area_px"] == 32 * 32
+    assert bw_row["bbox_width"] == 32
+    assert bw_row["bbox_height"] == 32
     assert (diff_dir / "gm" / "gm_props.csv").exists()
     assert (seg_dir / "mask_0000.png").exists()
     assert (seg_dir / "mask_0000_overlay.png").exists()

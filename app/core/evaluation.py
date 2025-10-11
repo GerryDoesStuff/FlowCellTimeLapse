@@ -33,7 +33,13 @@ def _read_mask(path: Path | None) -> np.ndarray | None:
     return mask
 
 
-def write_shape_properties(mask: np.ndarray, csv_path: Path | str) -> None:
+def write_shape_properties(
+    mask: np.ndarray,
+    csv_path: Path | str,
+    *,
+    frame_index: int,
+    frame_name: str | None = None,
+) -> None:
     """Append connected component properties of ``mask`` to ``csv_path``.
 
     Parameters
@@ -45,7 +51,14 @@ def write_shape_properties(mask: np.ndarray, csv_path: Path | str) -> None:
         Destination CSV file. Created if it does not yet exist. The
         resulting table contains one row per connected component with the
         columns ``area_px``, ``centroid_x``, ``centroid_y``, ``bbox_left``,
-        ``bbox_top``, ``bbox_width`` and ``bbox_height``.
+        ``bbox_top``, ``bbox_width`` and ``bbox_height`` together with the
+        provided metadata columns.
+    frame_index:
+        Index of the frame from which ``mask`` originates. Stored with every
+        connected component row to simplify downstream filtering.
+    frame_name:
+        Optional human-readable frame identifier. When provided this value is
+        stored alongside the numeric index.
     """
 
     csv_path = Path(csv_path)
@@ -54,7 +67,7 @@ def write_shape_properties(mask: np.ndarray, csv_path: Path | str) -> None:
     mask_bin = (mask > 0).astype(np.uint8)
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_bin)
 
-    rows: list[dict[str, float]] = []
+    rows: list[dict[str, Any]] = []
     for lbl in range(1, num_labels):  # Skip background
         x = int(stats[lbl, cv2.CC_STAT_LEFT])
         y = int(stats[lbl, cv2.CC_STAT_TOP])
@@ -62,17 +75,19 @@ def write_shape_properties(mask: np.ndarray, csv_path: Path | str) -> None:
         h = int(stats[lbl, cv2.CC_STAT_HEIGHT])
         area = int(stats[lbl, cv2.CC_STAT_AREA])
         cx, cy = centroids[lbl]
-        rows.append(
-            {
-                "area_px": area,
-                "centroid_x": float(cx),
-                "centroid_y": float(cy),
-                "bbox_left": x,
-                "bbox_top": y,
-                "bbox_width": w,
-                "bbox_height": h,
-            }
-        )
+        row: dict[str, Any] = {
+            "frame_index": frame_index,
+            "area_px": area,
+            "centroid_x": float(cx),
+            "centroid_y": float(cy),
+            "bbox_left": x,
+            "bbox_top": y,
+            "bbox_width": w,
+            "bbox_height": h,
+        }
+        if frame_name is not None:
+            row["frame_name"] = frame_name
+        rows.append(row)
 
     if not rows:
         return

@@ -589,7 +589,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode(".png", bw_diff_u8)[1].tofile(
                 str(diff_bw_dir / f"{k:04d}_bw_diff.png")
             )
-            write_shape_properties(bw_diff_u8, diff_bw_dir / "bw_props.csv")
+            write_shape_properties(
+                bw_diff_u8,
+                diff_bw_dir / "bw_props.csv",
+                frame_index=k,
+                frame_name=paths[k].name,
+            )
 
         # Use the difference mask directly for subsequent processing. When
         # ``idx == 0`` no difference is available, so fall back to an empty
@@ -628,7 +633,12 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
         )
         if save_diagnostics:
             gm_mask_u8 = ((green_mask | magenta_mask) * 255).astype(np.uint8)
-            write_shape_properties(gm_mask_u8, diff_gm_dir / "gm_props.csv")
+            write_shape_properties(
+                gm_mask_u8,
+                diff_gm_dir / "gm_props.csv",
+                frame_index=k,
+                frame_name=paths[k].name,
+            )
 
         # Prepare updated segmentation for the current frame before any
         # direction-dependent swapping occurs so that stable regions persist.
@@ -654,8 +664,18 @@ def analyze_sequence(paths: List[Path], reg_cfg: dict, seg_cfg: dict, app_cfg: d
             cv2.imencode('.png', magenta_u8)[1].tofile(
                 str(diff_magenta_dir / f"{prev_k:04d}_bw_magenta.png")
             )
-            write_shape_properties(green_u8, diff_green_dir / "green_props.csv")
-            write_shape_properties(magenta_u8, diff_magenta_dir / "magenta_props.csv")
+            write_shape_properties(
+                green_u8,
+                diff_green_dir / "green_props.csv",
+                frame_index=prev_k,
+                frame_name=paths[prev_k].name,
+            )
+            write_shape_properties(
+                magenta_u8,
+                diff_magenta_dir / "magenta_props.csv",
+                frame_index=prev_k,
+                frame_name=paths[prev_k].name,
+            )
             if save_diagnostics:
                 cv2.imencode('.png', (bw_overlap * 255).astype(np.uint8))[1].tofile(
                     str(diff_overlap_dir / f"{prev_k:04d}_bw_overlap.png")
