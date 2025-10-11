@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QToolTip,
     QColorDialog,
+    QScrollArea,
 )
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QThread, QTimer
@@ -178,8 +179,12 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(central)
 
         # Left: controls
-        controls = QVBoxLayout()
-        layout.addLayout(controls, 0)
+        controls_widget = QWidget()
+        controls = QVBoxLayout(controls_widget)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(controls_widget)
+        layout.addWidget(scroll_area, 0)
 
         # Folder
         folder_box = QHBoxLayout()
