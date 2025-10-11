@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import cv2
 import pytest
 
 pytest.importorskip("PyQt6")
@@ -10,6 +12,7 @@ pg.setConfigOptions(useOpenGL=False)
 
 from app.ui.main_window import MainWindow
 from app.models.config import save_preset, load_preset, RegParams, SegParams, AppParams
+from app.core.segmentation import apply_denoising
 
 
 def test_settings_persist(tmp_path):
@@ -40,6 +43,12 @@ def test_settings_persist(tmp_path):
     win.min_matches.setValue(6)
     win.use_ecc_fallback.setChecked(False)
     win.seg_method.setCurrentText("manual")
+    win.denoise_gaussian.setValue(1.5)
+    win.denoise_median.setValue(5)
+    win.denoise_bilateral_d.setValue(7)
+    win.denoise_bilateral_sigma_color.setValue(40.0)
+    win.denoise_bilateral_sigma_space.setValue(6.0)
+    win.denoise_nlm_strength.setValue(3.0)
     win.skip_outline.setChecked(True)
     win.dir_combo.setCurrentText("first-to-last")
     win.diff_method.setCurrentText("lab")
@@ -75,6 +84,18 @@ def test_settings_persist(tmp_path):
     assert win2.min_matches.value() == 6
     assert not win2.use_ecc_fallback.isChecked()
     assert win2.seg_method.currentText() == "manual"
+    assert win2.denoise_gaussian.value() == pytest.approx(1.5)
+    assert win2.denoise_median.value() == 5
+    assert win2.denoise_bilateral_d.value() == 7
+    assert win2.denoise_bilateral_sigma_color.value() == pytest.approx(40.0)
+    assert win2.denoise_bilateral_sigma_space.value() == pytest.approx(6.0)
+    assert win2.denoise_nlm_strength.value() == pytest.approx(3.0)
+    assert win2.seg.gaussian_sigma == pytest.approx(1.5)
+    assert win2.seg.median_kernel_size == 5
+    assert win2.seg.bilateral_diameter == 7
+    assert win2.seg.bilateral_sigma_color == pytest.approx(40.0)
+    assert win2.seg.bilateral_sigma_space == pytest.approx(6.0)
+    assert win2.seg.nlm_strength == pytest.approx(3.0)
     assert win2.skip_outline.isChecked()
     assert win2.dir_combo.currentText() == "first-to-last"
     assert win2.diff_method.currentText() == "lab"
@@ -154,3 +175,46 @@ def test_preset_gm_params(tmp_path):
     _, _, app = load_preset(str(preset))
     assert app.gm_opacity == 67
     assert app.gm_saturation == 1.5
+
+
+def test_preset_segmentation_denoise(tmp_path):
+    preset = tmp_path / "seg_preset.json"
+    seg = SegParams(
+        gaussian_sigma=1.2,
+        median_kernel_size=7,
+        bilateral_diameter=9,
+        bilateral_sigma_color=32.0,
+        bilateral_sigma_space=5.5,
+        nlm_strength=2.5,
+    )
+    save_preset(str(preset), RegParams(), seg, AppParams())
+    _, seg_loaded, _ = load_preset(str(preset))
+    assert seg_loaded.gaussian_sigma == pytest.approx(1.2)
+    assert seg_loaded.median_kernel_size == 7
+    assert seg_loaded.bilateral_diameter == 9
+    assert seg_loaded.bilateral_sigma_color == pytest.approx(32.0)
+    assert seg_loaded.bilateral_sigma_space == pytest.approx(5.5)
+    assert seg_loaded.nlm_strength == pytest.approx(2.5)
+
+
+def test_apply_denoising_chain():
+    img = (np.arange(25, dtype=np.uint8).reshape(5, 5) * 10) % 256
+    params = SegParams(gaussian_sigma=1.0, median_kernel_size=3)
+    out = apply_denoising(img, params)
+    expected = cv2.medianBlur(cv2.GaussianBlur(img, (0, 0), 1.0), 3)
+    assert np.array_equal(out, expected)
+
+    cfg = {
+        "gaussian_sigma": 0.5,
+        "median_kernel_size": 0,
+        "bilateral_diameter": 5,
+        "bilateral_sigma_color": 20.0,
+        "bilateral_sigma_space": 4.0,
+    }
+    out_cfg = apply_denoising(img, cfg)
+    expected_cfg = cv2.bilateralFilter(cv2.GaussianBlur(img, (0, 0), 0.5), 5, 20.0, 4.0)
+    assert np.array_equal(out_cfg, expected_cfg)
+
+    noop = apply_denoising(img, SegParams())
+    assert np.array_equal(noop, img)
+    assert noop is not img
