@@ -55,6 +55,19 @@ class SegParams:
     bilateral_sigma_color: float = 0.0
     bilateral_sigma_space: float = 0.0
     nlm_strength: float | None = None
+    tv_weight: float = 0.0
+    tv_eps: float = 2e-4
+    tv_max_iter: int = 200
+    anisotropic_lambda: float = 0.0
+    anisotropic_kappa: float = 0.0
+    anisotropic_niter: int = 0
+    wavelet_sigma: float = 0.0
+    wavelet_mode: str = "soft"
+    wavelet_rescale: bool = False
+    wavelet_method: str = "BayesShrink"
+    bm3d_enabled: bool = False
+    bm3d_sigma: float = 0.0
+    bm3d_stage: str = "hard"
 
 @dataclass
 class AppParams:
@@ -112,7 +125,10 @@ def load_preset(path: str) -> tuple[RegParams, SegParams, AppParams]:
         "save_gm_composite",
     ]:
         app_data.pop(key, None)
-    return RegParams(**data["reg"]), SegParams(**data["seg"]), AppParams(**app_data)
+    seg_data: Dict[str, Any] = data["seg"]
+    for key, value in vars(SegParams()).items():
+        seg_data.setdefault(key, value)
+    return RegParams(**data["reg"]), SegParams(**seg_data), AppParams(**app_data)
 
 def save_settings(reg: RegParams, seg: SegParams, app: AppParams) -> None:
     s = QSettings("YeastLab", "FlowcellPyQt")
@@ -129,6 +145,9 @@ def load_settings() -> tuple[RegParams, SegParams, AppParams]:
             return default
         try:
             data = json.loads(v)
+            if cls is SegParams:
+                for key, value in vars(SegParams()).items():
+                    data.setdefault(key, value)
             if cls is AppParams:
                 data.setdefault("gm_saturation", 1.0)
                 data.setdefault("gm_opacity", data.get("overlay_opacity", 50))
