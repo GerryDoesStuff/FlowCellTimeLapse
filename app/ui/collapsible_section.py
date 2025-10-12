@@ -48,8 +48,3 @@ class CollapsibleSection(QWidget):
             Qt.ArrowType.DownArrow if visible else Qt.ArrowType.RightArrow
         )
         self._content.updateGeometry()
-        window = self.window()
-        if window is not None:
-            width = window.width()
-            window.adjustSize()
-            window.resize(width, window.height())
