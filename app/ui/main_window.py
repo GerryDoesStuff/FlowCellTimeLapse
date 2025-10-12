@@ -667,11 +667,11 @@ class MainWindow(QMainWindow):
         self.gm_preview_btn = QPushButton("Preview Gain/Loss")
         self.gm_preview_btn.setEnabled(False)
         self.gm_preview_btn.clicked.connect(self._preview_gain_loss)
-        gm_layout.addWidget(self.gm_preview_btn)
         self.gm_section.setContentLayout(gm_layout)
         self.gm_section.setEnabled(False)
         self._update_gm_controls(self.gm_thresh_method.currentText())
         controls.addWidget(self.gm_section)
+        controls.addWidget(self.gm_preview_btn)
         self._add_help(
             self.denoise_gaussian,
             "Gaussian blur before segmentation. Higher σ smooths background noise but softens edges;"
