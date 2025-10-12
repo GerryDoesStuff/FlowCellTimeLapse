@@ -674,27 +674,33 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.gm_section)
         self._add_help(
             self.denoise_gaussian,
-            "Apply Gaussian blur before segmentation. Increase σ to smooth noise; set to 0 to disable.",
+            "Gaussian blur before segmentation. Higher σ smooths background noise but softens edges;"
+            " start around 0.5–1.5 for yeast frames, 0 skips.",
         )
         self._add_help(
             self.denoise_median,
-            "Median filter kernel size. Uses the nearest odd value; set to 0 to skip.",
+            "Median filter window. Uses the nearest odd value to suppress hot pixels; start with"
+            " 3–5 for typical flowcells, 0 skips.",
         )
         self._add_help(
             self.denoise_bilateral_d,
-            "Bilateral filter diameter in pixels. Requires σ values to take effect.",
+            "Bilateral filter diameter in pixels. Larger windows average more area while preserving"
+            " edges; try 5–9 when paired with σ settings.",
         )
         self._add_help(
             self.denoise_bilateral_sigma_color,
-            "Bilateral filter color sigma. Larger values smooth across higher intensity differences.",
+            "Bilateral intensity sigma. Higher values smooth across bigger brightness jumps but can"
+            " wash faint features; start around 20–40.",
         )
         self._add_help(
             self.denoise_bilateral_sigma_space,
-            "Bilateral filter spatial sigma. Controls how far pixels influence each other.",
+            "Bilateral spatial sigma. Sets how far influence extends—1–4 px preserves yeast cell"
+            " edges, larger blurs more.",
         )
         self._add_help(
             self.denoise_nlm_strength,
-            "Fast Non-Local Means denoising strength. Higher values remove more noise; 0 disables.",
+            "Fast Non-Local Means strength in gray levels. Increase to tame mottled backgrounds;"
+            " 5–15 works well for most stacks, 0 disables.",
         )
         self._add_help(
             self.seg_method,
