@@ -1782,7 +1782,16 @@ class MainWindow(QMainWindow):
             green_mask, magenta_mask = _detect_green_magenta(
                 gm_comp, prev_bw, curr_bw, app_cfg, direction=app.direction
             )
-            overlay = cv2.cvtColor(self._diff_gray, cv2.COLOR_GRAY2BGR)
+            if self._seg_overlay is not None:
+                overlay = cv2.cvtColor(self._seg_overlay, cv2.COLOR_RGB2BGR).copy()
+            elif self._denoise_img is not None:
+                overlay = cv2.cvtColor(self._denoise_img, cv2.COLOR_RGB2BGR).copy()
+            elif self._denoise_gray is not None:
+                overlay = cv2.cvtColor(self._denoise_gray, cv2.COLOR_GRAY2BGR).copy()
+            elif self._diff_img is not None:
+                overlay = cv2.cvtColor(self._diff_img, cv2.COLOR_RGB2BGR).copy()
+            else:
+                overlay = cv2.cvtColor(self._diff_gray, cv2.COLOR_GRAY2BGR).copy()
             for mask, color in ((green_mask, self.lost_color), (magenta_mask, self.new_color)):
                 contours, _ = cv2.findContours(
                     (mask > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
