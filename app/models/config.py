@@ -1,8 +1,10 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Literal, Optional, Dict, Any
 import json
 from PyQt6.QtCore import QSettings
+
+from ..core.denoise_order import DEFAULT_DENOISE_ORDER
 
 RegistrationModel = Literal["translation","euclidean","affine","homography"]
 RegMethod = Literal["ECC", "ORB", "ORB+ECC"]
@@ -75,6 +77,9 @@ class SegParams:
     bm3d_enabled: bool = False
     bm3d_sigma: float = 0.0
     bm3d_stage: str = "hard"
+    denoise_order: list[str] = field(
+        default_factory=lambda: list(DEFAULT_DENOISE_ORDER)
+    )
 
 @dataclass
 class AppParams:

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from collections import OrderedDict
+
 from PyQt6.QtWidgets import (
     QMainWindow,
     QFileDialog,
@@ -20,6 +22,9 @@ from PyQt6.QtWidgets import (
     QToolTip,
     QColorDialog,
     QScrollArea,
+    QListWidget,
+    QListWidgetItem,
+    QAbstractItemView,
 )
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QThread, QTimer
@@ -45,6 +50,7 @@ from ..core.io_utils import (
 )
 from ..core.registration import register_ecc, register_orb, register_orb_ecc, preprocess
 from ..core.segmentation import segment, apply_denoising
+from ..core.denoise_order import normalize_denoise_order, DEFAULT_DENOISE_ORDER
 from ..core.processing import overlay_outline, _detect_green_magenta
 from ..core.difference import compute_difference
 from ..workers.pipeline_worker import PipelineWorker
@@ -166,6 +172,72 @@ class MainWindow(QMainWindow):
         """Enable or disable BM3D parameter widgets when the filter toggles."""
         self.denoise_bm3d_sigma.setEnabled(enabled)
         self.denoise_bm3d_stage.setEnabled(enabled)
+
+    def _update_denoise_item_size(self, step_id: str) -> None:
+        item = getattr(self, "_denoise_step_items", {}).get(step_id)
+        widget = getattr(self, "_denoise_step_widgets", {}).get(step_id)
+        if item is not None and widget is not None:
+            item.setSizeHint(widget.sizeHint())
+
+    def _get_denoise_order(self) -> list[str]:
+        if not hasattr(self, "denoise_list"):
+            return list(DEFAULT_DENOISE_ORDER)
+        order: list[str] = []
+        for i in range(self.denoise_list.count()):
+            item = self.denoise_list.item(i)
+            if item is None:
+                continue
+            data = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(data, str):
+                order.append(data)
+        return normalize_denoise_order(order)
+
+    def _sync_denoise_subsections_order(self) -> None:
+        ordered = OrderedDict()
+        for step_id in self._get_denoise_order():
+            attr = getattr(self, "_denoise_step_attrs", {}).get(step_id)
+            widget = getattr(self, "_denoise_step_widgets", {}).get(step_id)
+            if attr is None or widget is None:
+                continue
+            ordered[attr] = widget
+        if ordered:
+            self.denoise_subsections = ordered
+            self.denoise_group_boxes = ordered
+
+    def _set_denoise_order(self, order: list[str], *, trigger_change: bool = False) -> None:
+        if not hasattr(self, "denoise_list"):
+            return
+        normalized = normalize_denoise_order(order)
+        model = self.denoise_list.model()
+        prev = model.blockSignals(True)
+        try:
+            target_index = 0
+            for step_id in normalized:
+                item = self._denoise_step_items.get(step_id)
+                widget = self._denoise_step_widgets.get(step_id)
+                if item is None or widget is None:
+                    continue
+                current_index = self.denoise_list.row(item)
+                if current_index != target_index:
+                    item = self.denoise_list.takeItem(current_index)
+                    self.denoise_list.insertItem(target_index, item)
+                    self.denoise_list.setItemWidget(item, widget)
+                    self._denoise_step_items[step_id] = item
+                self._update_denoise_item_size(step_id)
+                target_index += 1
+        finally:
+            model.blockSignals(prev)
+        self._sync_denoise_subsections_order()
+        if trigger_change:
+            self._on_denoise_order_changed()
+
+    def _on_denoise_rows_moved(self, *args) -> None:
+        self._on_denoise_order_changed()
+
+    def _on_denoise_order_changed(self) -> None:
+        self._sync_denoise_subsections_order()
+        self._persist_settings()
+        self._on_params_changed()
 
     def _reset_gain_loss_preview(self, collapse: bool = True) -> None:
         """Disable gain/loss UI and reset segmentation flag."""
@@ -575,9 +647,27 @@ class MainWindow(QMainWindow):
         self.denoise_bm3d_stage = QComboBox()
         self.denoise_bm3d_stage.addItems(["hard", "soft"])
 
-        denoise_groups: dict[str, QGroupBox] = {}
+        self.denoise_list = QListWidget()
+        self.denoise_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.denoise_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.denoise_list.setSpacing(4)
+        self.denoise_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection
+        )
+        self.denoise_list.setDragEnabled(True)
+        self.denoise_list.setAcceptDrops(True)
+        self.denoise_list.setDropIndicatorShown(True)
+        denoise_container.addWidget(self.denoise_list)
 
-        def add_group(
+        self._denoise_step_items: dict[str, QListWidgetItem] = {}
+        self._denoise_step_widgets: dict[str, QGroupBox] = {}
+        self._denoise_step_attrs: dict[str, str] = {}
+        self._denoise_attr_to_step: dict[str, str] = {}
+
+        denoise_groups: OrderedDict[str, QGroupBox] = OrderedDict()
+
+        def add_step(
+            step_id: str,
             title: str,
             attr: str,
             rows: list[tuple[str, QWidget]],
@@ -590,23 +680,38 @@ class MainWindow(QMainWindow):
             layout = QFormLayout(group)
             for label, widget in rows:
                 layout.addRow(label, widget)
-            denoise_container.addWidget(group)
+            item = QListWidgetItem()
+            item.setData(Qt.ItemDataRole.UserRole, step_id)
+            self.denoise_list.addItem(item)
+            self.denoise_list.setItemWidget(item, group)
+            self._denoise_step_items[step_id] = item
+            self._denoise_step_widgets[step_id] = group
+            self._denoise_step_attrs[step_id] = attr
+            self._denoise_attr_to_step[attr] = step_id
+            denoise_groups[attr] = group
+            setattr(self, f"denoise_{attr}", group)
             group.toggled.connect(self._persist_settings)
             group.toggled.connect(self._on_params_changed)
-            denoise_groups[attr] = group
+            group.toggled.connect(
+                lambda _checked, sid=step_id: self._update_denoise_item_size(sid)
+            )
+            self._update_denoise_item_size(step_id)
             return group
 
-        add_group(
+        add_step(
+            "gaussian",
             "Gaussian blur",
             "gaussian_enabled",
             [("σ", self.denoise_gaussian)],
         )
-        add_group(
+        add_step(
+            "median",
             "Median filter",
             "median_enabled",
             [("Kernel", self.denoise_median)],
         )
-        add_group(
+        add_step(
+            "bilateral",
             "Bilateral filter",
             "bilateral_enabled",
             [
@@ -615,12 +720,14 @@ class MainWindow(QMainWindow):
                 ("σ space", self.denoise_bilateral_sigma_space),
             ],
         )
-        add_group(
+        add_step(
+            "nlm",
             "Fast NLM",
             "nlm_enabled",
             [("Strength", self.denoise_nlm_strength)],
         )
-        add_group(
+        add_step(
+            "tv",
             "Total variation",
             "tv_enabled",
             [
@@ -629,7 +736,8 @@ class MainWindow(QMainWindow):
                 ("Max iter", self.denoise_tv_max_iter),
             ],
         )
-        add_group(
+        add_step(
+            "anisotropic",
             "Anisotropic diffusion",
             "anisotropic_enabled",
             [
@@ -638,7 +746,8 @@ class MainWindow(QMainWindow):
                 ("Iterations", self.denoise_anis_niter),
             ],
         )
-        add_group(
+        add_step(
+            "wavelet",
             "Wavelet",
             "wavelet_enabled",
             [
@@ -648,7 +757,8 @@ class MainWindow(QMainWindow):
                 ("", self.denoise_wavelet_rescale),
             ],
         )
-        bm3d_group = add_group(
+        bm3d_group = add_step(
+            "bm3d",
             "BM3D",
             "bm3d_enabled",
             [
@@ -662,6 +772,8 @@ class MainWindow(QMainWindow):
         self.denoise_group_boxes = denoise_groups
         bm3d_group.toggled.connect(self._on_bm3d_toggled)
         self._on_bm3d_toggled(bm3d_group.isChecked())
+        self.denoise_list.model().rowsMoved.connect(self._on_denoise_rows_moved)
+        self._sync_denoise_subsections_order()
         denoise_section.setContentLayout(denoise_container)
         controls.addWidget(denoise_section)
         self.denoise_preview_btn = QPushButton("Preview Denoising")
@@ -1245,6 +1357,7 @@ class MainWindow(QMainWindow):
             bm3d_enabled=group_checked("bm3d_enabled", False),
             bm3d_sigma=self.denoise_bm3d_sigma.value(),
             bm3d_stage=self.denoise_bm3d_stage.currentText(),
+            denoise_order=self._get_denoise_order(),
         )
 
     def _load_segmentation_settings(self, seg: SegParams) -> None:
@@ -1271,6 +1384,7 @@ class MainWindow(QMainWindow):
                 spin.setValue(value)
             spin.blockSignals(prev)
 
+        self._set_denoise_order(getattr(seg, "denoise_order", DEFAULT_DENOISE_ORDER))
         groups = getattr(self, "denoise_group_boxes", {})
 
         def set_group_checked(name: str, value: bool) -> None:

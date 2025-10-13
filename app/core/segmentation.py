@@ -7,6 +7,8 @@ from skimage import morphology, filters
 from skimage.restoration import denoise_tv_chambolle, denoise_wavelet
 from skimage.util import img_as_float32
 
+from .denoise_order import normalize_denoise_order, DEFAULT_DENOISE_ORDER
+
 logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - optional dependency may be unavailable during tests
@@ -71,12 +73,16 @@ def _seg_param(params: Any, key: str, default: Any) -> Any:
 def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
     """Apply optional denoising steps configured in :class:`SegParams`.
 
-    The following filters are supported (applied in the listed order when
-    enabled): Gaussian blur, median blur, bilateral filtering, fast
+    Steps are executed according to ``SegParams.denoise_order``; if no explicit
+    order is provided the legacy sequence is used. The following filters are
+    available: Gaussian blur, median blur, bilateral filtering, fast
     non-local-means, total-variation denoising, Perona–Malik anisotropic
     diffusion, wavelet denoising, and BM3D denoising.
     """
 
+    order = normalize_denoise_order(
+        _seg_param(params, "denoise_order", DEFAULT_DENOISE_ORDER)
+    )
     gaussian_enabled = bool(_seg_param(params, "gaussian_enabled", True))
     sigma = float(_seg_param(params, "gaussian_sigma", 0.0) or 0.0)
     median_enabled = bool(_seg_param(params, "median_enabled", True))
@@ -135,88 +141,100 @@ def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
         result = func(float_src)
         work = _float_to_dtype(result, source.dtype)
 
-    if gaussian_enabled and sigma > 0:
-        work = cv2.GaussianBlur(ensure_work(), (0, 0), sigma)
-
-    if median_enabled and median >= 3:
-        ksize = median | 1  # ensure odd kernel size
-        work = cv2.medianBlur(ensure_work(), ksize)
-
-    if (
-        bilateral_enabled
-        and bilateral_d > 0
-        and (bilateral_sigma_color > 0 or bilateral_sigma_space > 0)
-    ):
-        work = cv2.bilateralFilter(
-            ensure_work(),
-            bilateral_d,
-            max(bilateral_sigma_color, 0.0),
-            max(bilateral_sigma_space, 0.0),
-        )
-
-    if nlm_enabled and nlm_strength is not None and nlm_strength > 0:
-        work = cv2.fastNlMeansDenoising(
-            ensure_work(),
-            None,
-            float(nlm_strength),
-            templateWindowSize=7,
-            searchWindowSize=21,
-        )
-
-    if tv_enabled and tv_weight > 0 and tv_max_iter > 0:
-        apply_float_filter(
-            lambda arr: denoise_tv_chambolle(
-                arr,
-                weight=tv_weight,
-                eps=tv_eps,
-                max_num_iter=tv_max_iter,
-                channel_axis=None,
-            )
-        )
-
-    if anisotropic_enabled and anis_niter > 0 and anis_lambda > 0 and anis_kappa > 0:
-        gamma = float(np.clip(anis_lambda, 0.0, 0.25))
-        apply_float_filter(lambda arr: _perona_malik(arr, anis_niter, anis_kappa, gamma))
-
-    if wavelet_enabled and wavelet_sigma > 0:
-        def _wavelet(arr: np.ndarray) -> np.ndarray:
-            sigma_value = wavelet_sigma if wavelet_sigma > 0 else None
-            try:
-                return denoise_wavelet(
-                    arr,
-                    sigma=sigma_value,
-                    mode=wavelet_mode,
-                    rescale_sigma=wavelet_rescale,
-                    method=wavelet_method,
-                    channel_axis=None,
-                ).astype(np.float32, copy=False)
-            except ImportError:
-                logger.warning(
-                    "Wavelet denoising requested but PyWavelets is not installed."
+    for step in order:
+        if step == "gaussian":
+            if gaussian_enabled and sigma > 0:
+                work = cv2.GaussianBlur(ensure_work(), (0, 0), sigma)
+        elif step == "median":
+            if median_enabled and median >= 3:
+                ksize = median | 1  # ensure odd kernel size
+                work = cv2.medianBlur(ensure_work(), ksize)
+        elif step == "bilateral":
+            if (
+                bilateral_enabled
+                and bilateral_d > 0
+                and (bilateral_sigma_color > 0 or bilateral_sigma_space > 0)
+            ):
+                work = cv2.bilateralFilter(
+                    ensure_work(),
+                    bilateral_d,
+                    max(bilateral_sigma_color, 0.0),
+                    max(bilateral_sigma_space, 0.0),
                 )
-                return arr
+        elif step == "nlm":
+            if nlm_enabled and nlm_strength is not None and nlm_strength > 0:
+                work = cv2.fastNlMeansDenoising(
+                    ensure_work(),
+                    None,
+                    float(nlm_strength),
+                    templateWindowSize=7,
+                    searchWindowSize=21,
+                )
+        elif step == "tv":
+            if tv_enabled and tv_weight > 0 and tv_max_iter > 0:
+                apply_float_filter(
+                    lambda arr: denoise_tv_chambolle(
+                        arr,
+                        weight=tv_weight,
+                        eps=tv_eps,
+                        max_num_iter=tv_max_iter,
+                        channel_axis=None,
+                    )
+                )
+        elif step == "anisotropic":
+            if (
+                anisotropic_enabled
+                and anis_niter > 0
+                and anis_lambda > 0
+                and anis_kappa > 0
+            ):
+                gamma = float(np.clip(anis_lambda, 0.0, 0.25))
+                apply_float_filter(
+                    lambda arr: _perona_malik(arr, anis_niter, anis_kappa, gamma)
+                )
+        elif step == "wavelet":
+            if wavelet_enabled and wavelet_sigma > 0:
 
-        apply_float_filter(_wavelet)
+                def _wavelet(arr: np.ndarray) -> np.ndarray:
+                    sigma_value = wavelet_sigma if wavelet_sigma > 0 else None
+                    try:
+                        return denoise_wavelet(
+                            arr,
+                            sigma=sigma_value,
+                            mode=wavelet_mode,
+                            rescale_sigma=wavelet_rescale,
+                            method=wavelet_method,
+                            channel_axis=None,
+                        ).astype(np.float32, copy=False)
+                    except ImportError:
+                        logger.warning(
+                            "Wavelet denoising requested but PyWavelets is not installed."
+                        )
+                        return arr
 
-    if bm3d_enabled and bm3d_sigma > 0:
-        if bm3d_denoise is None:
-            logger.warning(
-                "BM3D denoising requested but the optional 'bm3d' package is not installed."
-            )
-        else:
-            sigma_value = bm3d_sigma
-            if sigma_value > 1.0:
-                sigma_value = sigma_value / 255.0
-            sigma_value = float(np.clip(sigma_value, 0.0, 1.0))
+                apply_float_filter(_wavelet)
+        elif step == "bm3d":
+            if bm3d_enabled and bm3d_sigma > 0:
+                if bm3d_denoise is None:
+                    logger.warning(
+                        "BM3D denoising requested but the optional 'bm3d' package is not installed."
+                    )
+                else:
+                    sigma_value = bm3d_sigma
+                    if sigma_value > 1.0:
+                        sigma_value = sigma_value / 255.0
+                    sigma_value = float(np.clip(sigma_value, 0.0, 1.0))
 
-            def _bm3d(arr: np.ndarray) -> np.ndarray:
-                try:
-                    return bm3d_denoise(arr, sigma_psd=sigma_value, stage=bm3d_stage)
-                except Exception as exc:  # pragma: no cover - defensive guard
-                    logger.exception("BM3D denoising failed: %s", exc)
-                    return arr
+                    def _bm3d(arr: np.ndarray) -> np.ndarray:
+                        try:
+                            return bm3d_denoise(
+                                arr, sigma_psd=sigma_value, stage=bm3d_stage
+                            )
+                        except Exception as exc:  # pragma: no cover - defensive guard
+                            logger.exception("BM3D denoising failed: %s", exc)
+                            return arr
 
-            apply_float_filter(_bm3d)
+                    apply_float_filter(_bm3d)
 
     if work is None:
         return gray.copy()

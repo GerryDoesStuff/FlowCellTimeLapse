@@ -14,6 +14,7 @@ pg.setConfigOptions(useOpenGL=False)
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.ui.main_window import MainWindow
+from app.core.denoise_order import DEFAULT_DENOISE_ORDER
 
 
 def test_segmentation_method_enables_expected_widgets(tmp_path):
@@ -69,7 +70,17 @@ def test_denoise_subsections_and_params(tmp_path):
     app = QApplication.instance() or QApplication([])
     win = MainWindow()
 
-    expected_titles = {
+    expected_attr_order = [
+        "gaussian_enabled",
+        "median_enabled",
+        "bilateral_enabled",
+        "nlm_enabled",
+        "tv_enabled",
+        "anisotropic_enabled",
+        "wavelet_enabled",
+        "bm3d_enabled",
+    ]
+    expected_titles = [
         "Gaussian blur",
         "Median filter",
         "Bilateral filter",
@@ -78,9 +89,17 @@ def test_denoise_subsections_and_params(tmp_path):
         "Anisotropic diffusion",
         "Wavelet",
         "BM3D",
-    }
-    assert set(win.denoise_subsections) == expected_titles
-    assert {box.title() for box in win.denoise_subsections.values()} == expected_titles
+    ]
+    assert list(win.denoise_group_boxes.keys()) == expected_attr_order
+    assert [box.title() for box in win.denoise_group_boxes.values()] == expected_titles
+    assert win._get_denoise_order() == DEFAULT_DENOISE_ORDER
+
+    # Move BM3D to the front and ensure order persists
+    new_order = ["bm3d"] + [step for step in DEFAULT_DENOISE_ORDER if step != "bm3d"]
+    win._set_denoise_order(new_order, trigger_change=True)
+    assert win._get_denoise_order() == new_order
+    assert win.seg.denoise_order == new_order
+    assert list(win.denoise_group_boxes.keys())[0] == "bm3d_enabled"
 
     win.denoise_tv_weight.setValue(0.3)
     win.denoise_bm3d_enabled.setChecked(True)
