@@ -567,7 +567,6 @@ class MainWindow(QMainWindow):
 
         self.denoise_wavelet_rescale = QCheckBox("Rescale sigma")
 
-        self.denoise_bm3d_enabled = QCheckBox("Enable BM3D")
         self.denoise_bm3d_sigma = QDoubleSpinBox()
         self.denoise_bm3d_sigma.setRange(0.0, 255.0)
         self.denoise_bm3d_sigma.setDecimals(1)
@@ -578,24 +577,38 @@ class MainWindow(QMainWindow):
 
         denoise_groups: dict[str, QGroupBox] = {}
 
-        def add_group(title: str, rows: list[tuple[str, QWidget]]):
+        def add_group(
+            title: str,
+            attr: str,
+            rows: list[tuple[str, QWidget]],
+            *,
+            default_checked: bool = True,
+        ) -> QGroupBox:
             group = QGroupBox(title)
+            group.setCheckable(True)
+            group.setChecked(default_checked)
             layout = QFormLayout(group)
             for label, widget in rows:
                 layout.addRow(label, widget)
             denoise_container.addWidget(group)
-            denoise_groups[title] = group
+            group.toggled.connect(self._persist_settings)
+            group.toggled.connect(self._on_params_changed)
+            denoise_groups[attr] = group
+            return group
 
         add_group(
             "Gaussian blur",
+            "gaussian_enabled",
             [("σ", self.denoise_gaussian)],
         )
         add_group(
             "Median filter",
+            "median_enabled",
             [("Kernel", self.denoise_median)],
         )
         add_group(
             "Bilateral filter",
+            "bilateral_enabled",
             [
                 ("Diameter", self.denoise_bilateral_d),
                 ("σ color", self.denoise_bilateral_sigma_color),
@@ -604,10 +617,12 @@ class MainWindow(QMainWindow):
         )
         add_group(
             "Fast NLM",
+            "nlm_enabled",
             [("Strength", self.denoise_nlm_strength)],
         )
         add_group(
             "Total variation",
+            "tv_enabled",
             [
                 ("Weight", self.denoise_tv_weight),
                 ("ε", self.denoise_tv_eps),
@@ -616,6 +631,7 @@ class MainWindow(QMainWindow):
         )
         add_group(
             "Anisotropic diffusion",
+            "anisotropic_enabled",
             [
                 ("λ", self.denoise_anis_lambda),
                 ("κ", self.denoise_anis_kappa),
@@ -624,6 +640,7 @@ class MainWindow(QMainWindow):
         )
         add_group(
             "Wavelet",
+            "wavelet_enabled",
             [
                 ("σ", self.denoise_wavelet_sigma),
                 ("Mode", self.denoise_wavelet_mode),
@@ -631,16 +648,20 @@ class MainWindow(QMainWindow):
                 ("", self.denoise_wavelet_rescale),
             ],
         )
-        add_group(
+        bm3d_group = add_group(
             "BM3D",
+            "bm3d_enabled",
             [
-                ("", self.denoise_bm3d_enabled),
                 ("σ", self.denoise_bm3d_sigma),
                 ("Stage", self.denoise_bm3d_stage),
             ],
+            default_checked=False,
         )
         denoise_container.addStretch(1)
         self.denoise_subsections = denoise_groups
+        self.denoise_group_boxes = denoise_groups
+        bm3d_group.toggled.connect(self._on_bm3d_toggled)
+        self._on_bm3d_toggled(bm3d_group.isChecked())
         denoise_section.setContentLayout(denoise_container)
         controls.addWidget(denoise_section)
         self.denoise_preview_btn = QPushButton("Preview Denoising")
@@ -663,7 +684,6 @@ class MainWindow(QMainWindow):
         self.denoise_wavelet_mode.currentTextChanged.connect(self._persist_settings)
         self.denoise_wavelet_method.currentTextChanged.connect(self._persist_settings)
         self.denoise_wavelet_rescale.toggled.connect(self._persist_settings)
-        self.denoise_bm3d_enabled.toggled.connect(self._persist_settings)
         self.denoise_bm3d_sigma.valueChanged.connect(self._persist_settings)
         self.denoise_bm3d_stage.currentTextChanged.connect(self._persist_settings)
 
@@ -683,10 +703,8 @@ class MainWindow(QMainWindow):
         self.denoise_wavelet_mode.currentTextChanged.connect(self._on_params_changed)
         self.denoise_wavelet_method.currentTextChanged.connect(self._on_params_changed)
         self.denoise_wavelet_rescale.toggled.connect(self._on_params_changed)
-        self.denoise_bm3d_enabled.toggled.connect(self._on_params_changed)
         self.denoise_bm3d_sigma.valueChanged.connect(self._on_params_changed)
         self.denoise_bm3d_stage.currentTextChanged.connect(self._on_params_changed)
-        self.denoise_bm3d_enabled.toggled.connect(self._on_bm3d_toggled)
 
         # Segmentation params
         seg_section = CollapsibleSection("Segmentation", collapsed=True)
@@ -1178,7 +1196,14 @@ class MainWindow(QMainWindow):
 
     def _collect_segmentation_params(self) -> SegParams:
         nlm_val = self.denoise_nlm_strength.value()
-        bm3d_enabled = self.denoise_bm3d_enabled.isChecked()
+        groups = getattr(self, "denoise_group_boxes", {})
+
+        def group_checked(name: str, default: bool = True) -> bool:
+            widget = groups.get(name)
+            if widget is None:
+                return default
+            return widget.isChecked()
+
         return SegParams(
             method=self.seg_method.currentText(),
             invert=self.invert.isChecked(),
@@ -1194,23 +1219,30 @@ class MainWindow(QMainWindow):
             remove_objects_smaller_px=self.rm_obj.value(),
             remove_holes_smaller_px=self.rm_holes.value(),
             use_clahe=self.use_clahe.isChecked(),
+            gaussian_enabled=group_checked("gaussian_enabled"),
             gaussian_sigma=self.denoise_gaussian.value(),
+            median_enabled=group_checked("median_enabled"),
             median_kernel_size=self.denoise_median.value(),
+            bilateral_enabled=group_checked("bilateral_enabled"),
             bilateral_diameter=self.denoise_bilateral_d.value(),
             bilateral_sigma_color=self.denoise_bilateral_sigma_color.value(),
             bilateral_sigma_space=self.denoise_bilateral_sigma_space.value(),
+            nlm_enabled=group_checked("nlm_enabled"),
             nlm_strength=nlm_val if nlm_val > 0 else None,
+            tv_enabled=group_checked("tv_enabled"),
             tv_weight=self.denoise_tv_weight.value(),
             tv_eps=self.denoise_tv_eps.value(),
             tv_max_iter=self.denoise_tv_max_iter.value(),
+            anisotropic_enabled=group_checked("anisotropic_enabled"),
             anisotropic_lambda=self.denoise_anis_lambda.value(),
             anisotropic_kappa=self.denoise_anis_kappa.value(),
             anisotropic_niter=self.denoise_anis_niter.value(),
+            wavelet_enabled=group_checked("wavelet_enabled"),
             wavelet_sigma=self.denoise_wavelet_sigma.value(),
             wavelet_mode=self.denoise_wavelet_mode.currentText(),
             wavelet_rescale=self.denoise_wavelet_rescale.isChecked(),
             wavelet_method=self.denoise_wavelet_method.currentText(),
-            bm3d_enabled=bm3d_enabled,
+            bm3d_enabled=group_checked("bm3d_enabled", False),
             bm3d_sigma=self.denoise_bm3d_sigma.value(),
             bm3d_stage=self.denoise_bm3d_stage.currentText(),
         )
@@ -1239,6 +1271,14 @@ class MainWindow(QMainWindow):
                 spin.setValue(value)
             spin.blockSignals(prev)
 
+        groups = getattr(self, "denoise_group_boxes", {})
+
+        def set_group_checked(name: str, value: bool) -> None:
+            widget = groups.get(name)
+            if widget is None:
+                return
+            set_checked(widget, value)
+
         set_current(self.seg_method, seg.method)
         set_checked(self.invert, seg.invert)
         set_checked(self.skip_outline, seg.skip_outline)
@@ -1250,26 +1290,34 @@ class MainWindow(QMainWindow):
         set_optional_spin(self.close_r, seg.morph_close_radius)
         set_value(self.rm_obj, seg.remove_objects_smaller_px)
         set_value(self.rm_holes, seg.remove_holes_smaller_px)
+        set_group_checked("gaussian_enabled", getattr(seg, "gaussian_enabled", True))
         set_value(self.denoise_gaussian, seg.gaussian_sigma)
+        set_group_checked("median_enabled", getattr(seg, "median_enabled", True))
         set_value(self.denoise_median, seg.median_kernel_size)
+        set_group_checked("bilateral_enabled", getattr(seg, "bilateral_enabled", True))
         set_value(self.denoise_bilateral_d, seg.bilateral_diameter)
         set_value(self.denoise_bilateral_sigma_color, seg.bilateral_sigma_color)
         set_value(self.denoise_bilateral_sigma_space, seg.bilateral_sigma_space)
+        set_group_checked("nlm_enabled", getattr(seg, "nlm_enabled", True))
         set_value(self.denoise_nlm_strength, seg.nlm_strength or 0.0)
+        set_group_checked("tv_enabled", getattr(seg, "tv_enabled", True))
         set_value(self.denoise_tv_weight, seg.tv_weight)
         set_value(self.denoise_tv_eps, seg.tv_eps)
         set_value(self.denoise_tv_max_iter, seg.tv_max_iter)
+        set_group_checked("anisotropic_enabled", getattr(seg, "anisotropic_enabled", True))
         set_value(self.denoise_anis_lambda, seg.anisotropic_lambda)
         set_value(self.denoise_anis_kappa, seg.anisotropic_kappa)
         set_value(self.denoise_anis_niter, seg.anisotropic_niter)
+        set_group_checked("wavelet_enabled", getattr(seg, "wavelet_enabled", True))
         set_value(self.denoise_wavelet_sigma, seg.wavelet_sigma)
         set_current(self.denoise_wavelet_mode, seg.wavelet_mode)
         set_current(self.denoise_wavelet_method, seg.wavelet_method)
         set_checked(self.denoise_wavelet_rescale, seg.wavelet_rescale)
-        set_checked(self.denoise_bm3d_enabled, seg.bm3d_enabled)
+        set_group_checked("bm3d_enabled", seg.bm3d_enabled)
         set_value(self.denoise_bm3d_sigma, seg.bm3d_sigma)
         set_current(self.denoise_bm3d_stage, seg.bm3d_stage)
-        self._on_bm3d_toggled(seg.bm3d_enabled)
+        bm3d_widget = groups.get("bm3d_enabled")
+        self._on_bm3d_toggled(bm3d_widget.isChecked() if bm3d_widget is not None else seg.bm3d_enabled)
         self._update_seg_controls(seg.method)
 
     def _collect_params(self):

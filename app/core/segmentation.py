@@ -77,8 +77,11 @@ def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
     diffusion, wavelet denoising, and BM3D denoising.
     """
 
+    gaussian_enabled = bool(_seg_param(params, "gaussian_enabled", True))
     sigma = float(_seg_param(params, "gaussian_sigma", 0.0) or 0.0)
+    median_enabled = bool(_seg_param(params, "median_enabled", True))
     median = int(_seg_param(params, "median_kernel_size", 0) or 0)
+    bilateral_enabled = bool(_seg_param(params, "bilateral_enabled", True))
     bilateral_d = int(_seg_param(params, "bilateral_diameter", 0) or 0)
     bilateral_sigma_color = float(
         _seg_param(params, "bilateral_sigma_color", 0.0) or 0.0
@@ -86,20 +89,24 @@ def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
     bilateral_sigma_space = float(
         _seg_param(params, "bilateral_sigma_space", 0.0) or 0.0
     )
+    nlm_enabled = bool(_seg_param(params, "nlm_enabled", True))
     nlm_strength = _seg_param(params, "nlm_strength", None)
     try:
         nlm_strength = None if nlm_strength is None else float(nlm_strength)
     except (TypeError, ValueError):
         nlm_strength = None
 
+    tv_enabled = bool(_seg_param(params, "tv_enabled", True))
     tv_weight = float(_seg_param(params, "tv_weight", 0.0) or 0.0)
     tv_eps = float(_seg_param(params, "tv_eps", 2e-4) or 2e-4)
     tv_max_iter = int(_seg_param(params, "tv_max_iter", 200) or 0)
 
+    anisotropic_enabled = bool(_seg_param(params, "anisotropic_enabled", True))
     anis_lambda = float(_seg_param(params, "anisotropic_lambda", 0.0) or 0.0)
     anis_kappa = float(_seg_param(params, "anisotropic_kappa", 0.0) or 0.0)
     anis_niter = int(_seg_param(params, "anisotropic_niter", 0) or 0)
 
+    wavelet_enabled = bool(_seg_param(params, "wavelet_enabled", True))
     wavelet_sigma = _seg_param(params, "wavelet_sigma", 0.0)
     try:
         wavelet_sigma = float(wavelet_sigma)
@@ -128,14 +135,18 @@ def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
         result = func(float_src)
         work = _float_to_dtype(result, source.dtype)
 
-    if sigma > 0:
+    if gaussian_enabled and sigma > 0:
         work = cv2.GaussianBlur(ensure_work(), (0, 0), sigma)
 
-    if median >= 3:
+    if median_enabled and median >= 3:
         ksize = median | 1  # ensure odd kernel size
         work = cv2.medianBlur(ensure_work(), ksize)
 
-    if bilateral_d > 0 and (bilateral_sigma_color > 0 or bilateral_sigma_space > 0):
+    if (
+        bilateral_enabled
+        and bilateral_d > 0
+        and (bilateral_sigma_color > 0 or bilateral_sigma_space > 0)
+    ):
         work = cv2.bilateralFilter(
             ensure_work(),
             bilateral_d,
@@ -143,7 +154,7 @@ def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
             max(bilateral_sigma_space, 0.0),
         )
 
-    if nlm_strength is not None and nlm_strength > 0:
+    if nlm_enabled and nlm_strength is not None and nlm_strength > 0:
         work = cv2.fastNlMeansDenoising(
             ensure_work(),
             None,
@@ -152,7 +163,7 @@ def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
             searchWindowSize=21,
         )
 
-    if tv_weight > 0 and tv_max_iter > 0:
+    if tv_enabled and tv_weight > 0 and tv_max_iter > 0:
         apply_float_filter(
             lambda arr: denoise_tv_chambolle(
                 arr,
@@ -163,11 +174,11 @@ def apply_denoising(gray: np.ndarray, params: Any) -> np.ndarray:
             )
         )
 
-    if anis_niter > 0 and anis_lambda > 0 and anis_kappa > 0:
+    if anisotropic_enabled and anis_niter > 0 and anis_lambda > 0 and anis_kappa > 0:
         gamma = float(np.clip(anis_lambda, 0.0, 0.25))
         apply_float_filter(lambda arr: _perona_malik(arr, anis_niter, anis_kappa, gamma))
 
-    if wavelet_sigma > 0:
+    if wavelet_enabled and wavelet_sigma > 0:
         def _wavelet(arr: np.ndarray) -> np.ndarray:
             sigma_value = wavelet_sigma if wavelet_sigma > 0 else None
             try:
