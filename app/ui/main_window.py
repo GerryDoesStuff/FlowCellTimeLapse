@@ -162,6 +162,11 @@ class MainWindow(QMainWindow):
         for w in (self.gm_close_k, self.gm_dilate_k, self.gm_sat_slider):
             w.setEnabled(True)
 
+    def _on_bm3d_toggled(self, enabled: bool) -> None:
+        """Enable or disable BM3D parameter widgets when the filter toggles."""
+        self.denoise_bm3d_sigma.setEnabled(enabled)
+        self.denoise_bm3d_stage.setEnabled(enabled)
+
     def _reset_gain_loss_preview(self, collapse: bool = True) -> None:
         """Disable gain/loss UI and reset segmentation flag."""
         self._segmentation_done = False
@@ -494,41 +499,149 @@ class MainWindow(QMainWindow):
 
         # Denoising params
         denoise_section = CollapsibleSection("Denoising", collapsed=True)
-        denoise_layout = QFormLayout()
+        denoise_container = QVBoxLayout()
+
         self.denoise_gaussian = QDoubleSpinBox()
         self.denoise_gaussian.setRange(0.0, 10.0)
         self.denoise_gaussian.setDecimals(2)
         self.denoise_gaussian.setSingleStep(0.1)
-        self.denoise_gaussian.setValue(self.seg.gaussian_sigma)
+
         self.denoise_median = QSpinBox()
         self.denoise_median.setRange(0, 99)
         self.denoise_median.setSingleStep(2)
-        self.denoise_median.setValue(self.seg.median_kernel_size)
+
         self.denoise_bilateral_d = QSpinBox()
         self.denoise_bilateral_d.setRange(0, 99)
-        self.denoise_bilateral_d.setValue(self.seg.bilateral_diameter)
+
         self.denoise_bilateral_sigma_color = QDoubleSpinBox()
         self.denoise_bilateral_sigma_color.setRange(0.0, 255.0)
         self.denoise_bilateral_sigma_color.setDecimals(1)
         self.denoise_bilateral_sigma_color.setSingleStep(1.0)
-        self.denoise_bilateral_sigma_color.setValue(self.seg.bilateral_sigma_color)
+
         self.denoise_bilateral_sigma_space = QDoubleSpinBox()
         self.denoise_bilateral_sigma_space.setRange(0.0, 50.0)
         self.denoise_bilateral_sigma_space.setDecimals(1)
         self.denoise_bilateral_sigma_space.setSingleStep(0.5)
-        self.denoise_bilateral_sigma_space.setValue(self.seg.bilateral_sigma_space)
+
         self.denoise_nlm_strength = QDoubleSpinBox()
         self.denoise_nlm_strength.setRange(0.0, 50.0)
         self.denoise_nlm_strength.setDecimals(1)
         self.denoise_nlm_strength.setSingleStep(0.5)
-        self.denoise_nlm_strength.setValue(self.seg.nlm_strength or 0.0)
-        denoise_layout.addRow("Gaussian σ", self.denoise_gaussian)
-        denoise_layout.addRow("Median kernel", self.denoise_median)
-        denoise_layout.addRow("Bilateral diameter", self.denoise_bilateral_d)
-        denoise_layout.addRow("Bilateral σcolor", self.denoise_bilateral_sigma_color)
-        denoise_layout.addRow("Bilateral σspace", self.denoise_bilateral_sigma_space)
-        denoise_layout.addRow("NLM strength", self.denoise_nlm_strength)
-        denoise_section.setContentLayout(denoise_layout)
+
+        self.denoise_tv_weight = QDoubleSpinBox()
+        self.denoise_tv_weight.setRange(0.0, 5.0)
+        self.denoise_tv_weight.setDecimals(3)
+        self.denoise_tv_weight.setSingleStep(0.05)
+
+        self.denoise_tv_eps = QDoubleSpinBox()
+        self.denoise_tv_eps.setRange(0.0, 0.1)
+        self.denoise_tv_eps.setDecimals(6)
+        self.denoise_tv_eps.setSingleStep(0.0001)
+
+        self.denoise_tv_max_iter = QSpinBox()
+        self.denoise_tv_max_iter.setRange(0, 2000)
+
+        self.denoise_anis_lambda = QDoubleSpinBox()
+        self.denoise_anis_lambda.setRange(0.0, 0.25)
+        self.denoise_anis_lambda.setDecimals(3)
+        self.denoise_anis_lambda.setSingleStep(0.01)
+
+        self.denoise_anis_kappa = QDoubleSpinBox()
+        self.denoise_anis_kappa.setRange(0.0, 500.0)
+        self.denoise_anis_kappa.setDecimals(1)
+        self.denoise_anis_kappa.setSingleStep(1.0)
+
+        self.denoise_anis_niter = QSpinBox()
+        self.denoise_anis_niter.setRange(0, 500)
+
+        self.denoise_wavelet_sigma = QDoubleSpinBox()
+        self.denoise_wavelet_sigma.setRange(0.0, 255.0)
+        self.denoise_wavelet_sigma.setDecimals(2)
+        self.denoise_wavelet_sigma.setSingleStep(0.5)
+
+        self.denoise_wavelet_mode = QComboBox()
+        self.denoise_wavelet_mode.addItems(["soft", "hard"])
+
+        self.denoise_wavelet_method = QComboBox()
+        self.denoise_wavelet_method.addItems(["BayesShrink", "VisuShrink"])
+
+        self.denoise_wavelet_rescale = QCheckBox("Rescale sigma")
+
+        self.denoise_bm3d_enabled = QCheckBox("Enable BM3D")
+        self.denoise_bm3d_sigma = QDoubleSpinBox()
+        self.denoise_bm3d_sigma.setRange(0.0, 255.0)
+        self.denoise_bm3d_sigma.setDecimals(1)
+        self.denoise_bm3d_sigma.setSingleStep(1.0)
+
+        self.denoise_bm3d_stage = QComboBox()
+        self.denoise_bm3d_stage.addItems(["hard", "soft"])
+
+        denoise_groups: dict[str, QGroupBox] = {}
+
+        def add_group(title: str, rows: list[tuple[str, QWidget]]):
+            group = QGroupBox(title)
+            layout = QFormLayout(group)
+            for label, widget in rows:
+                layout.addRow(label, widget)
+            denoise_container.addWidget(group)
+            denoise_groups[title] = group
+
+        add_group(
+            "Gaussian blur",
+            [("σ", self.denoise_gaussian)],
+        )
+        add_group(
+            "Median filter",
+            [("Kernel", self.denoise_median)],
+        )
+        add_group(
+            "Bilateral filter",
+            [
+                ("Diameter", self.denoise_bilateral_d),
+                ("σ color", self.denoise_bilateral_sigma_color),
+                ("σ space", self.denoise_bilateral_sigma_space),
+            ],
+        )
+        add_group(
+            "Fast NLM",
+            [("Strength", self.denoise_nlm_strength)],
+        )
+        add_group(
+            "Total variation",
+            [
+                ("Weight", self.denoise_tv_weight),
+                ("ε", self.denoise_tv_eps),
+                ("Max iter", self.denoise_tv_max_iter),
+            ],
+        )
+        add_group(
+            "Anisotropic diffusion",
+            [
+                ("λ", self.denoise_anis_lambda),
+                ("κ", self.denoise_anis_kappa),
+                ("Iterations", self.denoise_anis_niter),
+            ],
+        )
+        add_group(
+            "Wavelet",
+            [
+                ("σ", self.denoise_wavelet_sigma),
+                ("Mode", self.denoise_wavelet_mode),
+                ("Method", self.denoise_wavelet_method),
+                ("", self.denoise_wavelet_rescale),
+            ],
+        )
+        add_group(
+            "BM3D",
+            [
+                ("", self.denoise_bm3d_enabled),
+                ("σ", self.denoise_bm3d_sigma),
+                ("Stage", self.denoise_bm3d_stage),
+            ],
+        )
+        denoise_container.addStretch(1)
+        self.denoise_subsections = denoise_groups
+        denoise_section.setContentLayout(denoise_container)
         controls.addWidget(denoise_section)
         self.denoise_preview_btn = QPushButton("Preview Denoising")
         self.denoise_preview_btn.setEnabled(False)
@@ -540,12 +653,40 @@ class MainWindow(QMainWindow):
         self.denoise_bilateral_sigma_color.valueChanged.connect(self._persist_settings)
         self.denoise_bilateral_sigma_space.valueChanged.connect(self._persist_settings)
         self.denoise_nlm_strength.valueChanged.connect(self._persist_settings)
+        self.denoise_tv_weight.valueChanged.connect(self._persist_settings)
+        self.denoise_tv_eps.valueChanged.connect(self._persist_settings)
+        self.denoise_tv_max_iter.valueChanged.connect(self._persist_settings)
+        self.denoise_anis_lambda.valueChanged.connect(self._persist_settings)
+        self.denoise_anis_kappa.valueChanged.connect(self._persist_settings)
+        self.denoise_anis_niter.valueChanged.connect(self._persist_settings)
+        self.denoise_wavelet_sigma.valueChanged.connect(self._persist_settings)
+        self.denoise_wavelet_mode.currentTextChanged.connect(self._persist_settings)
+        self.denoise_wavelet_method.currentTextChanged.connect(self._persist_settings)
+        self.denoise_wavelet_rescale.toggled.connect(self._persist_settings)
+        self.denoise_bm3d_enabled.toggled.connect(self._persist_settings)
+        self.denoise_bm3d_sigma.valueChanged.connect(self._persist_settings)
+        self.denoise_bm3d_stage.currentTextChanged.connect(self._persist_settings)
+
         self.denoise_gaussian.valueChanged.connect(self._on_params_changed)
         self.denoise_median.valueChanged.connect(self._on_params_changed)
         self.denoise_bilateral_d.valueChanged.connect(self._on_params_changed)
         self.denoise_bilateral_sigma_color.valueChanged.connect(self._on_params_changed)
         self.denoise_bilateral_sigma_space.valueChanged.connect(self._on_params_changed)
         self.denoise_nlm_strength.valueChanged.connect(self._on_params_changed)
+        self.denoise_tv_weight.valueChanged.connect(self._on_params_changed)
+        self.denoise_tv_eps.valueChanged.connect(self._on_params_changed)
+        self.denoise_tv_max_iter.valueChanged.connect(self._on_params_changed)
+        self.denoise_anis_lambda.valueChanged.connect(self._on_params_changed)
+        self.denoise_anis_kappa.valueChanged.connect(self._on_params_changed)
+        self.denoise_anis_niter.valueChanged.connect(self._on_params_changed)
+        self.denoise_wavelet_sigma.valueChanged.connect(self._on_params_changed)
+        self.denoise_wavelet_mode.currentTextChanged.connect(self._on_params_changed)
+        self.denoise_wavelet_method.currentTextChanged.connect(self._on_params_changed)
+        self.denoise_wavelet_rescale.toggled.connect(self._on_params_changed)
+        self.denoise_bm3d_enabled.toggled.connect(self._on_params_changed)
+        self.denoise_bm3d_sigma.valueChanged.connect(self._on_params_changed)
+        self.denoise_bm3d_stage.currentTextChanged.connect(self._on_params_changed)
+        self.denoise_bm3d_enabled.toggled.connect(self._on_bm3d_toggled)
 
         # Segmentation params
         seg_section = CollapsibleSection("Segmentation", collapsed=True)
@@ -816,6 +957,8 @@ class MainWindow(QMainWindow):
         self.gm_dilate_k.valueChanged.connect(self._on_params_changed)
         self.gm_sat_slider.valueChanged.connect(self._on_params_changed)
 
+        self._load_segmentation_settings(self.seg)
+
         # Presets
         preset_box = QHBoxLayout()
         save_p = QPushButton("Save Preset")
@@ -1033,28 +1176,10 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Global min/max: {lo}–{hi}")
         self._persist_settings()
 
-    def _collect_params(self):
-        # Pull from UI into dataclasses
-        reg = RegParams(
-            method=self.reg_method.currentText(),
-            model=self.reg_model.currentText(),
-            max_iters=self.max_iters.value(),
-            eps=self.eps.value(),
-            gauss_blur_sigma=self.gauss_sigma.value(),
-            use_clahe=self.use_clahe.isChecked(),
-            clahe_clip=self.clahe_clip.value(),
-            clahe_grid=self.clahe_grid.value(),
-            initial_radius=self.init_radius.value(),
-            growth_factor=self.growth_factor.value(),
-            use_masked_ecc=self.use_masked.isChecked(),
-            orb_features=self.orb_features.value(),
-            match_ratio=self.match_ratio.value(),
-            min_keypoints=self.min_keypoints.value(),
-            min_matches=self.min_matches.value(),
-            use_ecc_fallback=self.use_ecc_fallback.isChecked(),
-        )
+    def _collect_segmentation_params(self) -> SegParams:
         nlm_val = self.denoise_nlm_strength.value()
-        seg = SegParams(
+        bm3d_enabled = self.denoise_bm3d_enabled.isChecked()
+        return SegParams(
             method=self.seg_method.currentText(),
             invert=self.invert.isChecked(),
             skip_outline=self.skip_outline.isChecked(),
@@ -1075,7 +1200,99 @@ class MainWindow(QMainWindow):
             bilateral_sigma_color=self.denoise_bilateral_sigma_color.value(),
             bilateral_sigma_space=self.denoise_bilateral_sigma_space.value(),
             nlm_strength=nlm_val if nlm_val > 0 else None,
+            tv_weight=self.denoise_tv_weight.value(),
+            tv_eps=self.denoise_tv_eps.value(),
+            tv_max_iter=self.denoise_tv_max_iter.value(),
+            anisotropic_lambda=self.denoise_anis_lambda.value(),
+            anisotropic_kappa=self.denoise_anis_kappa.value(),
+            anisotropic_niter=self.denoise_anis_niter.value(),
+            wavelet_sigma=self.denoise_wavelet_sigma.value(),
+            wavelet_mode=self.denoise_wavelet_mode.currentText(),
+            wavelet_rescale=self.denoise_wavelet_rescale.isChecked(),
+            wavelet_method=self.denoise_wavelet_method.currentText(),
+            bm3d_enabled=bm3d_enabled,
+            bm3d_sigma=self.denoise_bm3d_sigma.value(),
+            bm3d_stage=self.denoise_bm3d_stage.currentText(),
         )
+
+    def _load_segmentation_settings(self, seg: SegParams) -> None:
+        def set_checked(widget, value: bool) -> None:
+            prev = widget.blockSignals(True)
+            widget.setChecked(value)
+            widget.blockSignals(prev)
+
+        def set_value(widget, value: float | int) -> None:
+            prev = widget.blockSignals(True)
+            widget.setValue(value)
+            widget.blockSignals(prev)
+
+        def set_current(widget, text: str) -> None:
+            prev = widget.blockSignals(True)
+            widget.setCurrentText(text)
+            widget.blockSignals(prev)
+
+        def set_optional_spin(spin: QSpinBox, value: int | None) -> None:
+            prev = spin.blockSignals(True)
+            if value is None:
+                spin.lineEdit().clear()
+            else:
+                spin.setValue(value)
+            spin.blockSignals(prev)
+
+        set_current(self.seg_method, seg.method)
+        set_checked(self.invert, seg.invert)
+        set_checked(self.skip_outline, seg.skip_outline)
+        set_value(self.manual_t, seg.manual_thresh)
+        set_value(self.adaptive_blk, seg.adaptive_block)
+        set_value(self.adaptive_C, seg.adaptive_C)
+        set_value(self.local_blk, seg.local_block)
+        set_optional_spin(self.open_r, seg.morph_open_radius)
+        set_optional_spin(self.close_r, seg.morph_close_radius)
+        set_value(self.rm_obj, seg.remove_objects_smaller_px)
+        set_value(self.rm_holes, seg.remove_holes_smaller_px)
+        set_value(self.denoise_gaussian, seg.gaussian_sigma)
+        set_value(self.denoise_median, seg.median_kernel_size)
+        set_value(self.denoise_bilateral_d, seg.bilateral_diameter)
+        set_value(self.denoise_bilateral_sigma_color, seg.bilateral_sigma_color)
+        set_value(self.denoise_bilateral_sigma_space, seg.bilateral_sigma_space)
+        set_value(self.denoise_nlm_strength, seg.nlm_strength or 0.0)
+        set_value(self.denoise_tv_weight, seg.tv_weight)
+        set_value(self.denoise_tv_eps, seg.tv_eps)
+        set_value(self.denoise_tv_max_iter, seg.tv_max_iter)
+        set_value(self.denoise_anis_lambda, seg.anisotropic_lambda)
+        set_value(self.denoise_anis_kappa, seg.anisotropic_kappa)
+        set_value(self.denoise_anis_niter, seg.anisotropic_niter)
+        set_value(self.denoise_wavelet_sigma, seg.wavelet_sigma)
+        set_current(self.denoise_wavelet_mode, seg.wavelet_mode)
+        set_current(self.denoise_wavelet_method, seg.wavelet_method)
+        set_checked(self.denoise_wavelet_rescale, seg.wavelet_rescale)
+        set_checked(self.denoise_bm3d_enabled, seg.bm3d_enabled)
+        set_value(self.denoise_bm3d_sigma, seg.bm3d_sigma)
+        set_current(self.denoise_bm3d_stage, seg.bm3d_stage)
+        self._on_bm3d_toggled(seg.bm3d_enabled)
+        self._update_seg_controls(seg.method)
+
+    def _collect_params(self):
+        # Pull from UI into dataclasses
+        reg = RegParams(
+            method=self.reg_method.currentText(),
+            model=self.reg_model.currentText(),
+            max_iters=self.max_iters.value(),
+            eps=self.eps.value(),
+            gauss_blur_sigma=self.gauss_sigma.value(),
+            use_clahe=self.use_clahe.isChecked(),
+            clahe_clip=self.clahe_clip.value(),
+            clahe_grid=self.clahe_grid.value(),
+            initial_radius=self.init_radius.value(),
+            growth_factor=self.growth_factor.value(),
+            use_masked_ecc=self.use_masked.isChecked(),
+            orb_features=self.orb_features.value(),
+            match_ratio=self.match_ratio.value(),
+            min_keypoints=self.min_keypoints.value(),
+            min_matches=self.min_matches.value(),
+            use_ecc_fallback=self.use_ecc_fallback.isChecked(),
+        )
+        seg = self._collect_segmentation_params()
         scale_minmax = (self.scale_min.value(), self.scale_max.value())
         if scale_minmax[1] <= scale_minmax[0]:
             scale_minmax = None
@@ -1163,29 +1380,7 @@ class MainWindow(QMainWindow):
         self.use_ecc_fallback.setChecked(reg.use_ecc_fallback)
         self.min_keypoints.setValue(reg.min_keypoints)
         self.min_matches.setValue(reg.min_matches)
-        self.seg_method.setCurrentText(seg.method)
-        self.invert.setChecked(seg.invert)
-        self.skip_outline.setChecked(seg.skip_outline)
-        self.manual_t.setValue(seg.manual_thresh)
-        self.adaptive_blk.setValue(seg.adaptive_block)
-        self.adaptive_C.setValue(seg.adaptive_C)
-        self.local_blk.setValue(seg.local_block)
-        if seg.morph_open_radius is not None:
-            self.open_r.setValue(seg.morph_open_radius)
-        else:
-            self.open_r.lineEdit().clear()
-        if seg.morph_close_radius is not None:
-            self.close_r.setValue(seg.morph_close_radius)
-        else:
-            self.close_r.lineEdit().clear()
-        self.rm_obj.setValue(seg.remove_objects_smaller_px)
-        self.rm_holes.setValue(seg.remove_holes_smaller_px)
-        self.denoise_gaussian.setValue(seg.gaussian_sigma)
-        self.denoise_median.setValue(seg.median_kernel_size)
-        self.denoise_bilateral_d.setValue(seg.bilateral_diameter)
-        self.denoise_bilateral_sigma_color.setValue(seg.bilateral_sigma_color)
-        self.denoise_bilateral_sigma_space.setValue(seg.bilateral_sigma_space)
-        self.denoise_nlm_strength.setValue(seg.nlm_strength or 0.0)
+        self._load_segmentation_settings(seg)
         self.gm_thresh_method.setCurrentText(app.gm_thresh_method)
         self.gm_thresh_percentile.setValue(app.gm_thresh_percentile)
         self.gm_close_k.setValue(app.gm_close_kernel)

@@ -59,3 +59,40 @@ def test_segmentation_method_enables_expected_widgets(tmp_path):
 
     win.close()
     app.quit()
+
+
+def test_denoise_subsections_and_params(tmp_path):
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+
+    expected_titles = {
+        "Gaussian blur",
+        "Median filter",
+        "Bilateral filter",
+        "Fast NLM",
+        "Total variation",
+        "Anisotropic diffusion",
+        "Wavelet",
+        "BM3D",
+    }
+    assert set(win.denoise_subsections) == expected_titles
+    assert {box.title() for box in win.denoise_subsections.values()} == expected_titles
+
+    win.denoise_tv_weight.setValue(0.3)
+    win.denoise_bm3d_enabled.setChecked(True)
+    win.denoise_bm3d_sigma.setValue(25.0)
+    win.denoise_bm3d_stage.setCurrentText("soft")
+
+    assert pytest.approx(win.seg.tv_weight, rel=1e-3) == 0.3
+    assert win.seg.bm3d_enabled is True
+    assert pytest.approx(win.seg.bm3d_sigma, rel=1e-6) == 25.0
+    assert win.seg.bm3d_stage == "soft"
+    assert win.denoise_bm3d_sigma.isEnabled()
+    assert win.denoise_bm3d_stage.isEnabled()
+
+    win.close()
+    app.quit()
