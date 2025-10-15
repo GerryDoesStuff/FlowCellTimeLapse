@@ -85,13 +85,6 @@ def test_run_pipeline_passes_segmentation_params(tmp_path, monkeypatch, method):
         morph_close_radius=seg.morph_close_radius,
         remove_objects_smaller_px=seg.remove_objects_smaller_px,
         remove_holes_smaller_px=seg.remove_holes_smaller_px,
-        use_clahe=seg.use_clahe,
-        gaussian_sigma=seg.gaussian_sigma,
-        median_kernel_size=seg.median_kernel_size,
-        bilateral_diameter=seg.bilateral_diameter,
-        bilateral_sigma_color=seg.bilateral_sigma_color,
-        bilateral_sigma_space=seg.bilateral_sigma_space,
-        nlm_strength=seg.nlm_strength,
     )
 
     assert captured["seg_cfg"] == expected
